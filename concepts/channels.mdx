@@ -1,0 +1,222 @@
+---
+title: "Messaging Channels: SMS, Viber, and WhatsApp"
+sidebarTitle: "Channels"
+description: "Learn the capabilities and configuration options for SMS, Viber, WhatsApp text, and WhatsApp template channels in SmsManager."
+---
+
+SmsManager supports four messaging channels, each with its own strengths and configuration options. You can use a single channel or combine them in a [message flow](/concepts/message-flow) to maximize delivery rates. This page covers what each channel can do, what fields it accepts, and how to set it up.
+
+<Tabs>
+  <Tab title="SMS">
+    ## SMS channel
+
+    SMS is the most universally supported channel — it works on every mobile phone, requires no app installation, and is available in virtually every country. Use SMS as a reliable standalone channel or as the final fallback in a multi-channel flow.
+
+    ### Required fields
+
+    | Field  | Type   | Description                          |
+    |--------|--------|--------------------------------------|
+    | `body` | string | The message text (max 1,000 chars).  |
+
+    ### Optional fields
+
+    | Field     | Type    | Default | Description |
+    |-----------|---------|---------|-------------|
+    | `sender`  | string  | —       | Alphanumeric sender name (max 11 characters) or a dedicated virtual number without the leading `+`. Pre-registration may be required for alphanumeric senders. |
+    | `gateway` | string  | `high`  | Routing gateway. Use `high` for standard delivery, `direct` when sending from a dedicated virtual number, or `custom` for SIM hosting setups. |
+    | `ttl`     | integer | —       | Time to live in minutes. If the message can't be delivered within this window, it's discarded. |
+    | `type`    | string  | `utf`   | Character encoding. `utf` preserves Unicode characters (emoji, Cyrillic, etc.). `sms` strips or converts Unicode to maximise the number of characters per SMS part. |
+
+    ### Unicode and message length
+
+    Standard SMS parts hold up to 160 GSM-7 characters. When you use `type: utf` and include Unicode characters, each part shrinks to 70 characters. Keep this in mind for messages near the part boundary — a long message that's fine as plain text may split into more parts once emoji are added.
+
+    ### Gateway guide
+
+    - **`high`** — Default shared gateway, suitable for the vast majority of SMS sends.
+    - **`direct`** — Use this when you've purchased a dedicated virtual number and want two-way messaging. Set `sender` to your virtual number (without `+`).
+    - **`custom`** — Use this when you're using SIM-card hosting. Contact SmsManager support to configure this gateway.
+
+    ### Example
+
+    ```json
+    {
+      "body": "Your one-time code is 8274. Valid for 10 minutes.",
+      "to": [{ "phone_number": "420777123456" }],
+      "flow": [
+        {
+          "sms": {
+            "sender": "MyCompany",
+            "gateway": "high",
+            "type": "sms",
+            "ttl": 10
+          }
+        }
+      ]
+    }
+    ```
+  </Tab>
+
+  <Tab title="Viber">
+    ## Viber channel
+
+    Viber Business Messages let you send rich content — longer text, a call-to-action button, and brand-registered sender names — directly in the Viber app. Viber messages are typically cheaper than SMS and support a richer user experience, but they require the recipient to have Viber installed.
+
+    ### Required fields
+
+    | Field    | Type   | Description |
+    |----------|--------|-------------|
+    | `body`   | string | The message text (max 1,000 chars). |
+    | `sender` | string | The pre-registered Viber Business sender name. Must match exactly the name registered through SmsManager. |
+
+    ### Optional fields
+
+    | Field     | Type    | Default | Description |
+    |-----------|---------|---------|-------------|
+    | `ttl`     | integer | —       | Time to live in minutes. If the message isn't delivered before the TTL expires, SmsManager moves to the next channel in the flow. |
+    | `buttons` | array   | —       | Up to **one** button. Each button object requires a `title` (button label) and a `url` (destination URL). |
+
+    ### Setup requirements
+
+    Before you can send Viber Business Messages, you need to register a Viber Business sender name through SmsManager. The name must be approved by Viber and is typically your brand or company name. Contact SmsManager support or visit your account dashboard to begin registration.
+
+    ### Example
+
+    ```json
+    {
+      "body": "Your order #5821 is ready for pickup! 🎉",
+      "to": [{ "phone_number": "420777123456" }],
+      "flow": [
+        {
+          "viber": {
+            "sender": "MyShop",
+            "ttl": 120,
+            "body": "Your order #5821 is ready for pickup! 🎉",
+            "buttons": [
+              {
+                "title": "View order",
+                "url": "https://example.com/orders/5821"
+              }
+            ]
+          }
+        },
+        {
+          "sms": {
+            "sender": "MyShop",
+            "body": "Your order #5821 is ready for pickup!"
+          }
+        }
+      ]
+    }
+    ```
+
+    <Note>
+      Viber Business Messages are only delivered to recipients who have the Viber app installed. Always include an SMS fallback in your flow to reach recipients who don't use Viber.
+    </Note>
+  </Tab>
+
+  <Tab title="WhatsApp Text">
+    ## WhatsApp text channel
+
+    WhatsApp text messages let you send a free-form message body over WhatsApp — the same kind of message a person would type. Because WhatsApp restricts unsolicited outbound messaging, you can only send a free-form text message within the **24-hour customer service window**: a window that opens when the recipient sends you a message first or replies to one of your WhatsApp template messages.
+
+    ### Required fields
+
+    | Field    | Type   | Description |
+    |----------|--------|-------------|
+    | `body`   | string | The message text (max 1,000 chars). Only allowed within the 24-hour customer service window. |
+    | `sender` | string | The Phone Number ID of your registered WhatsApp number. |
+
+    ### Setup requirements
+
+    You must connect a WhatsApp Business phone number to your SmsManager account before you can send WhatsApp messages. Find your **Phone Number ID** in your WhatsApp settings at [app.smsmanager.com/whatsapp](https://app.smsmanager.com/whatsapp).
+
+    ### When to use WhatsApp text vs. WhatsApp template
+
+    | Situation | Use |
+    |-----------|-----|
+    | Recipient has messaged you or replied to a template in the last 24 hours | `whatsapp_text` |
+    | Initiating proactive contact (the recipient hasn't written to you recently) | `whatsapp_template` |
+
+    ### Example
+
+    ```json
+    {
+      "to": [{ "phone_number": "420777123456" }],
+      "flow": [
+        {
+          "whatsapp_text": {
+            "sender": "514578330250514",
+            "body": "Thanks for reaching out! Here's the info you requested: https://example.com/faq"
+          }
+        }
+      ]
+    }
+    ```
+
+    <Warning>
+      If you attempt to send a `whatsapp_text` message outside the 24-hour customer service window, the channel will fail and SmsManager will move to the next channel in your flow. Use `whatsapp_template` for proactive outreach.
+    </Warning>
+  </Tab>
+
+  <Tab title="WhatsApp Template">
+    ## WhatsApp template channel
+
+    WhatsApp template messages let you initiate proactive contact with any recipient — even if they've never messaged you before. Templates are pre-approved by Meta and contain fixed structural text with optional variable placeholders. Because they're pre-vetted, you can send them at any time, not just within a customer service window.
+
+    ### Required fields
+
+    | Field           | Type   | Description |
+    |-----------------|--------|-------------|
+    | `template_name` | string | The exact name of the approved template (max 100 chars). |
+    | `sender`        | string | The Phone Number ID of your registered WhatsApp number. |
+    | `language`      | string | The language code for the template version to use (e.g., `en`, `cs`, `de`). |
+
+    ### Optional fields
+
+    | Field            | Type            | Description |
+    |------------------|-----------------|-------------|
+    | `params`         | array of strings | Values for the variable placeholders in the template **body** (in order). |
+    | `params_header`  | array of strings | Value for the variable placeholder in the template **header**, if present. |
+    | `params_buttons` | array of strings | Values for variable placeholders in template **buttons** (e.g., dynamic URLs). |
+    | `ttl`            | integer          | Time to live in minutes. |
+
+    ### Setup requirements
+
+    1. **Connect a WhatsApp Business number** — visit [app.smsmanager.com/whatsapp](https://app.smsmanager.com/whatsapp) to link your number and retrieve your Phone Number ID.
+    2. **Create and approve a template** — templates must be submitted to and approved by Meta before use. This process typically takes a few minutes to a few hours.
+
+    ### Example
+
+    ```json
+    {
+      "to": [{ "phone_number": "420777123456" }],
+      "flow": [
+        {
+          "whatsapp_template": {
+            "sender": "514578330250514",
+            "template_name": "order_confirmation",
+            "language": "en",
+            "params": ["John", "ORD-9921"],
+            "params_header": ["ORD-9921"],
+            "params_buttons": ["https://example.com/track/ORD-9921"],
+            "ttl": 1440
+          }
+        },
+        {
+          "sms": {
+            "sender": "MyShop",
+            "body": "Hi John, your order ORD-9921 is confirmed! Track: https://example.com/track/ORD-9921"
+          }
+        }
+      ]
+    }
+    ```
+
+    In this example the template body might read: *"Hi {`{{1}}`}, your order {`{{2}}`} is confirmed!"* — `params` supplies the values `["John", "ORD-9921"]` in order.
+
+    <Note>
+      If the template hasn't been approved yet or the approval has been revoked, the `whatsapp_template` channel will fail and SmsManager will fall back to the next channel in your flow.
+    </Note>
+  </Tab>
+</Tabs>

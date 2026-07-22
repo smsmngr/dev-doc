@@ -1,0 +1,238 @@
+---
+title: "Batch Send Messages to Multiple Recipients"
+sidebarTitle: "Batch Sending"
+description: "Use SmsManager's /messages endpoint to send up to 100 messages per API call with different content, channels, and recipients."
+---
+
+The `/messages` endpoint lets you pack up to **10 message objects**, each with up to **10 recipients**, into a single API call — that's up to 100 recipient deliveries per request. This is the most efficient way to run a campaign, send a batch of transactional notifications, or combine SMS and Viber sends in one round trip.
+
+---
+
+## When to use batch sending
+
+- **Campaigns** — send promotional content to a list of subscribers in as few API calls as possible.
+- **Group notifications** — alert a team, a class, or a customer segment with a single request.
+- **Mixed-channel sends** — send SMS to some recipients and Viber to others, all in one call.
+- **Personalised messages** — give each message object its own `body` or `flow` for per-recipient customisation, without making one API call per person.
+
+---
+
+## How batch sending works
+
+Instead of sending a single message object to `POST /message`, you send an **array** of message objects to `POST /messages`. Each element in the array is an independent message with its own `body`, `to` list, `flow`, `tag`, `callback`, and `payload`.
+
+```json Request body
+[
+  {
+    "body": "Hello Alice!",
+    "to": [
+      {"phone_number": "420777123456"},
+      {"phone_number": "420777654321"}
+    ]
+  },
+  {
+    "body": "Hello Bob!",
+    "to": [
+      {"phone_number": "420777111111"}
+    ]
+  }
+]
+```
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/messages \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '[
+    {
+      "body": "Hello Alice!",
+      "to": [
+        {"phone_number": "420777123456"},
+        {"phone_number": "420777654321"}
+      ]
+    },
+    {
+      "body": "Hello Bob!",
+      "to": [{"phone_number": "420777111111"}]
+    }
+  ]'
+```
+
+---
+
+## Response format
+
+The response contains a top-level `request_id` plus two arrays — `accepted` (messages queued for delivery) and `rejected` (messages that failed validation). Each accepted entry includes a `key` (the array index of the message object) and a `message_id` for tracking.
+
+```json Response
+{
+  "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+  "accepted": [
+    {
+      "key": 0,
+      "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"
+    },
+    {
+      "key": 1,
+      "message_id": "f39ab1bd-98c6-4f2e-c755-6gd7130f3b22"
+    }
+  ],
+  "rejected": []
+}
+```
+
+If any message objects fail validation (for example, a malformed phone number), they appear in `rejected` with a `key` matching their array position and an error description. Valid message objects in the same request are still accepted and queued.
+
+---
+
+## Getting per-recipient message IDs
+
+When a message object has multiple recipients, each recipient gets its own `message_id` derived from the batch `message_id` using a zero-based index suffix: `-0`, `-1`, `-2`, and so on.
+
+For example, if the accepted `message_id` is `e27ff0ac-87b5-4e1d-b644-5fc6029e2a11` and the message has two recipients:
+
+| Recipient | message_id |
+|-----------|------------|
+| First (`420777123456`) | `e27ff0ac-87b5-4e1d-b644-5fc6029e2a11-0` |
+| Second (`420777654321`) | `e27ff0ac-87b5-4e1d-b644-5fc6029e2a11-1` |
+
+Delivery webhooks include these suffixed IDs, so you can correlate each delivery event back to a specific recipient.
+
+---
+
+## Mixed channels in a batch
+
+Each message object in the array has its own independent `flow`. This means you can send an SMS to one group and a Viber message (with SMS fallback) to another group in the exact same API call.
+
+```json Mixed-channel batch
+[
+  {
+    "body": "Flash sale ends tonight! Visit example.com/sale",
+    "to": [
+      {"phone_number": "420777123456"},
+      {"phone_number": "420777654321"}
+    ],
+    "tag": "promotional",
+    "flow": [
+      {
+        "sms": {
+          "sender": "MyShop",
+          "gateway": "high"
+        }
+      }
+    ]
+  },
+  {
+    "body": "Flash sale ends tonight! Visit example.com/sale",
+    "to": [
+      {"phone_number": "420777111111"},
+      {"phone_number": "420777222222"}
+    ],
+    "tag": "promotional",
+    "flow": [
+      {
+        "viber": {
+          "sender": "MySender",
+          "body": "Flash sale ends tonight!",
+          "buttons": [
+            {
+              "title": "Shop Now",
+              "url": "https://example.com/sale"
+            }
+          ],
+          "ttl": 60
+        }
+      },
+      {
+        "sms": {
+          "sender": "MyShop",
+          "gateway": "high"
+        }
+      }
+    ]
+  }
+]
+```
+
+---
+
+## Limits
+
+| Dimension | Limit |
+|-----------|-------|
+| Message objects per `/messages` call | 10 |
+| Recipients per message object | 10 |
+| Total recipients per `/messages` call | 100 |
+
+<Tip>
+  If you need to reach more than 100 recipients, split your list and send multiple `/messages` calls. There is no rate-limit penalty for making back-to-back batch requests — just stay within your account's per-second throughput quota.
+</Tip>
+
+---
+
+## Full cURL example
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/messages \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '[
+    {
+      "body": "Your appointment is confirmed for Monday at 10:00.",
+      "to": [
+        {"phone_number": "420777100001"},
+        {"phone_number": "420777100002"},
+        {"phone_number": "420777100003"}
+      ],
+      "tag": "transactional",
+      "callback": "https://yourapp.com/webhooks/batch",
+      "payload": {"campaign": "appointment-reminders"},
+      "flow": [
+        {
+          "sms": {
+            "sender": "MyClinic",
+            "gateway": "high",
+            "ttl": 1440
+          }
+        }
+      ]
+    },
+    {
+      "body": "Hi! Your prescription is ready for pickup.",
+      "to": [
+        {"phone_number": "420777200001"},
+        {"phone_number": "420777200002"}
+      ],
+      "tag": "transactional",
+      "callback": "https://yourapp.com/webhooks/batch",
+      "payload": {"campaign": "prescription-ready"},
+      "flow": [
+        {
+          "sms": {
+            "sender": "MyClinic",
+            "gateway": "high"
+          }
+        }
+      ]
+    }
+  ]'
+```
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    Receive delivery status for each recipient in your batch via webhooks.
+  </Card>
+  <Card title="Send Viber" icon="message" href="/guides/send-viber">
+    Learn how to configure Viber flows for use in batch requests.
+  </Card>
+  <Card title="Send WhatsApp" icon="whatsapp" href="/guides/send-whatsapp">
+    Add WhatsApp template messages to your mixed-channel batches.
+  </Card>
+  <Card title="Send SMS" icon="message-sms" href="/guides/send-sms">
+    Review all SMS flow options available in batch messages.
+  </Card>
+</CardGroup>

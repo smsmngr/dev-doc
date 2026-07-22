@@ -1,0 +1,82 @@
+---
+title: "Authenticate API Requests to SmsManager"
+sidebarTitle: "Authentication"
+description: "Learn how to obtain and use SmsManager API keys to authenticate requests via header or query parameter."
+---
+
+SmsManager uses API key authentication for all requests. Every call to the JSON API v2 and REST API must include a valid API key — there are no OAuth flows or session tokens to manage. You can pass your key as an HTTP header (recommended for all endpoints) or as a query parameter on the simple GET endpoint.
+
+## Getting your API key
+
+Log in to your SmsManager account and go to the [API & Cloud](https://app.smsmanager.com/api-cloud) page. Your primary API key is displayed there. Copy it and store it somewhere secure — you'll use it in every request you make to the API.
+
+<Tip>
+  You can create additional sub-keys with isolated or shared credit through the REST API. See [Managing API keys](#managing-api-keys) below for details.
+</Tip>
+
+## Passing your API key
+
+### Via header (recommended)
+
+Include your API key in the `x-api-key` request header. This method is supported on all endpoints across both the JSON API v2 and the REST API.
+
+```
+x-api-key: YOUR_API_KEY
+```
+
+**cURL example:**
+
+```bash
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"body": "Hello!", "to": [{"phone_number": "420777123456"}]}'
+```
+
+### Via query parameter (simple endpoint only)
+
+On the `GET /simple/message` endpoint you can authenticate by appending your key as the `apikey` query parameter instead of using a header.
+
+```
+https://api.smsmngr.com/v2/simple/message?apikey=YOUR_API_KEY&to=420777123456&message=Hello
+```
+
+<Note>
+  The `apikey` query parameter is **only** supported on the `GET /simple/message` endpoint. All other endpoints require the `x-api-key` header.
+</Note>
+
+## Managing API keys
+
+You can create and manage sub-keys programmatically through the [REST API](/api-reference/rest/api-keys). Sub-keys are useful when you run multiple integrations or services and want to track usage or revoke access independently.
+
+When creating a sub-key you can configure:
+
+- **`note`** — a human-readable label so you can identify which integration uses which key
+- **`default_callback_url`** — a fallback webhook URL applied to all messages sent with that key when no per-request `callback` is specified
+- **`shared`** — set to `true` to share credit with the parent account, or `false` to give the sub-key its own separate credit balance
+- **`currency`** — the billing currency for the sub-key (`EUR` or `CZK`; must match the parent if `shared` is `true`)
+
+<Note>
+  API keys are account-scoped. Sub-keys created under your account can either share your credit line or hold their own balance, depending on how you configure the `shared` flag when calling the REST API.
+</Note>
+
+## Security best practices
+
+Follow these guidelines to keep your API keys and your users' data safe:
+
+- **Never hardcode API keys in client-side code** — keys embedded in browser JavaScript, mobile apps, or public repositories can be extracted and abused
+- **Use environment variables** — load keys from environment variables or a secrets manager (e.g. AWS Secrets Manager, HashiCorp Vault) rather than committing them to source control
+- **Rotate keys if compromised** — if you suspect a key has been leaked, create a new one immediately via [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud) or the REST API, update your integrations, and delete the old key
+- **Use sub-keys per integration** — assign a dedicated sub-key to each service or environment (production, staging, etc.) so you can revoke a single key without disrupting everything else
+
+## Authentication errors
+
+If your API key is missing, malformed, or not authorised for the requested operation, the API returns an HTTP `400` response.
+
+| HTTP status | Meaning | Typical error message |
+|---|---|---|
+| `400` | Bad request — key missing, invalid, or explicitly denied | `User is not authorized to access this resource with an explicit deny` |
+
+<Warning>
+  SmsManager returns `400` (not `401`) for authentication failures. Make sure your error-handling logic checks for `400` responses and inspects the `Message` field in the response body to distinguish auth errors from validation errors.
+</Warning>

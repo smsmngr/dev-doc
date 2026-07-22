@@ -1,0 +1,260 @@
+---
+title: "Send WhatsApp Messages via SmsManager"
+sidebarTitle: "Send WhatsApp"
+description: "Guide to sending WhatsApp template and text messages using SmsManager, including template setup and sender configuration."
+---
+
+SmsManager lets you send WhatsApp messages through your connected WhatsApp Business Account. You can send pre-approved **template messages** to any opted-in number, or send **free-form text messages** within an active 24-hour customer service window. Both message types fit naturally into SmsManager's multi-channel `flow`, so you can add an SMS fallback for recipients not reachable on WhatsApp.
+
+---
+
+## Two WhatsApp message types
+
+Before you write any code, it's important to understand which message type fits your use case:
+
+- **Template messages** (`whatsapp_template`) are pre-approved message formats registered through Meta. You can send them to any recipient who has opted in to receive messages from your business, at any time. Use these for order updates, shipping notifications, appointment reminders, and OTPs.
+
+- **Text messages** (`whatsapp_text`) are free-form messages you compose at send time. You can only send them within the **24-hour customer service window** — that is, within 24 hours after the recipient last sent you a message. Use these for support conversations and interactive replies.
+
+---
+
+## Prerequisites
+
+- A **WhatsApp Business Account** connected to SmsManager. Follow the setup wizard at [app.smsmanager.com/whatsapp](https://app.smsmanager.com/whatsapp).
+- Your **Phone Number ID** from [app.smsmanager.com/whatsapp](https://app.smsmanager.com/whatsapp) — this is the numeric ID (not the phone number itself) that identifies your WhatsApp sender.
+- For template messages: a **pre-approved template** in Meta Business Manager, with the exact template name and language code.
+
+---
+
+## Send a WhatsApp template message
+
+<Steps>
+
+  <Step title="Register your WhatsApp number and get your Phone Number ID">
+    Log in to [app.smsmanager.com/whatsapp](https://app.smsmanager.com/whatsapp) and complete the WhatsApp Business Account connection flow. Once connected, copy the **Phone Number ID** shown on the dashboard — it is a long numeric string like `514578330250514`. You will use this as the `sender` value in all your WhatsApp API calls.
+  </Step>
+
+  <Step title="Create and approve a template via Meta/SmsManager">
+    Create your message template inside Meta Business Manager or through the SmsManager dashboard. Templates must be approved by Meta before you can send them. Approval typically takes a few minutes to a few hours. Note the exact **template name** (lowercase, underscores) and **language code** (for example, `en`, `cs`, `de`) — you will need both in the API request.
+  </Step>
+
+  <Step title="Send the template message">
+    Use the `whatsapp_template` key inside your `flow` array. Set `sender` to your Phone Number ID, `template_name` to the approved template name, and `language` to the template language code. If the template contains variable placeholders (`{{1}}`, `{{2}}`, etc.), pass their values in the `params` array.
+
+    ```json Request body
+    {
+      "to": [{"phone_number": "420777123456"}],
+      "flow": [
+        {
+          "whatsapp_template": {
+            "template_name": "order_update",
+            "sender": "514578330250514",
+            "language": "en",
+            "params": ["John", "ORDER-123"]
+          }
+        }
+      ]
+    }
+    ```
+
+    ```bash cURL
+    curl -X POST https://api.smsmngr.com/v2/message \
+      -H "x-api-key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "to": [{"phone_number": "420777123456"}],
+        "flow": [
+          {
+            "whatsapp_template": {
+              "template_name": "order_update",
+              "sender": "514578330250514",
+              "language": "en",
+              "params": ["John", "ORDER-123"]
+            }
+          }
+        ]
+      }'
+    ```
+  </Step>
+
+  <Step title="Add an SMS fallback for reliability">
+    Append an `sms` step to the `flow` array. If the WhatsApp message cannot be delivered (for example, the recipient doesn't have WhatsApp or the number is not opted in), SmsManager automatically falls back to SMS.
+
+    ```json Request body
+    {
+      "body": "Hi John, your order ORDER-123 has shipped!",
+      "to": [{"phone_number": "420777123456"}],
+      "flow": [
+        {
+          "whatsapp_template": {
+            "template_name": "order_update",
+            "sender": "514578330250514",
+            "language": "en",
+            "params": ["John", "ORDER-123"]
+          }
+        },
+        {
+          "sms": {
+            "sender": "MyShop",
+            "gateway": "high"
+          }
+        }
+      ]
+    }
+    ```
+
+    <Tip>
+      Always set a top-level `body` when using WhatsApp with an SMS fallback — it becomes the SMS message text if the flow reaches the SMS step.
+    </Tip>
+  </Step>
+
+</Steps>
+
+---
+
+## Send a WhatsApp text message
+
+<Warning>
+  WhatsApp text messages can only be sent within the **24-hour customer service window** — that is, within 24 hours of the recipient last messaging your number. Sending outside this window will result in a rejected message. Use template messages for proactive outreach.
+</Warning>
+
+Use `whatsapp_text` in your flow to send a free-form message during an open conversation window:
+
+```json Request body
+{
+  "to": [{"phone_number": "420777123456"}],
+  "flow": [
+    {
+      "whatsapp_text": {
+        "sender": "514578330250514",
+        "body": "Hi! I can see your order has been delayed. We've applied a 10% discount to your next purchase as an apology."
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Template parameters
+
+WhatsApp templates can contain variable placeholders in three locations. Use the corresponding parameter arrays to fill them at send time:
+
+| Field | Fills placeholders in | Example |
+|-------|----------------------|---------|
+| `params` | Message body — `{{1}}`, `{{2}}`, … | `["John", "ORDER-123", "tomorrow"]` |
+| `params_header` | Template header (text headers only) | `["ORDER-123"]` |
+| `params_buttons` | Button URLs with dynamic path segments | `["abc123"]` |
+
+```json Full parameters example
+{
+  "to": [{"phone_number": "420777123456"}],
+  "flow": [
+    {
+      "whatsapp_template": {
+        "template_name": "shipping_update",
+        "sender": "514578330250514",
+        "language": "en",
+        "params_header": ["ORDER-123"],
+        "params": ["John", "tomorrow", "9am–12pm"],
+        "params_buttons": ["ORDER-123"]
+      }
+    }
+  ]
+}
+```
+
+<Note>
+  The order of values in each `params` array maps positionally to the `{{1}}`, `{{2}}`, … placeholders in your template. Make sure the array length matches the number of variables in the template or the request will be rejected.
+</Note>
+
+---
+
+## Full examples
+
+<CodeGroup>
+
+```bash cURL — template message
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Hi John, your order ORDER-123 has shipped!",
+    "to": [{"phone_number": "420777123456"}],
+    "tag": "transactional",
+    "callback": "https://yourapp.com/webhooks/whatsapp",
+    "flow": [
+      {
+        "whatsapp_template": {
+          "template_name": "order_update",
+          "sender": "514578330250514",
+          "language": "en",
+          "params": ["John", "ORDER-123"]
+        }
+      },
+      {
+        "sms": {
+          "sender": "MyShop",
+          "gateway": "high"
+        }
+      }
+    ]
+  }'
+```
+
+```python Python — template message
+import requests
+
+response = requests.post(
+    "https://api.smsmngr.com/v2/message",
+    headers={
+        "x-api-key": "YOUR_API_KEY",
+        "Content-Type": "application/json",
+    },
+    json={
+        "body": "Hi John, your order ORDER-123 has shipped!",
+        "to": [{"phone_number": "420777123456"}],
+        "tag": "transactional",
+        "callback": "https://yourapp.com/webhooks/whatsapp",
+        "flow": [
+            {
+                "whatsapp_template": {
+                    "template_name": "order_update",
+                    "sender": "514578330250514",
+                    "language": "en",
+                    "params": ["John", "ORDER-123"],
+                }
+            },
+            {
+                "sms": {
+                    "sender": "MyShop",
+                    "gateway": "high",
+                }
+            },
+        ],
+    },
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Send Viber" icon="message" href="/guides/send-viber">
+    Add Viber Business Messages with rich content and SMS fallback.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    Receive WhatsApp delivery status updates and incoming message events.
+  </Card>
+  <Card title="Batch Sending" icon="layer-group" href="/guides/batch-sending">
+    Send WhatsApp messages to multiple recipients in a single API call.
+  </Card>
+  <Card title="Send SMS" icon="message-sms" href="/guides/send-sms">
+    Configure SMS fallback options for your WhatsApp messages.
+  </Card>
+</CardGroup>

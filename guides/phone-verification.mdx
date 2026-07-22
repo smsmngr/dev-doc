@@ -1,0 +1,205 @@
+---
+title: "Phone Number Verification with SmsManager Verify API"
+sidebarTitle: "Phone Verification"
+description: "Implement OTP-based phone verification in your app using SmsManager's Verify API with HMAC offline proof support."
+---
+
+The SmsManager Verify API handles the complete OTP (one-time password) flow for phone number verification — from generating and delivering a 6-digit code by SMS, to validating the code your user types in. You stay in control of your UI; the Verify API manages code generation, delivery, expiry, and attempt limits.
+
+---
+
+## How it works
+
+The verification flow involves two server-side API calls and one user action:
+
+1. Your server calls `POST /v1/validations` with the phone number to verify → you receive a `token`.
+2. SmsManager sends a 6-digit OTP to the phone number via SMS.
+3. The user receives the SMS and types the code into your UI.
+4. Your server calls `POST /v1/validations/{token}/verify` with the code the user entered.
+5. On success, the response includes `verified: true`, the confirmed `phoneNumber`, and — if your account has a verification secret configured — an HMAC `proof` you can use for offline verification later.
+
+---
+
+## Base URL and authentication
+
+- **Base URL**: `https://verify-api.smsmanager.com`
+- **Authentication header**: `X-API-Key: YOUR_API_KEY`
+
+All requests except `POST /v1/verify-proof` require the `X-API-Key` header.
+
+---
+
+## Step-by-step integration
+
+<Steps>
+
+  <Step title="Start a validation">
+    Call `POST /v1/validations` with the phone number you want to verify. The phone number should be in international format without the leading `+`.
+
+    ```bash cURL
+    curl -X POST https://verify-api.smsmanager.com/v1/validations \
+      -H "X-API-Key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"phoneNumber": "420777123456"}'
+    ```
+
+    ```json Response
+    {
+      "token": "61591bd8-3f2a-4c89-b1d5-0e9a7f2c4831",
+      "status": "pending",
+      "expiresAt": "2024-06-01T12:15:00Z",
+      "timestamp": "2024-06-01T12:10:00Z"
+    }
+    ```
+
+    Store the `token` — you will need it in the next step. The `expiresAt` timestamp tells you how long the session is valid. After expiry, the code is no longer accepted and the user must restart the flow.
+  </Step>
+
+  <Step title="User receives the OTP code via SMS">
+    SmsManager automatically sends a 6-digit code to the phone number. Display a code-entry field in your UI and wait for the user to submit it. You do not need to do anything on the server side during this step.
+
+    <Tip>
+      Show the user a countdown timer based on `expiresAt` so they know how long they have to enter the code. If the code expires, call `POST /v1/validations` again to start a new session.
+    </Tip>
+  </Step>
+
+  <Step title="Verify the code">
+    Once the user submits the code, call `POST /v1/validations/{token}/verify` — replacing `{token}` with the token from step 1 — and pass the code in the request body.
+
+    ```bash cURL
+    curl -X POST https://verify-api.smsmanager.com/v1/validations/61591bd8-3f2a-4c89-b1d5-0e9a7f2c4831/verify \
+      -H "X-API-Key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"code": "123456"}'
+    ```
+
+    ```json Response — success
+    {
+      "verified": true,
+      "phoneNumber": "420777123456",
+      "token": "61591bd8-3f2a-4c89-b1d5-0e9a7f2c4831",
+      "code": "123456",
+      "timestamp": "2024-06-01T12:10:00Z",
+      "verifiedAt": "2024-06-01T12:11:42Z"
+    }
+    ```
+
+    Check the `verified` field. If `true`, the phone number is confirmed and you can proceed. If `false`, the code was wrong — see [Error handling](#error-handling) below.
+  </Step>
+
+  <Step title="Use the result in your application">
+    Once `verified: true`, mark the phone number as confirmed in your database and proceed with your application flow — creating the user account, unlocking a feature, completing a transaction, and so on. If your account has a `verificationSecret` configured, also store the `proof` field for offline verification (see below).
+  </Step>
+
+</Steps>
+
+---
+
+## HMAC offline proof
+
+If your account has a `verificationSecret` configured in the SmsManager dashboard, the verify response includes an additional `proof` field alongside the standard fields. The proof is an HMAC signature over the verification data.
+
+The offline proof is useful when you want a **second server** (for example, a microservice or a mobile app backend) to confirm that a verification really happened, without making another API call and without needing access to your API key.
+
+To verify a proof offline, call `POST /v1/verify-proof` — this endpoint requires **no authentication**:
+
+```bash cURL
+curl -X POST https://verify-api.smsmanager.com/v1/verify-proof \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phoneNumber": "420777123456",
+    "token": "61591bd8-3f2a-4c89-b1d5-0e9a7f2c4831",
+    "code": "123456",
+    "timestamp": "2024-06-01T12:10:00Z",
+    "proof": "a3f8c2d1e4b5..."
+  }'
+```
+
+```json Response — proof valid
+{
+  "valid": true
+}
+```
+
+<Note>
+  The `proof` approach lets you hand the verification result (along with the proof) to the client, which can then present it to any of your services. Each service can independently confirm authenticity using the shared `verificationSecret`, without a central state store.
+</Note>
+
+---
+
+## Error handling
+
+| HTTP status | Error | Meaning |
+|-------------|-------|---------|
+| `400` | `invalid_code` | The code entered does not match. Prompt the user to try again. |
+| `400` | `expired` | The token has expired. Start a new validation session. |
+| `400` | `too_many_attempts` | The maximum number of incorrect attempts has been reached. Start a new session. |
+| `429` | `rate_limited` | Too many requests from this account, country, or phone number. Wait before retrying. |
+| `404` | `not_found` | The token does not exist. Ensure you are using the correct token from step 1. |
+
+Always check the HTTP status code alongside the `verified` boolean. A `200` response with `verified: false` means the code was wrong but the session is still active (unless `too_many_attempts` is returned).
+
+---
+
+## Rate limiting
+
+The Verify API enforces rate limits at three levels to prevent abuse:
+
+- **Per account** — a global cap on verifications initiated per minute.
+- **Per country** — limits on how many verifications can be sent to a specific country code.
+- **Per phone number** — a cooldown after multiple failed attempts or repeated verifications of the same number.
+
+When you receive a `429` response, back off and retry after a delay. Display a user-friendly message ("Too many attempts — please wait a moment and try again") rather than a technical error.
+
+---
+
+## Full cURL examples
+
+<CodeGroup>
+
+```bash Start a validation
+curl -X POST https://verify-api.smsmanager.com/v1/validations \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"phoneNumber": "420777123456"}'
+```
+
+```bash Verify the code
+curl -X POST https://verify-api.smsmanager.com/v1/validations/61591bd8-3f2a-4c89-b1d5-0e9a7f2c4831/verify \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"code": "482910"}'
+```
+
+```bash Offline proof verification (no auth required)
+curl -X POST https://verify-api.smsmanager.com/v1/verify-proof \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phoneNumber": "420777123456",
+    "token": "61591bd8-3f2a-4c89-b1d5-0e9a7f2c4831",
+    "code": "482910",
+    "timestamp": "2024-06-01T12:10:00Z",
+    "proof": "a3f8c2d1e4b5..."
+  }'
+```
+
+</CodeGroup>
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Send SMS" icon="message-sms" href="/guides/send-sms">
+    Send transactional SMS messages including OTP codes.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    Track delivery of your OTP SMS messages in real time.
+  </Card>
+  <Card title="Batch Sending" icon="layer-group" href="/guides/batch-sending">
+    Send messages to multiple recipients in a single API call.
+  </Card>
+  <Card title="Send WhatsApp" icon="whatsapp" href="/guides/send-whatsapp">
+    Deliver OTP codes via WhatsApp template messages.
+  </Card>
+</CardGroup>

@@ -1,0 +1,145 @@
+---
+title: "POST /whatsapp/signup — Create WABA Signup Process"
+sidebarTitle: "Signup"
+description: "POST /whatsapp/signup initiates a WhatsApp Business Account registration flow for a partner's client, returning a redirect URL and JWT token."
+---
+
+Use this endpoint to begin a WhatsApp Business Account onboarding session for one of your clients. The response gives you a short-lived JWT token and a base redirect URL. You combine them, redirect the client's browser to the resulting URL, and SmsManager takes over — serving a hosted registration flow your client completes without any further development on your part.
+
+## Endpoint
+
+```
+POST https://rest-api.smsmngr.com/v1/whatsapp/signup
+```
+
+## Authentication
+
+Include your API key in the `x-api-key` header.
+
+```http
+x-api-key: <your-api-key>
+```
+
+## Request body
+
+<ParamField body="partner_name" type="string">
+  Your company or brand name. This is shown to the client during the SmsManager-hosted registration flow so they know who is facilitating the onboarding.
+</ParamField>
+
+<ParamField body="partner_logo" type="string">
+  A publicly accessible URL to your logo image. Displayed alongside `partner_name` in the registration UI.
+</ParamField>
+
+<ParamField body="partner_callback_url" type="string">
+  The URL on your server where SmsManager sends POST notifications about the onboarding status. Use this to know when your client's WABA is ready.
+</ParamField>
+
+<ParamField body="partner_client_id" type="string">
+  Your own internal identifier for this client. SmsManager echoes this value back in every callback notification so you can match the event to the right record in your system.
+</ParamField>
+
+<ParamField body="partner_finish_url" type="string">
+  The URL SmsManager redirects the client to after they complete (or abandon) the registration flow.
+</ParamField>
+
+<ParamField body="phone_number" type="string">
+  Controls how the WhatsApp phone number is assigned. Accepted values:
+
+  - `automatic` *(default)* — SmsManager automatically assigns a phone number based on the `country` you supply.
+  - `manual` — the client selects or enters their own phone number during the hosted flow.
+</ParamField>
+
+<ParamField body="wa_name" type="string">
+  The WhatsApp display name / business name that will appear in conversations.
+</ParamField>
+
+<ParamField body="wa_email" type="string">
+  The email address associated with the WhatsApp Business Account.
+</ParamField>
+
+<ParamField body="wa_website" type="string">
+  The business website URL associated with the WhatsApp account.
+</ParamField>
+
+<ParamField body="country" type="string">
+  The client's country in ISO alpha-2 format (e.g., `US`, `DE`, `GB`). **Required** when `phone_number` is `automatic` so SmsManager can assign a number with the correct country code.
+</ParamField>
+
+## Response fields
+
+<ResponseField name="success" type="boolean">
+  `true` when the signup session was created successfully.
+</ResponseField>
+
+<ResponseField name="token" type="string">
+  A short-lived JWT that authenticates the client's browser session with the SmsManager-hosted registration flow. Treat this as a secret — do not expose it in client-side JavaScript or log it.
+</ResponseField>
+
+<ResponseField name="redirect_url" type="string">
+  The base URL of the SmsManager-hosted registration page. Append `?token=<JWT>` to this URL before redirecting the client.
+</ResponseField>
+
+## Redirecting the client
+
+After you receive the response, build the full redirect URL by appending the `token` as a query parameter:
+
+```
+https://waba.smsmanager.com/registration/?token=<JWT_TOKEN>
+```
+
+Then redirect the client's browser (server-side `302`, meta-refresh, or `window.location`) to that URL. The client completes the remaining registration steps in SmsManager's UI.
+
+<Warning>
+  Do not expose the JWT token in client-side JavaScript or pass it through an untrusted front end. Construct the redirect URL on your server and send the redirect response directly to the browser.
+</Warning>
+
+## Callback notifications
+
+SmsManager sends POST requests to your `partner_callback_url` as the client progresses through onboarding. Each notification includes the `partner_client_id` you supplied so you can identify which client the event belongs to. Listen for the completion event to know when the WABA is active and ready for use.
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://rest-api.smsmngr.com/v1/whatsapp/signup \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: <your-api-key>" \
+  -d '{
+    "partner_name": "Acme Corp",
+    "partner_logo": "https://acme.com/logo.png",
+    "partner_callback_url": "https://acme.com/webhooks/waba",
+    "partner_client_id": "client-789",
+    "partner_finish_url": "https://acme.com/dashboard",
+    "phone_number": "automatic",
+    "wa_name": "Acme Support",
+    "wa_email": "support@acme.com",
+    "wa_website": "https://acme.com",
+    "country": "US"
+  }'
+```
+
+```json Request body
+{
+  "partner_name": "Acme Corp",
+  "partner_logo": "https://acme.com/logo.png",
+  "partner_callback_url": "https://acme.com/webhooks/waba",
+  "partner_client_id": "client-789",
+  "partner_finish_url": "https://acme.com/dashboard",
+  "phone_number": "automatic",
+  "wa_name": "Acme Support",
+  "wa_email": "support@acme.com",
+  "wa_website": "https://acme.com",
+  "country": "US"
+}
+```
+
+```json Response
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "redirect_url": "https://waba.smsmanager.com/registration/"
+}
+```
+
+</CodeGroup>

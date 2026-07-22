@@ -1,0 +1,261 @@
+---
+title: "Send SMS Messages with SmsManager"
+sidebarTitle: "Send SMS"
+description: "Step-by-step guide to sending SMS messages via SmsManager's JSON API v2, including sender names, Unicode, and gateway options."
+---
+
+SmsManager's JSON API v2 lets you send SMS messages to any phone number worldwide with a single HTTP request. This guide walks you through everything from a minimal one-liner to a fully configured message with a custom sender, Unicode support, and delivery callbacks.
+
+## Prerequisites
+
+- An active SmsManager account
+- An API key from [app.smsmanager.com](https://app.smsmanager.com)
+- Base URL: `https://api.smsmngr.com/v2`
+- Authentication header: `x-api-key: YOUR_API_KEY`
+
+---
+
+<Steps>
+
+  <Step title="Send your first SMS">
+    The simplest request needs only two fields: `body` (the message text) and `to` (an array of recipients). Each recipient is an object with a `phone_number` field in international format, without the leading `+`.
+
+    ```bash cURL
+    curl -X POST https://api.smsmngr.com/v2/message \
+      -H "x-api-key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "body": "Hello from SmsManager!",
+        "to": [{"phone_number": "420777123456"}]
+      }'
+    ```
+
+    ```json Request body
+    {
+      "body": "Hello from SmsManager!",
+      "to": [{"phone_number": "420777123456"}]
+    }
+    ```
+
+    A successful response returns a `request_id` and an array of accepted recipients, each with a unique `message_id` you can use to track delivery.
+  </Step>
+
+  <Step title="Set a sender name">
+    Use the `flow` array to configure channel-specific options. For SMS, add an `sms` object inside the flow step with a `sender` field. Alphanumeric sender names can be up to 11 characters. If you are using a virtual number as the sender, omit the leading `+`.
+
+    ```json Request body
+    {
+      "body": "Your order has shipped!",
+      "to": [{"phone_number": "420777123456"}],
+      "flow": [
+        {
+          "sms": {
+            "sender": "MyShop"
+          }
+        }
+      ]
+    }
+    ```
+
+    <Note>
+      Alphanumeric sender names may require pre-registration in some countries (for example, the UK, India, and several Asian markets). Contact SmsManager support to register your sender name before sending to those destinations.
+    </Note>
+  </Step>
+
+  <Step title="Choose a gateway">
+    The `gateway` field inside the `sms` flow object controls how SmsManager routes your message:
+
+    | Gateway | Description |
+    |---------|-------------|
+    | `high` | Default. Best delivery rate via aggregator network. |
+    | `direct` | Required when using a virtual number as the sender. Routes through direct carrier connections. |
+    | `custom` | For SIM-hosting setups where you supply your own SIM hardware. |
+
+    ```json Request body
+    {
+      "body": "Your verification code is 482910",
+      "to": [{"phone_number": "420777123456"}],
+      "flow": [
+        {
+          "sms": {
+            "sender": "420600123456",
+            "gateway": "direct"
+          }
+        }
+      ]
+    }
+    ```
+  </Step>
+
+  <Step title="Handle Unicode characters">
+    Standard SMS uses the GSM-7 character set. If your message contains characters outside that set — such as Cyrillic, Arabic, Chinese, or emoji — set `type: "utf"` inside the `sms` flow object to switch to UCS-2 encoding.
+
+    <Warning>
+      UCS-2 messages have a reduced per-segment capacity of 70 characters (versus 160 for GSM-7). Long Unicode messages will be split into more segments and cost more.
+    </Warning>
+
+    ```json Request body
+    {
+      "body": "Ваш код подтверждения: 482910",
+      "to": [{"phone_number": "79161234567"}],
+      "flow": [
+        {
+          "sms": {
+            "sender": "MyApp",
+            "type": "utf"
+          }
+        }
+      ]
+    }
+    ```
+  </Step>
+
+</Steps>
+
+---
+
+## Tags
+
+The `tag` field classifies your message for routing and reporting. Pass it at the top level of the request body.
+
+| Tag | Description |
+|-----|-------------|
+| `promotional` | Default. Marketing and bulk messages. |
+| `transactional` | Order confirmations, receipts, account alerts. |
+| `priority` | Highest priority queue. Use for time-sensitive OTPs and alerts. |
+
+```json
+{
+  "body": "Your login code is 291847",
+  "to": [{"phone_number": "420777123456"}],
+  "tag": "priority"
+}
+```
+
+---
+
+## Time-to-live
+
+Set `ttl` (in minutes) inside the `sms` flow object to control how long SmsManager attempts delivery before abandoning the message. This is useful for time-sensitive codes that are worthless after a short window.
+
+```json
+{
+  "body": "Your one-time code is 847201. Valid for 5 minutes.",
+  "to": [{"phone_number": "420777123456"}],
+  "flow": [
+    {
+      "sms": {
+        "sender": "MyApp",
+        "ttl": 5
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Full example
+
+The following examples show a complete SMS request with a sender name, priority tag, TTL, and a delivery callback URL.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Your login code is 482910. Valid for 10 minutes.",
+    "to": [{"phone_number": "420777123456"}],
+    "tag": "priority",
+    "callback": "https://yourapp.com/webhooks/sms",
+    "flow": [
+      {
+        "sms": {
+          "sender": "MyApp",
+          "gateway": "high",
+          "ttl": 10
+        }
+      }
+    ]
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://api.smsmngr.com/v2/message",
+    headers={
+        "x-api-key": "YOUR_API_KEY",
+        "Content-Type": "application/json",
+    },
+    json={
+        "body": "Your login code is 482910. Valid for 10 minutes.",
+        "to": [{"phone_number": "420777123456"}],
+        "tag": "priority",
+        "callback": "https://yourapp.com/webhooks/sms",
+        "flow": [
+            {
+                "sms": {
+                    "sender": "MyApp",
+                    "gateway": "high",
+                    "ttl": 10,
+                }
+            }
+        ],
+    },
+)
+
+print(response.json())
+```
+
+```javascript Node.js
+const response = await fetch("https://api.smsmngr.com/v2/message", {
+  method: "POST",
+  headers: {
+    "x-api-key": "YOUR_API_KEY",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    body: "Your login code is 482910. Valid for 10 minutes.",
+    to: [{ phone_number: "420777123456" }],
+    tag: "priority",
+    callback: "https://yourapp.com/webhooks/sms",
+    flow: [
+      {
+        sms: {
+          sender: "MyApp",
+          gateway: "high",
+          ttl: 10,
+        },
+      },
+    ],
+  }),
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+</CodeGroup>
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Batch Sending" icon="layer-group" href="/guides/batch-sending">
+    Send up to 100 messages in a single API call using the /messages endpoint.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    Receive real-time delivery status updates at your callback URL.
+  </Card>
+  <Card title="Send Viber" icon="message" href="/guides/send-viber">
+    Add Viber Business Messages with rich content and SMS fallback.
+  </Card>
+  <Card title="Phone Verification" icon="shield-check" href="/guides/phone-verification">
+    Verify phone numbers with OTP using the SmsManager Verify API.
+  </Card>
+</CardGroup>

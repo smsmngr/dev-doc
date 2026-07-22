@@ -1,0 +1,247 @@
+---
+title: "Manage WABA Accounts, Phone Numbers, and Templates"
+sidebarTitle: "Manage"
+description: "List WhatsApp Business Accounts, phone numbers, and message templates for partner clients using SmsManager's management endpoints."
+---
+
+After a client completes WABA onboarding, use these three endpoints to retrieve their account details, active phone numbers, and approved message templates. All three follow the same pattern: POST a `waba_id` to filter results, or leave the body empty to return all records associated with your partner account.
+
+---
+
+## POST /whatsapp/accounts/list
+
+Retrieve WABA accounts registered under your partner account. Use the `whatsapp_id` from the response as the `waba_id` input for the phone number and template endpoints.
+
+### Endpoint
+
+```
+POST https://rest-api.smsmngr.com/v1/whatsapp/accounts/list
+```
+
+### Request body
+
+<ParamField body="waba_id" type="string">
+  Filter results to a single WABA by its ID. Leave empty or omit to return all accounts associated with your partner API key.
+</ParamField>
+
+### Response fields
+
+<ResponseField name="success" type="boolean">
+  `true` when the request completed successfully.
+</ResponseField>
+
+<ResponseField name="accounts" type="array">
+  An array of WABA account objects.
+
+  <Expandable title="Account object fields">
+    <ResponseField name="client_id" type="string">
+      The `partner_client_id` you supplied during the signup call. Use this to match the account back to your internal client record.
+    </ResponseField>
+    <ResponseField name="whatsapp_name" type="string">
+      The WhatsApp display / business name for this account.
+    </ResponseField>
+    <ResponseField name="whatsapp_id" type="string">
+      The WABA ID assigned by Meta. Use this value as `waba_id` when calling the phone number and template list endpoints.
+    </ResponseField>
+    <ResponseField name="whatsapp_currency" type="string">
+      The billing currency for this WABA (e.g., `USD`, `EUR`, `GBP`).
+    </ResponseField>
+    <ResponseField name="whatsapp_owner_name" type="string">
+      The name of the business or entity that owns the Meta Business Account.
+    </ResponseField>
+    <ResponseField name="whatsapp_owner_id" type="string">
+      The Meta Business Account ID of the account owner.
+    </ResponseField>
+    <ResponseField name="country" type="string">
+      The country associated with the WABA, in ISO alpha-2 format.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://rest-api.smsmngr.com/v1/whatsapp/accounts/list \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: <your-api-key>" \
+  -d '{ "waba_id": "123456789" }'
+```
+
+```json Request body
+{
+  "waba_id": "123456789"
+}
+```
+
+```json Response
+{
+  "success": true,
+  "accounts": [
+    {
+      "client_id": "client-789",
+      "whatsapp_name": "Acme Support",
+      "whatsapp_id": "123456789",
+      "whatsapp_currency": "USD",
+      "whatsapp_owner_name": "Acme Corp",
+      "whatsapp_owner_id": "987654321",
+      "country": "US"
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+---
+
+## POST /whatsapp/phone_numbers/list
+
+Retrieve the phone numbers registered under a specific WABA. The `phone_number_id` returned here is the value you use as the `sender` field when sending WhatsApp messages via the SmsManager JSON API v2.
+
+### Endpoint
+
+```
+POST https://rest-api.smsmngr.com/v1/whatsapp/phone_numbers/list
+```
+
+### Request body
+
+<ParamField body="waba_id" type="string">
+  The WABA ID to list phone numbers for. Obtain this from the `whatsapp_id` field in the accounts list response.
+</ParamField>
+
+### Response fields
+
+<ResponseField name="success" type="boolean">
+  `true` when the request completed successfully.
+</ResponseField>
+
+<ResponseField name="phone_numbers" type="array">
+  An array of phone number objects.
+
+  <Expandable title="Phone number object fields">
+    <ResponseField name="phone_number" type="string">
+      The full phone number in international format.
+    </ResponseField>
+    <ResponseField name="phone_number_id" type="string">
+      The Meta-assigned identifier for this phone number. Pass this value as the `sender` parameter when sending `whatsapp_text` or `whatsapp_template` messages via the JSON API v2.
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      The current status of the phone number (e.g., `CONNECTED`, `PENDING`).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://rest-api.smsmngr.com/v1/whatsapp/phone_numbers/list \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: <your-api-key>" \
+  -d '{ "waba_id": "123456789" }'
+```
+
+```json Request body
+{
+  "waba_id": "123456789"
+}
+```
+
+```json Response
+{
+  "success": true,
+  "phone_numbers": [
+    {
+      "phone_number": "+14155550100",
+      "phone_number_id": "10634195021",
+      "status": "CONNECTED"
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+---
+
+## POST /whatsapp/templates/list
+
+Retrieve the message templates approved for a WABA. Only templates with an `APPROVED` status can be used in `whatsapp_template` messages sent via the JSON API v2.
+
+### Endpoint
+
+```
+POST https://rest-api.smsmngr.com/v1/whatsapp/templates/list
+```
+
+### Request body
+
+<ParamField body="waba_id" type="string">
+  The WABA ID to list templates for.
+</ParamField>
+
+### Response fields
+
+<ResponseField name="success" type="boolean">
+  `true` when the request completed successfully.
+</ResponseField>
+
+<ResponseField name="templates" type="array">
+  An array of template objects.
+
+  <Expandable title="Template object fields">
+    <ResponseField name="template_name" type="string">
+      The name of the template as registered with Meta.
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      The approval status of the template. Common values include `APPROVED`, `PENDING`, and `REJECTED`. Only `APPROVED` templates can be sent to users.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://rest-api.smsmngr.com/v1/whatsapp/templates/list \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: <your-api-key>" \
+  -d '{ "waba_id": "123456789" }'
+```
+
+```json Request body
+{
+  "waba_id": "123456789"
+}
+```
+
+```json Response
+{
+  "success": true,
+  "templates": [
+    {
+      "template_name": "order_confirmation",
+      "status": "APPROVED"
+    },
+    {
+      "template_name": "shipping_update",
+      "status": "APPROVED"
+    },
+    {
+      "template_name": "promotional_offer",
+      "status": "PENDING"
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+<Tip>
+  Retrieve the `phone_number_id` from the phone numbers list and use it as the `sender` field when sending WhatsApp messages via the SmsManager JSON API v2. This applies to both `whatsapp_text` and `whatsapp_template` message types.
+</Tip>

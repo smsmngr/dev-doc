@@ -1,0 +1,320 @@
+---
+title: "JSON API v2 Webhooks — Delivery and Incoming Events"
+sidebarTitle: "Webhooks"
+description: "Reference for SmsManager webhook event schemas: sentMessage delivery status, incomingReplyMessage, and incomingMessage event payloads."
+---
+
+SmsManager pushes webhook events to your server as HTTP POST requests whenever a message status changes or an inbound message arrives. You configure the destination URL either per-message (via the `callback` field) or at the account level with a default callback URL. Events are delivered as JSON arrays — SmsManager may batch multiple events into a single POST — so your handler must always iterate over the array even when you expect only one event. Always return `HTTP 200` to acknowledge receipt; if your server is unreachable, SmsManager may retry delivery.
+
+<Tip>
+  Webhook payloads are always arrays. Even a single-event delivery is wrapped in `[...]`. Make sure your handler loops over each item in the array.
+</Tip>
+
+## Webhook events summary
+
+| Event name | Trigger | Description |
+|------------|---------|-------------|
+| `sentMessage` | Outbound message status changes | Delivery confirmations for SMS, Viber, and WhatsApp. You typically receive a `sent` status first, followed by a final status such as `delivered` or `undelivered`. |
+| `incomingReplyMessage` | A recipient replies to one of your messages | The reply is correlated to your original message via `request_id`, `message_id`, and `payload`. |
+| `incomingMessage` | An unsolicited inbound message arrives | A new message received on one of your numbers that is not linked to any outbound message. |
+
+---
+
+## sentMessage event
+
+SmsManager sends a `sentMessage` event whenever the status of an outbound message changes. You typically receive an initial `sent` or `sending` event shortly after the API call, followed by a final delivery status event.
+
+### Field reference
+
+<ResponseField name="request_id" type="string">
+  The unique identifier of the original API request that sent this message.
+
+  Example: `"bc36f3d1-d284-463a-921b-a3560c154649"`
+</ResponseField>
+
+<ResponseField name="message_id" type="string">
+  Unique identifier for this message. When the message was sent via `POST /messages`, this ID has the form `<base_id>-<recipient_index>` (e.g. `e27ff0ac-87b5-4e1d-b644-5fc6029e2a11-0`).
+
+  Example: `"e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"`
+</ResponseField>
+
+<ResponseField name="gateway" type="string">
+  The channel that delivered (or attempted to deliver) the message. One of: `sms`, `viber`, `whatsapp_text`, `whatsapp_template`.
+</ResponseField>
+
+<ResponseField name="timestamp" type="integer">
+  Unix timestamp of the status event.
+
+  Example: `1700000000`
+</ResponseField>
+
+<ResponseField name="payload" type="object">
+  The custom `payload` object you attached to the original message request, echoed back unchanged. Use this to correlate the event with your own records.
+
+  Example: `{ "campaign_id": "winter-sale" }`
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Always `"outgoing"` for `sentMessage` events.
+</ResponseField>
+
+<ResponseField name="to" type="object">
+  The recipient for this event.
+
+  <Expandable title="to fields">
+    <ResponseField name="phone_number" type="string">
+      The recipient's phone number in international format.
+
+      Example: `"420777123456"`
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="result" type="string">
+  The current delivery status of the message. Possible values:
+
+  | Value | Meaning |
+  |-------|---------|
+  | `sending` | The message is being transmitted to the carrier. |
+  | `sent` | The message has been accepted by the carrier. |
+  | `delivered` | The carrier confirmed delivery to the recipient's device. |
+  | `seen` | The recipient opened the message (Viber / WhatsApp only). |
+  | `undelivered` | Delivery failed after the message was sent. |
+  | `rejected` | The message was rejected before sending (e.g. invalid number, insufficient credit). |
+  | `failed` | An unexpected error occurred. |
+</ResponseField>
+
+<ResponseField name="result_info" type="string">
+  A human-readable description of the result, optionally prefixed with a numeric code in square brackets. Examples: `"[0] Delivered"`, `"[307] Insufficient credit"`, `"[131042] There was an error related to your payment method"`, `"Unauthorized error"`.
+</ResponseField>
+
+<ResponseField name="sms" type="object">
+  Present when `gateway` is `sms`. Contains billing and routing details for this SMS.
+
+  <Expandable title="sms fields">
+    <ResponseField name="gateway" type="string">
+      The specific gateway settings used (e.g. `high`, `direct`, `custom`).
+    </ResponseField>
+    <ResponseField name="sender" type="string">
+      The sender name or number used for this message.
+    </ResponseField>
+    <ResponseField name="country" type="integer">
+      The destination country identified by its official MCC (Mobile Country Code).
+    </ResponseField>
+    <ResponseField name="operator" type="integer">
+      The destination operator identified by its official MNC (Mobile Network Code). `0` means unknown or a general operator.
+    </ResponseField>
+    <ResponseField name="price_czk" type="number">
+      Price of this message in Czech Koruna (CZK).
+    </ResponseField>
+    <ResponseField name="price_eur" type="number">
+      Price of this message in Euro (EUR).
+    </ResponseField>
+    <ResponseField name="count" type="integer">
+      Number of billing segments sent (a long SMS is split into multiple segments).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="viber" type="object">
+  Present when `gateway` is `viber`. Contains the same sub-fields as the `sms` object: `sender`, `country`, `operator`, `price_czk`, `price_eur`, `count`.
+</ResponseField>
+
+<ResponseField name="whatsapp_template" type="object">
+  Present when `gateway` is `whatsapp_template`. Contains the same sub-fields as the `sms` object: `sender`, `country`, `operator`, `price_czk`, `price_eur`, `count`.
+</ResponseField>
+
+<ResponseField name="whatsapp_body" type="object">
+  Present when `gateway` is `whatsapp_text`. Contains the same sub-fields as the `sms` object: `sender`, `country`, `operator`, `price_czk`, `price_eur`, `count`.
+</ResponseField>
+
+### Example payload
+
+```json
+[
+  {
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+    "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+    "gateway": "sms",
+    "timestamp": 1700000000,
+    "payload": {
+      "campaign_id": "winter-sale"
+    },
+    "type": "outgoing",
+    "to": {
+      "phone_number": "420777123456"
+    },
+    "result": "delivered",
+    "result_info": "[0] Delivered",
+    "sms": {
+      "gateway": "high",
+      "sender": "MySender",
+      "country": 230,
+      "operator": 2,
+      "price_czk": 0.85,
+      "price_eur": 0.034,
+      "count": 1
+    }
+  }
+]
+```
+
+---
+
+## incomingReplyMessage event
+
+SmsManager sends an `incomingReplyMessage` event when a recipient replies directly to a message you sent. The event includes the `request_id`, `message_id`, and `payload` of your original outbound message, so you can immediately correlate the reply with its context.
+
+### Field reference
+
+<ResponseField name="request_id" type="string">
+  The `request_id` of the original outbound message this reply is responding to.
+</ResponseField>
+
+<ResponseField name="message_id" type="string">
+  The `message_id` of the original outbound message this reply is responding to.
+</ResponseField>
+
+<ResponseField name="payload" type="object">
+  The `payload` object from your original outbound message, echoed back for correlation.
+
+  Example: `{ "campaign_id": "winter-sale" }`
+</ResponseField>
+
+<ResponseField name="gateway" type="string">
+  The channel on which the reply arrived. One of: `sms`, `viber`, `whatsapp`. Note: for WhatsApp, the gateway value is always `whatsapp` — it is not split into `whatsapp_text` or `whatsapp_template` for incoming messages.
+</ResponseField>
+
+<ResponseField name="timestamp" type="integer">
+  Unix timestamp of when the reply was sent by the recipient. If that information is unavailable, this is the time SmsManager received the reply.
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Always `"incoming"` for `incomingReplyMessage` events.
+</ResponseField>
+
+<ResponseField name="sender" type="string">
+  The phone number of the person who replied. In some countries, alphanumeric senders are not fully supported.
+
+  Example: `"420777123456"`
+</ResponseField>
+
+<ResponseField name="recipient" type="string">
+  The number or sender ID that received the reply (your virtual number or sender name).
+
+  Example: `"420777654321"`
+</ResponseField>
+
+<ResponseField name="body" type="string">
+  The text of the reply message.
+
+  Example: `"Thank you!"`
+</ResponseField>
+
+### Example payload
+
+```json
+[
+  {
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+    "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+    "payload": {
+      "campaign_id": "winter-sale"
+    },
+    "gateway": "sms",
+    "timestamp": 1700000100,
+    "type": "incoming",
+    "sender": "420777123456",
+    "recipient": "420777654321",
+    "body": "Thank you!"
+  }
+]
+```
+
+---
+
+## incomingMessage event
+
+SmsManager sends an `incomingMessage` event when a new inbound message arrives on one of your numbers that is **not** a reply to any specific outbound message — for example, a customer texting your long number or short code directly.
+
+### Field reference
+
+<ResponseField name="gateway" type="string">
+  The channel on which the message arrived. One of: `sms`, `viber`, `whatsapp`.
+</ResponseField>
+
+<ResponseField name="timestamp" type="integer">
+  Unix timestamp of when the message was sent by the sender. If that information is unavailable, this is the time SmsManager received the message.
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Always `"incoming"` for `incomingMessage` events.
+</ResponseField>
+
+<ResponseField name="sender" type="string">
+  The phone number of the person who sent the message.
+
+  Example: `"420777123456"`
+</ResponseField>
+
+<ResponseField name="recipient" type="string">
+  Your number or sender ID that received the message.
+
+  Example: `"420777654321"`
+</ResponseField>
+
+<ResponseField name="body" type="string">
+  The text of the inbound message.
+</ResponseField>
+
+### Example payload
+
+```json
+[
+  {
+    "gateway": "whatsapp",
+    "timestamp": 1700000200,
+    "type": "incoming",
+    "sender": "420777123456",
+    "recipient": "420777654321",
+    "body": "Hello, I have a question."
+  }
+]
+```
+
+---
+
+## Configuring webhook URLs
+
+You can set a webhook URL at two levels:
+
+**1. Per-message callback**
+
+Include a `callback` field in your `POST /message` or `POST /messages` request body:
+
+```json
+{
+  "body": "Your order has shipped.",
+  "to": [{ "phone_number": "420777123456" }],
+  "callback": "https://example.com/webhooks/sms-delivery"
+}
+```
+
+Per-message callbacks override the account default for that specific message.
+
+**2. Account default callback URL**
+
+Set a fallback URL that receives events for all messages that do not specify their own `callback`. You can update it via the SmsManager REST API:
+
+```bash
+curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "default_callback_url": "https://example.com/webhooks/sms-default"
+  }'
+```
+
+<Note>
+  Always respond with `HTTP 200` when you receive a webhook event. If your server returns an error status or is unreachable, SmsManager may retry the delivery. Returning `200` quickly (before performing any slow processing) keeps your webhook endpoint reliable.
+</Note>

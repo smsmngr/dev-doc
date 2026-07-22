@@ -1,0 +1,52 @@
+---
+title: "WhatsApp Business Partner API — Onboarding Reference"
+sidebarTitle: "Overview"
+description: "SmsManager's WhatsApp Business Partner API lets you onboard clients to WhatsApp Business Accounts and manage their phone numbers and templates."
+---
+
+SmsManager's WhatsApp Business Partner API gives you a programmatic way to register your clients for WhatsApp Business messaging, track their onboarding progress, and retrieve the phone numbers and message templates associated with their accounts — all managed under your partner credentials.
+
+## Who is this API for?
+
+If you are an ISV, reseller, or platform builder integrating WhatsApp messaging into a product you offer to your own customers, this API is for you. Rather than directing each client through a manual sign-up process, you initiate registration on their behalf, redirect them to a SmsManager-hosted flow where they complete the WhatsApp Business Account (WABA) registration, and then use the management endpoints to look up their account details once onboarding is complete. Everything runs under your partner account — your clients never need direct access to SmsManager.
+
+## Base URL
+
+```
+https://rest-api.smsmngr.com/v1
+```
+
+## Authentication
+
+All endpoints require your API key in the `x-api-key` request header.
+
+```http
+x-api-key: <your-api-key>
+```
+
+## Onboarding flow
+
+1. **POST /whatsapp/signup** — Send your client's details to SmsManager. You receive a `redirect_url` and a short-lived JWT `token`.
+2. **Redirect your client** — Append the token as a query parameter and send the client's browser to `redirect_url?token=<JWT>`. SmsManager serves the hosted registration UI.
+3. **Client completes registration** — The client follows the WhatsApp Business registration steps in the SmsManager-hosted flow. No coding required on their end.
+4. **Receive callback** — SmsManager posts onboarding status notifications to the `partner_callback_url` you supplied in step 1. Listen for the completion event.
+5. **Retrieve the WABA ID** — Call `POST /whatsapp/accounts/list` to get the new account's `whatsapp_id` (WABA ID).
+6. **Manage phone numbers and templates** — Use the WABA ID with `POST /whatsapp/phone_numbers/list` and `POST /whatsapp/templates/list` to retrieve the resources you need for sending messages.
+
+## Endpoints summary
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/whatsapp/signup` | Initiate a WABA onboarding session for a client. |
+| `POST` | `/whatsapp/accounts/list` | List WABA accounts associated with your partner account. |
+| `POST` | `/whatsapp/phone_numbers/list` | List phone numbers registered under a WABA. |
+| `POST` | `/whatsapp/templates/list` | List approved message templates for a WABA. |
+
+<CardGroup cols={2}>
+  <Card title="Signup" icon="user-plus" href="/api-reference/waba/signup">
+    POST /whatsapp/signup — start the client onboarding flow
+  </Card>
+  <Card title="Manage" icon="sliders" href="/api-reference/waba/manage">
+    Accounts, phone numbers, and templates management
+  </Card>
+</CardGroup>

@@ -1,20 +1,50 @@
 ---
-title: "Introduction"
-description: "Welcome to your project"
+title: "SmsManager Developer Documentation"
+description: "Send SMS, Viber, and WhatsApp messages via a unified API. Explore guides, API reference, and integration examples."
 ---
 
-Write a short description of your product here. What it does, who it's for, and what they can accomplish with it.
+Welcome to the SmsManager developer documentation. SmsManager is a multi-channel messaging API that lets you send SMS, Viber, and WhatsApp messages from a single, unified integration. Whether you're building transactional alerts, bulk campaigns, or phone number verification flows, you'll find everything you need here.
 
-<Tip>
-  Ready to make this your own? Start by editing this page. Update your `docs.json` file to customize your site. Then fill out the [Quickstart](/quickstart) page.
-</Tip>
+<CardGroup cols={2}>
+  <Card title="Introduction" icon="book-open" href="/introduction">
+    Learn what SmsManager is, how it works, and which API surfaces are available.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Send your first message in minutes with a step-by-step walkthrough.
+  </Card>
+  <Card title="JSON API v2" icon="code" href="/api-reference/json-v2/overview">
+    Explore the full reference for the primary message-sending API.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    Receive real-time delivery notifications and inbound message events.
+  </Card>
+</CardGroup>
 
-<Card title="Quickstart" icon="rocket" href="/quickstart">
-  This card links to the quickstart page in your project.
-</Card>
-<Card title="Components" icon="puzzle-piece" href="https://mintlify.com/docs/components">
-  Add cards, callouts, steps, tabs, and more to design and structure your pages.
-</Card>
-<Card title="Settings" icon="gear" href="https://mintlify.com/docs/organize/settings">
-  Set your site name, branding, and navigation in the `docs.json` file.
-</Card>
+## What you can build
+
+SmsManager gives you the building blocks for a wide range of messaging use cases:
+
+- **Bulk SMS campaigns** — reach thousands of recipients in a single API call using the `/messages` batch endpoint
+- **Transactional alerts** — deliver order confirmations, shipping updates, and account notifications reliably via SMS
+- **Viber and WhatsApp messaging** — send rich messages over OTT channels using the multi-channel `flow` property
+- **Phone number verification (OTP)** — integrate one-time passcodes into your sign-up or login flows with the Verify API
+- **Delivery tracking** — monitor message status in real time through webhooks and delivery receipts
+
+## API surfaces
+
+SmsManager exposes four distinct APIs, each designed for a specific purpose.
+
+<CardGroup cols={2}>
+  <Card title="JSON API v2" href="/api-reference/json-v2/overview">
+    The primary sending API. Post to `/message` or `/messages` to deliver SMS, Viber, and WhatsApp messages to one or more recipients.
+  </Card>
+  <Card title="REST API" href="/api-reference/rest/overview">
+    Manage your account, create and configure sub-keys, and query account metadata.
+  </Card>
+  <Card title="Verify API" href="/api-reference/verify/overview">
+    Generate and validate one-time passcodes for phone number verification and two-factor authentication.
+  </Card>
+  <Card title="WhatsApp Partner API" href="/api-reference/waba/overview">
+    Onboard and manage WhatsApp Business Accounts (WABA) for your platform or customers.
+  </Card>
+</CardGroup>

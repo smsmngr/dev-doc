@@ -1,0 +1,328 @@
+---
+title: "POST /messages — Batch Send Multiple Messages"
+sidebarTitle: "POST /messages"
+description: "POST /messages sends up to 10 message objects in one API call, with up to 10 recipients each — 100 recipients total per request."
+---
+
+`POST /messages` accepts an array of message objects in a single HTTP call, making it more efficient than calling `POST /message` repeatedly. Each object in the array follows the same schema as a single `/message` request — you can mix channels, schedules, and payloads across objects in the same batch. The key difference from `/message` is that the response returns a `message_id` per request object, not per individual recipient; to derive per-recipient IDs you append a recipient index to each `message_id`.
+
+## Endpoint
+
+```text
+POST https://api.smsmngr.com/v2/messages
+```
+
+## Authentication
+
+Pass your API key in the `x-api-key` request header:
+
+```http
+x-api-key: YOUR_API_KEY
+```
+
+## Request body
+
+The request body is a JSON array containing 1–10 message objects. Each object is identical in structure to the body of a `POST /message` request.
+
+<ParamField body="[n].body" type="string" required>
+  The message text for this object (up to 1000 characters). Required unless all channels in the object's `flow` array define their own `body`.
+</ParamField>
+
+<ParamField body="[n].to" type="array" required>
+  List of 1–10 recipient objects for this message. Each item requires a `phone_number` string in international E.164 format (without leading `+` or `00`).
+</ParamField>
+
+<ParamField body="[n].flow" type="array">
+  Ordered list of channel objects (`sms`, `viber`, `whatsapp_text`, `whatsapp_template`). SmsManager tries each channel in order. See [POST /message](/api-reference/json-v2/send-message#flow-channel-fields) for the full channel field reference.
+</ParamField>
+
+<ParamField body="[n].callback" type="string">
+  Webhook URL for delivery notifications for this specific message object.
+</ParamField>
+
+<ParamField body="[n].tag" type="string" default="promotional">
+  Label for the message. Built-in values: `promotional`, `transactional`, `priority`. Custom strings are accepted.
+</ParamField>
+
+<ParamField body="[n].datetime" type="string">
+  Scheduled UTC send time in ISO 8601 format, e.g. `2025-06-01T09:00:00Z`.
+</ParamField>
+
+<ParamField body="[n].delivery_time" type="object">
+  Delivery window restriction with `days`, `start` (HH:MM), `end` (HH:MM), and `tz` (IANA timezone).
+</ParamField>
+
+<ParamField body="[n].payload" type="object">
+  Arbitrary key-value data echoed back in webhook events for this message object.
+</ParamField>
+
+## Limits
+
+| Limit | Value |
+|-------|-------|
+| Maximum message objects per request | 10 |
+| Maximum recipients per message object | 10 |
+| Maximum total recipients per API call | 100 |
+
+## Response
+
+A successful `200` response returns a `MessagesResponse` object.
+
+<ResponseField name="request_id" type="string">
+  Unique identifier for this API call.
+</ResponseField>
+
+<ResponseField name="accepted" type="array">
+  Message objects that were accepted.
+
+  <Expandable title="Accepted item fields">
+    <ResponseField name="key" type="string">
+      The zero-based index of the accepted message object in your request array (e.g. `"0"` for the first object, `"1"` for the second).
+    </ResponseField>
+    <ResponseField name="message_id" type="string">
+      Unique identifier for this message object. This ID covers all recipients within the object — it is **not** per-recipient. See below for how to derive per-recipient IDs.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="rejected" type="array">
+  Message objects that were rejected.
+
+  <Expandable title="Rejected item fields">
+    <ResponseField name="key" type="string">
+      The zero-based index of the rejected message object in your request array.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Getting per-recipient message IDs
+
+When you use `/messages`, SmsManager assigns one `message_id` per request object, not per recipient. To identify a specific recipient's message — for example when correlating webhook delivery events — append `-<recipient_index>` to the object's `message_id`.
+
+For example, if the first object in your array has two recipients and its `message_id` is `pppppppp-qqqq-rrrr-ssss-tttttttttttt`:
+
+| Recipient | Derived message_id |
+|-----------|-------------------|
+| `to[0]` (first recipient) | `pppppppp-qqqq-rrrr-ssss-tttttttttttt-0` |
+| `to[1]` (second recipient) | `pppppppp-qqqq-rrrr-ssss-tttttttttttt-1` |
+
+Webhook `sentMessage` events will carry these suffixed IDs.
+
+## Examples
+
+<CodeGroup>
+
+```json Two message objects with multiple recipients
+[
+  {
+    "body": "Hello John",
+    "to": [
+      { "phone_number": "420777123456" },
+      { "phone_number": "420777654321" }
+    ]
+  },
+  {
+    "body": "Hello Jane",
+    "to": [
+      { "phone_number": "420777115577" },
+      { "phone_number": "420777223344" }
+    ]
+  }
+]
+```
+
+```bash Two message objects — cURL
+curl -X POST https://api.smsmngr.com/v2/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '[
+    {
+      "body": "Hello John",
+      "to": [
+        { "phone_number": "420777123456" },
+        { "phone_number": "420777654321" }
+      ]
+    },
+    {
+      "body": "Hello Jane",
+      "to": [
+        { "phone_number": "420777115577" },
+        { "phone_number": "420777223344" }
+      ]
+    }
+  ]'
+```
+
+</CodeGroup>
+
+<CodeGroup>
+
+```json Mixed channels (SMS and Viber)
+[
+  {
+    "body": "Promo SMS",
+    "to": [{ "phone_number": "420777111111" }],
+    "flow": [
+      { "sms": { "sender": "PromoSMS", "gateway": "high" } }
+    ]
+  },
+  {
+    "body": "Promo Viber",
+    "to": [{ "phone_number": "420777222222" }],
+    "flow": [
+      { "viber": { "sender": "PromoViber", "ttl": 120 } },
+      { "sms": { "sender": "PromoSMS" } }
+    ]
+  }
+]
+```
+
+```bash Mixed channels — cURL
+curl -X POST https://api.smsmngr.com/v2/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '[
+    {
+      "body": "Promo SMS",
+      "to": [{ "phone_number": "420777111111" }],
+      "flow": [{ "sms": { "sender": "PromoSMS", "gateway": "high" } }]
+    },
+    {
+      "body": "Promo Viber",
+      "to": [{ "phone_number": "420777222222" }],
+      "flow": [
+        { "viber": { "sender": "PromoViber", "ttl": 120 } },
+        { "sms": { "sender": "PromoSMS" } }
+      ]
+    }
+  ]'
+```
+
+</CodeGroup>
+
+<CodeGroup>
+
+```json WhatsApp templates batch
+[
+  {
+    "to": [{ "phone_number": "420777555555" }],
+    "flow": [
+      {
+        "whatsapp_template": {
+          "template_name": "order_update",
+          "sender": "447700900123",
+          "language": "en",
+          "params": ["John", "12345"]
+        }
+      }
+    ]
+  },
+  {
+    "to": [{ "phone_number": "420777666666" }],
+    "flow": [
+      {
+        "whatsapp_template": {
+          "template_name": "order_update",
+          "sender": "447700900123",
+          "language": "en",
+          "params": ["Jane", "54321"]
+        }
+      }
+    ]
+  }
+]
+```
+
+```bash WhatsApp templates — cURL
+curl -X POST https://api.smsmngr.com/v2/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '[
+    {
+      "to": [{ "phone_number": "420777555555" }],
+      "flow": [{
+        "whatsapp_template": {
+          "template_name": "order_update",
+          "sender": "447700900123",
+          "language": "en",
+          "params": ["John", "12345"]
+        }
+      }]
+    },
+    {
+      "to": [{ "phone_number": "420777666666" }],
+      "flow": [{
+        "whatsapp_template": {
+          "template_name": "order_update",
+          "sender": "447700900123",
+          "language": "en",
+          "params": ["Jane", "54321"]
+        }
+      }]
+    }
+  ]'
+```
+
+</CodeGroup>
+
+<CodeGroup>
+
+```json Messages with payload and callback
+[
+  {
+    "body": "Your package is on the way.",
+    "to": [{ "phone_number": "420777777777" }],
+    "callback": "https://example.com/webhooks/delivery",
+    "payload": { "order_id": "ORD-42" },
+    "tag": "transactional"
+  },
+  {
+    "body": "We received your inquiry and will respond shortly.",
+    "to": [{ "phone_number": "420777888888" }],
+    "payload": { "ticket_id": "TCK-99" },
+    "tag": "transactional"
+  }
+]
+```
+
+```bash Messages with payload and callback — cURL
+curl -X POST https://api.smsmngr.com/v2/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '[
+    {
+      "body": "Your package is on the way.",
+      "to": [{ "phone_number": "420777777777" }],
+      "callback": "https://example.com/webhooks/delivery",
+      "payload": { "order_id": "ORD-42" },
+      "tag": "transactional"
+    },
+    {
+      "body": "We received your inquiry and will respond shortly.",
+      "to": [{ "phone_number": "420777888888" }],
+      "payload": { "ticket_id": "TCK-99" },
+      "tag": "transactional"
+    }
+  ]'
+```
+
+</CodeGroup>
+
+**Example response**
+
+```json
+{
+  "request_id": "66666666-6666-6666-6666-666666666666",
+  "accepted": [
+    { "key": "0", "message_id": "pppppppp-qqqq-rrrr-ssss-tttttttttttt" },
+    { "key": "1", "message_id": "uuuuuuuu-vvvv-wwww-xxxx-yyyyyyyyyyyy" }
+  ],
+  "rejected": []
+}
+```
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `400 Bad Request` | The request body is invalid, exceeds the array size limit, or contains a message object with missing required fields. The response body contains a `Message` string with details. Verify that the body is a valid JSON array with 1–10 items and that each object has at least `body` and `to`. |

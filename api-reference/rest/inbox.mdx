@@ -1,0 +1,98 @@
+---
+title: "GET /inbox — Read Incoming Messages"
+sidebarTitle: "Inbox"
+description: "GET /inbox retrieves inbound SMS and other messages received on your SmsManager virtual number for a given date."
+---
+
+The inbox stores incoming messages received on your virtual numbers or shared numbers. You can use this endpoint to poll for inbound messages on a given date — for example, opt-out replies, incoming two-way conversations, or verification responses. For real-time handling, consider configuring a webhook instead of polling on a schedule.
+
+## Endpoint
+
+```
+GET https://rest-api.smsmngr.com/v1/inbox?date=YYYY-MM-DD
+```
+
+## Authentication
+
+Include your API key in the `x-api-key` request header.
+
+```http
+x-api-key: YOUR_API_KEY
+```
+
+## Query parameters
+
+<ParamField query="date" type="string" required>
+  The date for which you want to retrieve inbox messages. Format: `YYYY-MM-DD` (for example, `2025-06-15`).
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the request succeeds.
+</ResponseField>
+
+<ResponseField name="messages" type="array" required>
+  Array of inbound message objects received on the specified date.
+
+  <Expandable title="message properties">
+    <ResponseField name="id" type="string" required>
+      Unique identifier for this inbound message.
+    </ResponseField>
+    <ResponseField name="from" type="string" required>
+      The sender's phone number in international format (for example, `420777123456`).
+    </ResponseField>
+    <ResponseField name="to" type="string" required>
+      Your virtual number that received the message, in international format.
+    </ResponseField>
+    <ResponseField name="body" type="string" required>
+      The text content of the inbound message.
+    </ResponseField>
+    <ResponseField name="ts_received" type="integer" required>
+      Unix timestamp of when the message was received by SmsManager.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example response
+
+```json
+{
+  "success": true,
+  "messages": [
+    {
+      "id": "abc123",
+      "from": "420777123456",
+      "to": "420123456789",
+      "body": "STOP",
+      "ts_received": 1700000000
+    }
+  ]
+}
+```
+
+## cURL example
+
+```bash
+curl "https://rest-api.smsmngr.com/v1/inbox?date=2025-06-15" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+## Error responses
+
+If the request fails, the API returns HTTP `400` with a JSON error body.
+
+```json
+{
+  "success": false,
+  "message": "Failed to read inbox"
+}
+```
+
+<Tip>
+  For real-time inbox notifications — such as immediately processing opt-out replies — configure the `incomingMessage` webhook on your API key using `POST /apikey/update`. Webhooks eliminate the need to poll this endpoint and reduce latency to near-zero.
+</Tip>
+
+<Note>
+  Inbox access is only available if your account has a dedicated virtual number assigned. If you do not see any messages and expect to, contact [SmsManager support](mailto:cc@smsmanager.cz) to confirm your virtual number setup.
+</Note>

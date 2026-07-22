@@ -1,0 +1,210 @@
+---
+title: "Send Viber Business Messages with SmsManager"
+sidebarTitle: "Send Viber"
+description: "Learn how to send Viber Business Messages with text, buttons, and SMS fallback using SmsManager's multi-channel flow."
+---
+
+Viber Business Messages let you reach customers with rich content — formatted text, action buttons, and images — through the Viber app. Because not every recipient has Viber, SmsManager's multi-channel `flow` makes it easy to automatically fall back to SMS for users who don't receive the Viber message in time.
+
+## Prerequisites
+
+- A registered **Viber Business sender name**. Contact [SmsManager support](https://app.smsmanager.com) to register one — Viber requires approval before you can send commercial messages.
+- An active SmsManager API key.
+- Base URL: `https://api.smsmngr.com/v2`
+- Authentication header: `x-api-key: YOUR_API_KEY`
+
+---
+
+<Steps>
+
+  <Step title="Send a Viber-only message">
+    Add a `viber` object inside your `flow` array. Set `sender` to your registered Viber Business name and optionally override the message `body` for the Viber channel (it defaults to the top-level `body` if omitted).
+
+    ```json Request body
+    {
+      "body": "Hello from Viber!",
+      "to": [{"phone_number": "420777123456"}],
+      "flow": [
+        {
+          "viber": {
+            "sender": "MySender",
+            "body": "Hello from Viber!"
+          }
+        }
+      ]
+    }
+    ```
+
+    ```bash cURL
+    curl -X POST https://api.smsmngr.com/v2/message \
+      -H "x-api-key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "body": "Hello from Viber!",
+        "to": [{"phone_number": "420777123456"}],
+        "flow": [
+          {
+            "viber": {
+              "sender": "MySender",
+              "body": "Hello from Viber!"
+            }
+          }
+        ]
+      }'
+    ```
+  </Step>
+
+  <Step title="Add a button">
+    Viber Business Messages support up to **one action button** per message. Provide a `buttons` array inside the `viber` object. Each button requires a `title` (the button label) and a `url` (where the button takes the user).
+
+    ```json viber flow object
+    {
+      "viber": {
+        "sender": "MySender",
+        "body": "Check out our latest offer — just for you!",
+        "buttons": [
+          {
+            "title": "View Offer",
+            "url": "https://example.com/offer"
+          }
+        ],
+        "ttl": 60
+      }
+    }
+    ```
+
+    <Tip>
+      Keep your button label short and action-oriented — labels like "View Offer", "Track Order", or "Confirm Now" perform better than generic ones like "Click here".
+    </Tip>
+  </Step>
+
+  <Step title="Add an SMS fallback">
+    Place the `viber` step first and an `sms` step second in the `flow` array. If the recipient doesn't read the Viber message within the TTL window, SmsManager automatically delivers the message via SMS instead.
+
+    ```json Request body
+    {
+      "body": "Your order #ORD-9921 has shipped! Track it at https://example.com/track",
+      "to": [{"phone_number": "420777123456"}],
+      "flow": [
+        {
+          "viber": {
+            "sender": "MySender",
+            "body": "Your order #ORD-9921 has shipped! Track it at https://example.com/track",
+            "buttons": [
+              {
+                "title": "Track Order",
+                "url": "https://example.com/track/ORD-9921"
+              }
+            ],
+            "ttl": 60
+          }
+        },
+        {
+          "sms": {
+            "sender": "MyShop",
+            "gateway": "high"
+          }
+        }
+      ]
+    }
+    ```
+
+    When the Viber TTL expires without a read, SmsManager moves to the next step in `flow` and sends the SMS. You receive separate webhook events for each channel attempt.
+  </Step>
+
+</Steps>
+
+---
+
+## TTL (time to live)
+
+The `ttl` field inside the `viber` object sets how long (in minutes) SmsManager waits for the recipient to read the Viber message before triggering the next step in the flow. If no TTL is set, the message stays pending until the Viber platform expires it.
+
+- If `ttl` is set and the recipient **reads** the Viber message within the window, the flow stops there — no SMS is sent.
+- If `ttl` expires and the recipient has **not read** the message, SmsManager proceeds to the next step (for example, SMS fallback).
+
+```json
+"viber": {
+  "sender": "MySender",
+  "body": "Your appointment is tomorrow at 10:00.",
+  "ttl": 120
+}
+```
+
+<Note>
+  Viber delivery reports include a `seen` status when the recipient opens the message. Use webhooks to track whether the Viber message was seen or the SMS fallback was triggered.
+</Note>
+
+---
+
+## Viber vs SMS
+
+| Feature | Viber | SMS |
+|---------|-------|-----|
+| Rich content (buttons, images) | ✅ | ❌ |
+| Read receipts | ✅ | ❌ |
+| Requires Viber app | ✅ | ❌ |
+| Global reach (non-Viber users) | ❌ | ✅ |
+| Character limit | ~1000 chars | 160 GSM-7 / 70 UCS-2 per segment |
+| Cost | Typically lower | Standard SMS rate |
+
+Using SmsManager's `flow` gives you the best of both worlds: rich Viber content for users who have the app, with guaranteed SMS delivery for everyone else.
+
+---
+
+## Full cURL example
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Hi! Your exclusive discount is waiting. Use code SAVE20 at checkout.",
+    "to": [
+      {"phone_number": "420777123456"},
+      {"phone_number": "420777654321"}
+    ],
+    "tag": "promotional",
+    "callback": "https://yourapp.com/webhooks/viber",
+    "flow": [
+      {
+        "viber": {
+          "sender": "MySender",
+          "body": "Hi! Your exclusive discount is waiting. Use code SAVE20 at checkout.",
+          "buttons": [
+            {
+              "title": "Shop Now",
+              "url": "https://example.com/sale?code=SAVE20"
+            }
+          ],
+          "ttl": 120
+        }
+      },
+      {
+        "sms": {
+          "sender": "MyShop",
+          "gateway": "high"
+        }
+      }
+    ]
+  }'
+```
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Send WhatsApp" icon="whatsapp" href="/guides/send-whatsapp">
+    Send WhatsApp template and text messages with SMS fallback.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    Track Viber delivery status and SMS fallback events via webhooks.
+  </Card>
+  <Card title="Batch Sending" icon="layer-group" href="/guides/batch-sending">
+    Send Viber and SMS messages together in a single batch API call.
+  </Card>
+  <Card title="Send SMS" icon="message-sms" href="/guides/send-sms">
+    Learn more about SMS-only configuration options.
+  </Card>
+</CardGroup>

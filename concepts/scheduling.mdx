@@ -1,0 +1,97 @@
+---
+title: "Schedule Messages and Control Delivery Windows"
+sidebarTitle: "Scheduling"
+description: "Use SmsManager's datetime and delivery_time fields to schedule messages in advance or restrict sending to business hours."
+---
+
+SmsManager gives you two complementary tools for controlling when your messages reach recipients. You can schedule a message for a specific point in the future using the `datetime` field, and you can restrict delivery to certain hours or days of the week using `delivery_time`. Both fields are optional, they work independently, and you can combine them for precise control over your send timing.
+
+## Scheduled send (`datetime`)
+
+The `datetime` field lets you queue a message now and have SmsManager send it at a specific future time. You provide a UTC timestamp in ISO 8601 format:
+
+```json
+{
+  "body": "Don't forget: your meeting with the team starts in 30 minutes.",
+  "to": [{ "phone_number": "420777123456" }],
+  "datetime": "2025-06-15T09:30:00Z"
+}
+```
+
+SmsManager stores the message and dispatches it at the specified time. The API responds immediately with a `message_id` you can use for tracking or cancellation.
+
+**Important:** the `datetime` value must always be in **UTC**. If your application works in a local timezone, convert to UTC before constructing the request. For example, 10:00 AM Prague time (UTC+2 in summer) is `08:00:00Z`.
+
+<Note>
+  Scheduling is available on all channels — SMS, Viber, and WhatsApp. The `datetime` field sits at the root of the message object, not inside the `flow`.
+</Note>
+
+## Delivery time windows (`delivery_time`)
+
+The `delivery_time` object lets you define the hours and days during which SmsManager is allowed to send your message. If a message arrives outside your allowed window — either because it was submitted late or because `datetime` lands outside the window — SmsManager holds it and delivers it as soon as the next window opens.
+
+The `delivery_time` object accepts the following fields:
+
+| Field   | Type             | Default | Description |
+|---------|------------------|---------|-------------|
+| `days`  | array of strings | —       | Days of the week the window applies to. Accepted values: `monday`, `tuesday`, `wednesday`, `thursday`, `friday`, `saturday`, `sunday`. |
+| `start` | string           | —       | Window open time in `HH:MM` format (24-hour clock). |
+| `end`   | string           | —       | Window close time in `HH:MM` format (24-hour clock). |
+| `tz`    | string           | `UTC`   | IANA timezone name used to interpret `start` and `end`. |
+
+### Example: weekdays, 08:00–21:00 Prague time
+
+```json
+{
+  "body": "Hi! We have a special offer just for you.",
+  "to": [{ "phone_number": "420777123456" }],
+  "delivery_time": {
+    "days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    "start": "08:00",
+    "end": "21:00",
+    "tz": "Europe/Prague"
+  }
+}
+```
+
+If you send this request at 23:00 on a Friday evening Prague time, SmsManager holds the message and delivers it at 08:00 on Monday morning — the next moment the delivery window is open.
+
+## Combining `datetime` and `delivery_time`
+
+You can use both fields together to schedule a message for a future date **and** ensure it only lands during business hours. This is useful when you're generating messages in advance but want to avoid recipients receiving them on weekends or in the middle of the night.
+
+```json
+{
+  "body": "Your subscription renews in 3 days. Manage it here: https://example.com/account",
+  "to": [{ "phone_number": "420777123456" }],
+  "datetime": "2025-06-20T06:00:00Z",
+  "delivery_time": {
+    "days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    "start": "08:00",
+    "end": "20:00",
+    "tz": "Europe/Prague"
+  }
+}
+```
+
+In this example, the message is scheduled for `2025-06-20T06:00:00Z` (08:00 Prague time on a Friday). Because that time falls within the delivery window, it sends immediately at the scheduled time. If the date happened to be a Saturday, SmsManager would hold it until 08:00 on Monday.
+
+## Time zones
+
+The `tz` field accepts any valid [IANA Time Zone Database](https://www.iana.org/time-zones) name. If you omit `tz`, SmsManager defaults to UTC. Some commonly used values:
+
+| Timezone string     | Region                   |
+|---------------------|--------------------------|
+| `UTC`               | Coordinated Universal Time (default) |
+| `Europe/Prague`     | Czech Republic, Slovakia |
+| `Europe/London`     | United Kingdom           |
+| `Europe/Berlin`     | Germany, Austria         |
+| `Europe/Paris`      | France, Belgium          |
+| `America/New_York`  | US Eastern               |
+| `America/Chicago`   | US Central               |
+| `America/Los_Angeles` | US Pacific             |
+| `Asia/Dubai`        | Gulf Standard Time       |
+
+<Tip>
+  For transactional messages — one-time passwords, login codes, payment alerts, and other time-sensitive notifications — do **not** use `delivery_time`. A recipient waiting for an OTP that's held for six hours is a broken user experience. Reserve `delivery_time` for marketing and informational messages where a short delay is acceptable.
+</Tip>

@@ -1,0 +1,134 @@
+---
+title: "SmsManager API Rate Limits and Quotas"
+sidebarTitle: "Rate Limits"
+description: "Learn about SmsManager API rate limits for message sending and phone verification, and how to handle 429 responses gracefully."
+---
+
+SmsManager enforces limits on both how many recipients you can target in a single API call and how frequently you can initiate phone number verifications. Understanding these limits helps you design robust integrations that batch requests efficiently and recover gracefully when a limit is reached.
+
+## Sending API limits
+
+The sending API does not impose a hard per-second request rate limit, but it does enforce per-request recipient limits that you must respect when batching outbound messages.
+
+| Endpoint | Max recipients per call | Notes |
+|----------|------------------------|-------|
+| `POST /message` | 10 recipients | Pass up to 10 phone numbers in the `to` array. |
+| `POST /messages` | 10 message objects × 10 recipients each = **100 total** | Each message object in the array supports up to 10 recipients. |
+
+For campaigns larger than these limits, split your recipients across multiple sequential or concurrent API calls.
+
+<Tip>
+  If you need to send to very large volumes — tens of thousands of messages in a short window — contact [SmsManager support](mailto:cc@smsmanager.cz) to discuss high-volume arrangements and dedicated capacity.
+</Tip>
+
+<Note>
+  A `200` response does not mean every message was dispatched. Check the `rejected` array in the response body to identify any recipients that were not accepted within a single call. Rejected entries do **not** count against rate limits — you can retry them immediately after resolving the underlying issue (such as topping up credit).
+</Note>
+
+## Verify API rate limits
+
+The Verify API implements multi-level rate limiting to prevent abuse and protect both your account and individual users. Limits are enforced simultaneously at three levels:
+
+- **Per-account (tenant):** Caps the total number of new validation sessions your account can start within a rolling time window. This protects your overall monthly quota.
+- **Per-country:** Limits the number of validations that can be started for phone numbers belonging to a specific country code. This prevents bulk abuse targeting a single country.
+- **Per-phone-number:** Prevents a single phone number from being flooded with verification codes by limiting how many sessions can be started for that number within a time window.
+
+When any of these limits is exceeded, the API returns an `HTTP 429` response with one of the following error codes in the response body:
+
+| Error code | Limit type |
+|------------|-----------|
+| `TENANT_RATE_LIMIT` | Per-account limit exceeded |
+| `PHONE_RATE_LIMIT` | Per-phone-number limit exceeded |
+
+## Handling rate limits
+
+When you receive a `429` response, you should not retry immediately. Use exponential backoff with jitter to spread out retries and avoid thundering-herd conditions.
+
+<AccordionGroup>
+  <Accordion title="Python — retry with exponential backoff">
+    ```python
+    import time
+    import random
+    import requests
+
+    def start_validation_with_retry(phone_number: str, api_key: str, max_retries: int = 5):
+        url = "https://verify-api.smsmanager.com/v1/validations"
+        headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
+        payload = {"phoneNumber": phone_number}
+
+        for attempt in range(max_retries):
+            response = requests.post(url, json=payload, headers=headers)
+
+            if response.status_code == 200:
+                return response.json()
+
+            if response.status_code == 429:
+                # Exponential backoff: 1s, 2s, 4s, 8s, 16s — plus random jitter
+                wait = (2 ** attempt) + random.uniform(0, 1)
+                print(f"Rate limited. Retrying in {wait:.1f}s (attempt {attempt + 1}/{max_retries})")
+                time.sleep(wait)
+                continue
+
+            # For non-429 errors, raise immediately
+            response.raise_for_status()
+
+        raise Exception(f"Max retries exceeded for phone number {phone_number}")
+    ```
+  </Accordion>
+
+  <Accordion title="Node.js — retry with exponential backoff">
+    ```javascript
+    async function startValidationWithRetry(phoneNumber, apiKey, maxRetries = 5) {
+      const url = "https://verify-api.smsmanager.com/v1/validations";
+
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "X-API-Key": apiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ phoneNumber }),
+        });
+
+        if (response.ok) {
+          return await response.json();
+        }
+
+        if (response.status === 429) {
+          // Exponential backoff: 1s, 2s, 4s, 8s, 16s — plus random jitter
+          const wait = (2 ** attempt + Math.random()) * 1000;
+          console.log(`Rate limited. Retrying in ${(wait / 1000).toFixed(1)}s (attempt ${attempt + 1}/${maxRetries})`);
+          await new Promise((resolve) => setTimeout(resolve, wait));
+          continue;
+        }
+
+        // For non-429 errors, throw immediately
+        const error = await response.json().catch(() => ({}));
+        throw new Error(`API error ${response.status}: ${error.message ?? "unknown"}`);
+      }
+
+      throw new Error(`Max retries exceeded for phone number ${phoneNumber}`);
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Verification attempt limits
+
+Each validation session (started via `POST /v1/validations`) allows a limited number of code verification attempts before it is locked.
+
+| Limit | Default value |
+|-------|--------------|
+| Max verification attempts per session | **6** |
+| Session expiry | **~10 minutes** |
+
+Once a session reaches the maximum number of failed attempts, subsequent `POST /v1/validations/{token}/verify` calls return `HTTP 429` with the message `"Too many attempts"`. At that point, you must start a new validation session.
+
+<Tip>
+  Display an attempt counter to your users (the `attemptsRemaining` field is returned in error responses) so they know how many tries remain before the session expires. This reduces frustration and unnecessary API calls.
+</Tip>
+
+<Warning>
+  Do not automatically retry a failed code verification in a tight loop — each failed attempt consumes one of the session's limited tries. Prompt your user to re-enter the code manually.
+</Warning>

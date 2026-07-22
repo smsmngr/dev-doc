@@ -1,0 +1,82 @@
+---
+title: "GET /credit — Check Account Credit Balance"
+sidebarTitle: "Credit"
+description: "GET /credit returns the current prepaid credit balance for your SmsManager API key in both CZK and EUR."
+---
+
+Before sending a large batch of messages, you can check your remaining prepaid credit balance to make sure you have enough funds. This endpoint returns balances in both Czech Koruna (CZK) and Euro (EUR) simultaneously, so you always have an up-to-date view regardless of which currency your account operates in.
+
+## Endpoint
+
+```
+GET https://rest-api.smsmngr.com/v1/credit
+```
+
+## Authentication
+
+Include your API key in the `x-api-key` request header.
+
+```http
+x-api-key: YOUR_API_KEY
+```
+
+## Request parameters
+
+This endpoint takes no query parameters or request body.
+
+## Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the request succeeds.
+</ResponseField>
+
+<ResponseField name="credit" type="object" required>
+  Your current credit balances.
+
+  <Expandable title="credit properties">
+    <ResponseField name="credit_czk" type="number" required>
+      Remaining credit balance in Czech Koruna (CZK).
+    </ResponseField>
+    <ResponseField name="credit_eur" type="number" required>
+      Remaining credit balance in Euro (EUR).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example response
+
+```json
+{
+  "success": true,
+  "credit": {
+    "credit_czk": 1234.50,
+    "credit_eur": 49.38
+  }
+}
+```
+
+## cURL example
+
+```bash
+curl https://rest-api.smsmngr.com/v1/credit \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+## Error responses
+
+If the request fails, the API returns HTTP `400` with a JSON error body.
+
+```json
+{
+  "success": false,
+  "message": "Failed to read credit balance"
+}
+```
+
+<Tip>
+  Monitor `credit_czk` or `credit_eur` in your application and trigger an alert when the balance drops below a threshold. This prevents service interruptions caused by an empty prepaid balance.
+</Tip>
+
+<Note>
+  Postpaid accounts may always show `0` in both credit fields. If your account uses postpaid billing and you need balance or invoice information, contact [SmsManager support](mailto:cc@smsmanager.cz).
+</Note>

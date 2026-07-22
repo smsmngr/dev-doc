@@ -1,0 +1,161 @@
+---
+title: "How SmsManager Message Flows Work"
+sidebarTitle: "Message Flow"
+description: "Understand SmsManager's channel flow system for multi-channel fallback: try Viber, fall back to SMS, and more."
+---
+
+When you send a message through SmsManager, you can define a **flow** — an ordered list of channels to try for each recipient. If the first channel can't deliver the message (for example, the recipient doesn't have Viber installed), SmsManager automatically attempts the next channel in the list. This lets you maximize delivery rates across SMS, Viber, and WhatsApp without writing any retry logic yourself.
+
+## What is a message flow?
+
+The `flow` property is an array of channel objects. Each object contains exactly one key — `sms`, `viber`, `whatsapp_text`, or `whatsapp_template` — along with that channel's configuration. SmsManager works through the array from first to last: it tries the first channel, and if that channel fails or is unavailable for a given recipient, it moves on to the second, and so on.
+
+```json
+"flow": [
+  { "viber": { "sender": "MySender", "ttl": 60, "body": "Hello via Viber" } },
+  { "sms":   { "sender": "MySender", "body": "Hello via SMS" } }
+]
+```
+
+In the example above, SmsManager first tries to deliver the message over Viber. If the recipient doesn't have Viber, or the Viber TTL expires before delivery, SmsManager falls back and sends the message as a standard SMS.
+
+## Default behavior (no flow)
+
+If you don't include a `flow` property in your request, SmsManager uses SMS via the `high` gateway as the default channel. This is equivalent to writing:
+
+```json
+"flow": [
+  { "sms": { "gateway": "high" } }
+]
+```
+
+The `body` from the root of your request is used as the message text, and standard SMS routing applies.
+
+## Flow examples
+
+### Simple SMS-only flow
+
+When you want fine-grained SMS control — such as specifying a sender name, gateway, or Unicode handling — define a single-element flow with the `sms` channel:
+
+```json
+{
+  "body": "Your verification code is 4821.",
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "sms": {
+        "sender": "MyCompany",
+        "gateway": "high",
+        "type": "sms",
+        "ttl": 10
+      }
+    }
+  ]
+}
+```
+
+### Viber with SMS fallback (most common pattern)
+
+This is the recommended production pattern for promotional or transactional messages. Viber delivery is attempted first; if it fails for any reason, the message falls back to SMS so you still reach every recipient.
+
+```json
+{
+  "body": "Hi! Your order #1042 has shipped.",
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "viber": {
+        "sender": "MyShop",
+        "ttl": 60,
+        "body": "Hi! Your order #1042 has shipped. 📦",
+        "buttons": [
+          { "title": "Track order", "url": "https://example.com/track/1042" }
+        ]
+      }
+    },
+    {
+      "sms": {
+        "sender": "MyShop",
+        "body": "Hi! Your order #1042 has shipped. Track: https://example.com/track/1042"
+      }
+    }
+  ]
+}
+```
+
+Notice that the Viber step has a richer body with an emoji and a button, while the SMS fallback uses a plain-text equivalent. Channel-level `body` values let you tailor content per channel.
+
+### WhatsApp template with SMS fallback
+
+For proactive outreach where the recipient hasn't messaged you first, use a pre-approved WhatsApp template. If WhatsApp delivery fails, SmsManager falls back to SMS.
+
+```json
+{
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "whatsapp_template": {
+        "sender": "514578330250514",
+        "template_name": "order_shipped",
+        "language": "en",
+        "params": ["John", "1042"],
+        "ttl": 60
+      }
+    },
+    {
+      "sms": {
+        "sender": "MyShop",
+        "body": "Hi John, your order #1042 has shipped!"
+      }
+    }
+  ]
+}
+```
+
+## Flow failure conditions
+
+SmsManager skips a channel and tries the next one when any of the following conditions occur:
+
+**Viber**
+- The recipient doesn't have Viber installed on their device.
+- The Viber `ttl` expires before the message is delivered.
+
+**WhatsApp template**
+- The specified template hasn't been approved by Meta yet.
+- The WhatsApp `ttl` expires before the message is delivered.
+
+**WhatsApp text**
+- The recipient has never sent you a message or replied to one of your template messages. WhatsApp text messages are only allowed within the 24-hour customer service window that opens after the recipient initiates contact.
+
+**SMS**
+- Because SMS is the most universally available channel, it very rarely fails at the channel level. A failed SMS indicates a deeper issue (invalid number, insufficient credit, etc.) rather than a channel availability problem.
+
+## Body and sender precedence
+
+You can define `body` at the root level of your request and also within individual channel objects in the `flow`. When both are present, the **channel-level `body` takes priority** for that channel. If a channel doesn't specify its own `body`, it falls back to the root-level `body`.
+
+```json
+{
+  "body": "Plain fallback text for all channels.",
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "viber": {
+        "sender": "MySender",
+        "body": "🎉 Channel-specific Viber message with emoji!"
+      }
+    },
+    {
+      "sms": {
+        "sender": "MySender"
+      }
+    }
+  ]
+}
+```
+
+In this example, the Viber step sends the emoji-rich body, while the SMS fallback uses the plain root-level body.
+
+<Tip>
+  Always include SMS as the last channel in your `flow` for production workloads. SMS is available on every mobile device and doesn't require any app installation, making it the most reliable final fallback to ensure your message reaches every recipient.
+</Tip>

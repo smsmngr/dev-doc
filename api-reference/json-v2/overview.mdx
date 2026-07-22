@@ -1,0 +1,78 @@
+---
+title: "JSON API v2 — SmsManager Sending API Reference"
+sidebarTitle: "Overview"
+description: "Overview of SmsManager's JSON API v2 for sending SMS, Viber, and WhatsApp messages. Base URL, authentication, and endpoint summary."
+---
+
+JSON API v2 is SmsManager's primary API for sending messages across SMS, Viber, and WhatsApp. Every request is authenticated with your API key, and most endpoints accept a JSON body that lets you target up to 10 recipients, define multi-channel flows, schedule delivery, and receive delivery callbacks. If you are migrating from an older integration, note that JSON API v1, the HTTP API, and the XML API are all deprecated — you should use v2 for all new work.
+
+## Base URL
+
+```text
+https://api.smsmngr.com/v2
+```
+
+All endpoints in this reference are relative to this base URL.
+
+## Authentication
+
+JSON API v2 uses API key authentication. For all `POST` endpoints, pass your key in the `x-api-key` request header:
+
+```http
+x-api-key: YOUR_API_KEY
+```
+
+The `GET /simple/message` endpoint is the only exception — it accepts the key as an `apikey` query parameter instead of a header.
+
+You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud). Keep your key private; anyone who holds it can send messages on your behalf.
+
+For a broader explanation of authentication across SmsManager APIs, see the [Authentication guide](/authentication).
+
+## Endpoints summary
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/message` | Send a message to up to 10 recipients |
+| `POST` | `/messages` | Send a batch of up to 10 message objects (up to 100 recipients total) |
+| `GET` | `/simple/message` | Send a message via query parameters — no JSON body required |
+| `POST` | `/simple/message` | Send a message via a form-encoded body |
+
+## Request format
+
+`POST /message` and `POST /messages` expect a `Content-Type: application/json` body. The `/simple/message` endpoints use query parameters (GET) or `application/x-www-form-urlencoded` (POST) respectively.
+
+## Common request fields
+
+The following fields are shared across `POST /message` and `POST /messages`. Each message object you send can include any combination of them.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `body` | string (max 1000) | Yes* | The message text. Required unless every flow channel defines its own `body`. |
+| `to` | array (1–10 items) | Yes | List of recipient objects, each containing a `phone_number` string. |
+| `flow` | array | No | Ordered list of channel objects (`sms`, `viber`, `whatsapp_text`, `whatsapp_template`). SmsManager tries each channel in order until one succeeds. |
+| `callback` | string (URI) | No | Webhook URL to receive delivery status notifications for this message. |
+| `tag` | string | No | Label for grouping messages. Built-in values: `promotional` (default), `transactional`, `priority`. Accepts custom strings. |
+| `datetime` | string (ISO 8601, UTC) | No | Schedule the message for a future UTC datetime, e.g. `2025-06-01T09:00:00Z`. |
+| `delivery_time` | object | No | Restrict delivery to a time window: `days` (array of weekday names), `start` (HH:MM), `end` (HH:MM), `tz` (IANA timezone, default `UTC`). |
+| `payload` | object | No | Arbitrary key-value data that SmsManager echoes back in every webhook event for this message. |
+
+<Note>
+  **JSON API v1 is deprecated.** All new integrations should target JSON API v2 (`https://api.smsmngr.com/v2`). The HTTP API and XML API are also deprecated.
+</Note>
+
+## Explore the endpoints
+
+<CardGroup cols={2}>
+  <Card title="POST /message" icon="message" href="/api-reference/json-v2/send-message">
+    Send a single message object to up to 10 recipients with full flow, scheduling, and callback support.
+  </Card>
+  <Card title="POST /messages" icon="messages" href="/api-reference/json-v2/send-messages">
+    Send a batch of up to 10 message objects in one HTTP call — up to 100 recipients per request.
+  </Card>
+  <Card title="Simple Message" icon="bolt" href="/api-reference/json-v2/send-simple-message">
+    Send a single SMS via a plain GET URL or form-encoded POST — ideal for low-code tools and CRM integrations.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/api-reference/json-v2/webhooks">
+    Reference for delivery status, incoming reply, and unsolicited inbound message webhook payloads.
+  </Card>
+</CardGroup>

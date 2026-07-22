@@ -1,0 +1,278 @@
+---
+title: "Receive Delivery Notifications via Webhooks"
+sidebarTitle: "Webhooks"
+description: "Set up SmsManager webhooks to receive real-time delivery status updates, incoming messages, and reply notifications at your endpoint."
+---
+
+Webhooks let SmsManager push events to your server the moment something happens — a message is delivered, a delivery fails, or a recipient replies. Instead of polling the API for status updates, your endpoint receives an HTTP `POST` request containing a JSON payload describing the event. This is the most efficient way to build real-time message tracking, automate retries, and handle inbound messages.
+
+---
+
+## Webhook types
+
+SmsManager sends three types of webhook events:
+
+<CardGroup cols={1}>
+  <Card title="sentMessage" icon="paper-plane">
+    Fired whenever the delivery status of an outbound message changes. You may receive multiple events per message as it moves through the delivery pipeline — for example, first `sent`, then `delivered`. Status values include: `sending`, `sent`, `delivered`, `undelivered`, `rejected`, `failed`, and `seen` (Viber/WhatsApp only).
+  </Card>
+  <Card title="incomingReplyMessage" icon="reply">
+    Fired when a recipient replies directly to a message you sent. The payload links the reply to the original outbound message via `message_id`.
+  </Card>
+  <Card title="incomingMessage" icon="inbox">
+    Fired for unsolicited inbound messages — messages that arrive on your number but are not in direct reply to a specific outbound message you sent.
+  </Card>
+</CardGroup>
+
+---
+
+## Setting up a webhook URL
+
+You can configure webhook delivery in two ways:
+
+**1. Per-message callback** — set the `callback` field in the message request body. SmsManager posts all delivery events for that specific message to the URL you provide.
+
+```json Per-message callback
+{
+  "body": "Your order has shipped!",
+  "to": [{"phone_number": "420777123456"}],
+  "callback": "https://yourapp.com/webhooks/sms"
+}
+```
+
+**2. Account-wide default** — set a `default_callback_url` on your API key via the SmsManager REST API. All messages sent with that API key will use this URL unless overridden by a per-message `callback` field.
+
+```bash Set default callback URL
+curl -X POST https://api.smsmngr.com/v1/apikey/update \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "default_callback_url": "https://yourapp.com/webhooks/sms"
+  }'
+```
+
+<Tip>
+  Use an account-wide default during development so you capture events from all test messages without having to set `callback` on each request.
+</Tip>
+
+---
+
+## Webhook payload format
+
+SmsManager posts an **array** of event objects to your callback URL. Multiple delivery events may be batched into a single POST. Here is a full example of a `sentMessage` payload for a delivered SMS:
+
+```json sentMessage payload
+[
+  {
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+    "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+    "gateway": "sms",
+    "timestamp": 1700000000,
+    "payload": { "order_id": "ORD-123" },
+    "type": "outgoing",
+    "to": {
+      "phone_number": "420777123456"
+    },
+    "result": "delivered",
+    "result_info": "[0] Delivered",
+    "sms": {
+      "gateway": "high",
+      "sender": "MySender",
+      "country": 230,
+      "operator": 1,
+      "price_czk": 0.95,
+      "price_eur": 0.04,
+      "count": 1
+    }
+  }
+]
+```
+
+The channel-specific object (`sms`, `viber`, `whatsapp_template`, or `whatsapp_body`) varies by the `gateway` value:
+
+| `gateway` value | Channel object key | Notable fields |
+|-----------------|--------------------|----------------|
+| `sms` | `sms` | `sender`, `country` (MCC), `operator` (MNC), `price_czk`, `price_eur`, `count` (segments) |
+| `viber` | `viber` | `sender`, `country`, `operator`, `price_czk`, `price_eur` |
+| `whatsapp_template` | `whatsapp_template` | `sender`, `country`, `operator`, `price_czk`, `price_eur` |
+| `whatsapp_text` | `whatsapp_body` | `sender`, `country`, `operator`, `price_czk`, `price_eur` |
+
+---
+
+## The `payload` field
+
+When you include a `payload` object in your original message request, SmsManager echoes it back in every webhook event for that message. Use this to correlate delivery events with your own application data — order IDs, user IDs, campaign names, and so on — without needing to look anything up by `message_id`.
+
+```json Message request with payload
+{
+  "body": "Your order has shipped!",
+  "to": [{"phone_number": "420777123456"}],
+  "payload": {
+    "order_id": "ORD-123",
+    "user_id": "USR-7891"
+  }
+}
+```
+
+In the webhook, you receive the same `payload` object:
+
+```json Webhook event (excerpt)
+{
+  "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+  "result": "delivered",
+  "payload": {
+    "order_id": "ORD-123",
+    "user_id": "USR-7891"
+  }
+}
+```
+
+---
+
+## Delivery status sequence
+
+A typical successful delivery produces two webhook events in sequence:
+
+```
+sending  →  sent  →  delivered
+```
+
+If delivery fails, the sequence ends with:
+
+```
+sending  →  sent  →  undelivered
+```
+
+Or immediately with:
+
+```
+rejected   (validation or routing failure — message never left SmsManager)
+failed     (carrier-level failure)
+```
+
+For Viber and WhatsApp, you may also receive a `seen` event when the recipient opens the message.
+
+<Note>
+  Your webhook handler must be idempotent — SmsManager may deliver the same event more than once in rare cases (network retries). Use `message_id` + `result` as a deduplication key.
+</Note>
+
+---
+
+## Handling incoming messages
+
+**incomingReplyMessage** — a reply to one of your outbound messages:
+
+```json incomingReplyMessage payload
+[
+  {
+    "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+    "type": "reply",
+    "gateway": "sms",
+    "timestamp": 1700000120,
+    "from": {
+      "phone_number": "420777123456"
+    },
+    "body": "Yes, please confirm my booking.",
+    "to": {
+      "sender": "MySender"
+    }
+  }
+]
+```
+
+**incomingMessage** — an unsolicited inbound message not tied to a specific outbound:
+
+```json incomingMessage payload
+[
+  {
+    "type": "incoming",
+    "gateway": "sms",
+    "timestamp": 1700000500,
+    "from": {
+      "phone_number": "420777999888"
+    },
+    "body": "STOP",
+    "to": {
+      "sender": "MySender"
+    }
+  }
+]
+```
+
+---
+
+## Best practices
+
+- **Respond with HTTP 200 immediately.** SmsManager considers any non-2xx response a failure and will retry. Return `200 OK` as fast as possible, then process the payload asynchronously (for example, push it to a queue).
+- **Handle duplicate webhooks.** Network issues can cause the same event to be delivered more than once. Use `message_id` + `result` as a composite key to deduplicate events before processing.
+- **Log raw webhook payloads.** Store the raw JSON body alongside your processed data so you can replay events during debugging without relying on SmsManager's retry window.
+- **Validate `message_id` against your records.** Ignore events for message IDs you don't recognise — this protects against spoofed webhook requests.
+- **Use HTTPS.** Always expose your webhook endpoint over HTTPS to protect message content and delivery metadata in transit.
+
+---
+
+## `result_info` codes
+
+The `result_info` field gives a human-readable description of the delivery outcome. It follows the format `[code] Description` where the numeric code is carrier-specific and optional. Common examples:
+
+| `result_info` | Meaning |
+|---------------|---------|
+| `[0] Delivered` | Successfully delivered to handset |
+| `[1] Undelivered` | Could not be delivered (handset off, number not in service) |
+| `[2] Rejected` | Rejected by carrier or SmsManager routing |
+| `[3] Failed` | Technical failure during delivery attempt |
+| `Sent` | Accepted by the carrier; final status not yet known |
+
+Use `result` (the machine-readable enum) in your application logic, and `result_info` for logging and support.
+
+---
+
+## What SmsManager POSTs to your endpoint
+
+```bash What SmsManager sends to your callback URL
+POST https://yourapp.com/webhooks/sms HTTP/1.1
+Content-Type: application/json
+User-Agent: SmsManager-Webhook/1.0
+
+[
+  {
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+    "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+    "gateway": "sms",
+    "timestamp": 1700000000,
+    "payload": { "order_id": "ORD-123" },
+    "type": "outgoing",
+    "to": { "phone_number": "420777123456" },
+    "result": "delivered",
+    "result_info": "[0] Delivered",
+    "sms": {
+      "gateway": "high",
+      "sender": "MySender",
+      "country": 230,
+      "operator": 1,
+      "price_czk": 0.95,
+      "price_eur": 0.04,
+      "count": 1
+    }
+  }
+]
+```
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Send SMS" icon="message-sms" href="/guides/send-sms">
+    Learn how to set the callback field on SMS messages.
+  </Card>
+  <Card title="Send Viber" icon="message" href="/guides/send-viber">
+    Understand Viber-specific delivery statuses and the seen event.
+  </Card>
+  <Card title="Batch Sending" icon="layer-group" href="/guides/batch-sending">
+    Correlate batch delivery events using message_id index suffixes.
+  </Card>
+  <Card title="Phone Verification" icon="shield-check" href="/guides/phone-verification">
+    Use the Verify API for OTP flows with HMAC offline proofs.
+  </Card>
+</CardGroup>

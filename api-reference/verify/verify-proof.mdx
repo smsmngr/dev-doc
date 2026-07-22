@@ -1,0 +1,125 @@
+---
+title: "Verify HMAC Proof Offline — POST /v1/verify-proof"
+sidebarTitle: "Verify Proof"
+description: "POST /v1/verify-proof validates a SmsManager HMAC proof without authentication, enabling secure offline phone verification on your backend."
+---
+
+The HMAC proof lets you confirm that a phone number validation was genuinely completed by SmsManager — without making an authenticated API call and without your backend needing to hold an API key. This is ideal for microservices, edge functions, or any service that receives verification data forwarded from a client but should not trust it blindly.
+
+## What is the HMAC proof?
+
+When your account has a `verificationSecret` configured, the Verify API attaches a `proof` field to every validation and verification response. This proof is an HMAC signature computed from the `phoneNumber`, `token`, `code`, and `timestamp` fields using your secret. Because only SmsManager and your backend know the secret, a valid proof guarantees the data came from a real verification session.
+
+You verify the proof by sending the four original fields plus the proof itself to this endpoint. SmsManager recomputes the HMAC server-side and tells you whether it matches — no API key needed.
+
+## Endpoint
+
+```
+POST https://verify-api.smsmanager.com/v1/verify-proof
+```
+
+## Authentication
+
+**No authentication required.** The HMAC proof is the credential. Anyone who holds the four data fields and the proof can call this endpoint, so treat the proof data as sensitive in transit.
+
+## Request body
+
+<ParamField body="phoneNumber" type="string" required>
+  The phone number exactly as returned in the verification response (digits only, with country code).
+</ParamField>
+
+<ParamField body="token" type="string" required>
+  The validation token from the original `POST /v1/validations` response.
+</ParamField>
+
+<ParamField body="code" type="string" required>
+  The 6-digit code that was verified, as returned in the `POST /v1/validations/{token}/verify` response.
+</ParamField>
+
+<ParamField body="timestamp" type="string (ISO 8601)" required>
+  The UTC timestamp from the moment the validation session started, as returned in the `POST /v1/validations` response. This value is part of the HMAC input and must match exactly.
+</ParamField>
+
+<ParamField body="proof" type="string" required>
+  The HMAC proof string returned in the verification response (`POST /v1/validations/{token}/verify`).
+</ParamField>
+
+## Response fields
+
+<ResponseField name="valid" type="boolean">
+  `true` if the proof is authentic and the four input fields match the original signed data. `false` if any field was tampered with or the proof is wrong.
+</ResponseField>
+
+<ResponseField name="expired" type="boolean">
+  Present only when `valid` is `false`. Set to `true` when the proof itself is structurally valid but the validation session is older than 24 hours. Use this to distinguish a genuine-but-stale proof from a tampered one.
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://verify-api.smsmanager.com/v1/verify-proof \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phoneNumber": "14155550100",
+    "token": "61591bd88d8fbe7736bca535809d1216dd71cb0b5cbf2b07e5a08adfbeb5d35b",
+    "code": "123456",
+    "timestamp": "2024-01-15T10:30:00Z",
+    "proof": "86dd8444ed76402c93ce62497cb29a0d7af7215261b8497cb355e617b13f4ef2"
+  }'
+```
+
+```json Request body
+{
+  "phoneNumber": "14155550100",
+  "token": "61591bd88d8fbe7736bca535809d1216dd71cb0b5cbf2b07e5a08adfbeb5d35b",
+  "code": "123456",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "proof": "86dd8444ed76402c93ce62497cb29a0d7af7215261b8497cb355e617b13f4ef2"
+}
+```
+
+```json Response — valid proof
+{
+  "valid": true
+}
+```
+
+```json Response — invalid proof
+{
+  "valid": false
+}
+```
+
+```json Response — expired proof (>24 hours old)
+{
+  "valid": false,
+  "expired": true
+}
+```
+
+</CodeGroup>
+
+## Error responses
+
+| HTTP status | Condition |
+|---|---|
+| `400` | One or more required fields (`phoneNumber`, `token`, `code`, `timestamp`, `proof`) are missing from the request body. |
+| `400` | Your account does not have a `verificationSecret` configured, so proofs cannot be generated or verified. |
+
+## Proof expiry
+
+Proofs are valid for **24 hours** from the `timestamp` of the validation session. After that window, this endpoint returns `{ "valid": false, "expired": true }`. If you need to verify older sessions, use the authenticated `PATCH /v1/validations/{token}` endpoint instead, which checks state stored server-side rather than verifying the HMAC locally.
+
+## Alternative: PATCH /v1/validations/{token}
+
+If your backend already holds the `token` and has access to your API key, `PATCH /v1/validations/{token}` is a simpler option. Send the `proof` in the request body and receive the `valid` flag, `phoneNumber`, and `verifiedAt` timestamp directly from the stored session — no need to pass all four HMAC inputs.
+
+```bash
+curl -X PATCH \
+  https://verify-api.smsmanager.com/v1/validations/<token> \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <your-api-key>" \
+  -d '{ "proof": "86dd8444ed76402c..." }'
+```

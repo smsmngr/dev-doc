@@ -1,0 +1,87 @@
+---
+title: "Phone Number Formats Accepted by SmsManager"
+sidebarTitle: "Phone Numbers"
+description: "SmsManager accepts E.164 phone numbers without the leading + sign. Learn the expected format and how numbers are normalized."
+---
+
+Every recipient phone number you pass to SmsManager must include the full international dialling prefix — no local shortcuts or ambiguous national formats. SmsManager uses the **E.164 standard** as its canonical form, but strips the leading `+` sign. This means you pass a plain digit string starting with the country code, with no spaces, dashes, or other separators.
+
+## Required format
+
+SmsManager expects phone numbers in **E.164 format without the leading `+` or `00`**. Start directly with the country code followed by the subscriber number, with no formatting characters.
+
+| Country | International (E.164) | SmsManager format |
+|---------|-----------------------|-------------------|
+| Czech Republic | +420 777 123 456 | `420777123456` |
+| United Kingdom | +44 7700 900123 | `447700900123` |
+| United States | +1 415 555 0100 | `14155550100` |
+| Germany | +49 151 23456789 | `4915123456789` |
+| Slovakia | +421 902 123 456 | `421902123456` |
+
+The pattern is straightforward: take the full international number, remove the leading `+`, and remove all spaces, dashes, and parentheses.
+
+## Auto-normalization
+
+SmsManager accepts several other common representations and converts them to the canonical format before processing. While this gives you some flexibility, passing numbers in the recommended E.164-without-`+` format avoids any ambiguity and gives you the most reliable results — especially for numbers from countries that have non-obvious national dialling conventions.
+
+Formats that are automatically normalised include:
+
+- Numbers prefixed with a literal `+` (e.g. `+420777123456`)
+- Numbers prefixed with the international exit code `00` (e.g. `00420777123456`)
+- Numbers containing spaces, dashes, dots, or parentheses as separators (e.g. `420 777 123-456`)
+- National format numbers with a leading `0` where the country can be inferred (e.g. `0777123456` in some configurations)
+
+<Note>
+  National format with a leading `0` (e.g. `0777123456`) may not be correctly identified for all countries, because the country code cannot always be inferred from the number alone. Always include the full country code to guarantee correct routing.
+</Note>
+
+## Format validation table
+
+| Format | Example | Accepted? |
+|--------|---------|-----------|
+| E.164 without `+` **(recommended)** | `420777123456` | ✅ Accepted as-is |
+| With leading `+` | `+420777123456` | ⚠️ Accepted — normalised by stripping `+` |
+| With leading `00` | `00420777123456` | ⚠️ Accepted — normalised by stripping `00` |
+| National with leading `0` | `0777123456` | ⚠️ Accepted for some countries — may not work universally |
+| With spaces or dashes | `420 777 123-456` | ⚠️ Accepted — separators are stripped |
+
+## Country codes
+
+Always include the full country dialling code as the first digits of the number — do not add a leading `+`. For example:
+
+- Czech Republic (`420`) → `420XXXXXXXXX`
+- Germany (`49`) → `49XXXXXXXXXX`
+- United States (`1`) → `1XXXXXXXXXX`
+
+The country code does more than just route the message — it also determines the applicable per-message price, required sender registration rules, and any country-specific content restrictions. Using the wrong or missing country code can result in misrouted messages or unexpected charges.
+
+<Tip>
+  If you store phone numbers in your database with a leading `+`, strip it before passing numbers to the SmsManager API. A simple `phone.replace(/^\+/, "")` in JavaScript or `phone.lstrip("+")` in Python is all you need.
+</Tip>
+
+## Phone numbers in the Verify API
+
+The Verify API accepts phone numbers in the `phoneNumber` field of the request body using the same format: digits only, including the country code, no leading `+` or `00`.
+
+The Verify API validates the number against the following pattern before accepting a session request:
+
+```
+^[1-9]\d{6,14}$
+```
+
+This means:
+- The first digit must be `1–9` (no leading zeros)
+- Total length must be between 7 and 15 digits (inclusive)
+- Only digit characters are accepted — no spaces, dashes, or `+`
+
+**Example Verify API request body:**
+
+```json
+{
+  "phoneNumber": "420777123456"
+}
+```
+
+<Warning>
+  Invalid phone numbers cause messages to be **rejected before they are sent**. A rejected message still consumes a validation attempt and may trigger a `result: rejected` webhook callback. Always validate and normalise phone numbers on your side before calling the API, and check the `rejected` array in API responses to identify any numbers that failed.
+</Warning>

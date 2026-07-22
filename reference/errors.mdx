@@ -1,0 +1,140 @@
+---
+title: "SmsManager API Error Codes and Troubleshooting"
+sidebarTitle: "Errors"
+description: "Reference for SmsManager API HTTP status codes, error messages, and message delivery result codes with troubleshooting guidance."
+---
+
+Errors in SmsManager appear in two places: as **HTTP status codes** returned directly from API responses, and as **`result`** and **`result_info`** fields delivered to your webhook callback URL after a message has been dispatched. Understanding both surfaces helps you distinguish between request-level failures (where nothing was sent) and delivery-level failures (where a message was accepted but did not reach the recipient).
+
+## HTTP Status Codes
+
+The table below covers every HTTP status code you can receive from the SmsManager API. A `200` response means the server accepted your request — but you should still inspect the `rejected` array in the response body to catch any per-recipient failures.
+
+| Code | Meaning | Common cause |
+|------|---------|--------------|
+| `200` | Success | Request accepted. Check the `rejected` array for partial per-recipient failures. |
+| `400` | Bad Request | Invalid or missing parameters; unauthorized or invalid API key on the main sending API. |
+| `401` | Unauthorized | API key is missing or invalid (Verify API). |
+| `404` | Not Found | Validation session token not found (Verify API). |
+| `415` | Unsupported Media Type | Wrong `Content-Type` header sent to the simple POST endpoint. |
+| `429` | Too Many Requests | Rate limit exceeded (Verify API). |
+| `500` | Internal Server Error | An unexpected error occurred on the SmsManager server. |
+
+<Note>
+  A `200` response from `/message` or `/messages` does not guarantee every recipient received the message. Always check the `rejected` array in the response body and monitor your webhook callbacks for final delivery results.
+</Note>
+
+## Message result values
+
+After a message is sent, SmsManager delivers one or more webhook callbacks to your configured callback URL. Each callback contains a `result` field that reflects the current delivery state of the message. You may receive multiple callbacks for the same message as its state progresses (for example, `sending` → `sent` → `delivered`).
+
+| `result` value | Meaning |
+|----------------|---------|
+| `sending` | The message has been dispatched to the carrier and is awaiting confirmation. |
+| `sent` | The carrier has accepted the message for delivery. |
+| `delivered` | The recipient's device confirmed that the message was received. |
+| `undelivered` | The carrier attempted delivery but could not reach the recipient's device. |
+| `rejected` | The message was not sent at all — typically due to insufficient credit or an invalid phone number. |
+| `failed` | A technical failure occurred during the sending process. |
+| `seen` | The message was opened and seen by the recipient (Viber and WhatsApp only). |
+
+<Warning>
+  A `rejected` result means the message was never dispatched to the carrier. Check your account credit balance and verify the recipient's phone number format before retrying.
+</Warning>
+
+## result_info codes
+
+The `result_info` field in webhook payloads provides additional detail about a delivery outcome. It follows the format `[code] Description`, where both parts are optional — you may receive a code only, a description only, or both.
+
+- **Code** — a numeric identifier in square brackets, e.g. `[307]`
+- **Description** — a human-readable explanation, e.g. `Insufficient credit`
+
+Common examples you will encounter:
+
+| `result_info` value | What it means |
+|---------------------|---------------|
+| `[0] Delivered` | The message was delivered successfully. |
+| `[307] Insufficient credit` | Your account credit was depleted before the message could be sent. |
+| `[131042] There was an error related to your payment method` | A WhatsApp-specific payment issue prevented delivery. |
+| `[368]` | A code-only result with no accompanying description. |
+| `Unauthorized error` | A description-only result indicating an authorization failure. |
+
+<Note>
+  WhatsApp error codes (such as `131042`) follow [Meta's WhatsApp error code reference](https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes). Refer to Meta's documentation for the full list of WhatsApp-specific codes and their meanings.
+</Note>
+
+## Common errors and fixes
+
+<AccordionGroup>
+  <Accordion title="Invalid API key">
+    Your request was rejected because the API key is missing, malformed, or does not match any active key on your account.
+
+    **Fix:** Log in to [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud) and copy your current API key. Pass it in every request using the `x-api-key` header:
+
+    ```http
+    x-api-key: YOUR_API_KEY
+    ```
+
+    Alternatively, you can pass it as the `apikey` query parameter, though the header approach is recommended for security.
+  </Accordion>
+
+  <Accordion title="Insufficient credit">
+    Your account does not have enough credit to send the requested messages. The affected messages will appear with `result: rejected` and `result_info: [307] Insufficient credit` in your webhook callbacks.
+
+    **Fix:** Top up your account credit at [app.smsmanager.com](https://app.smsmanager.com). After topping up, retry the failed messages.
+  </Accordion>
+
+  <Accordion title="Invalid phone number">
+    The phone number you provided could not be parsed or normalised into a valid E.164 number.
+
+    **Fix:** Use E.164 format **without** a leading `+` or `00`. For example, the Czech number +420 777 123 456 should be sent as:
+
+    ```
+    420777123456
+    ```
+
+    See the [Phone Numbers](/reference/phone-numbers) reference for a full list of accepted formats.
+  </Accordion>
+
+  <Accordion title="Message rejected">
+    A message appears in the `rejected` array of the API response or arrives at your webhook with `result: rejected`.
+
+    **Fix:** The two most common causes are insufficient credit and an invalid phone number. Check both:
+    1. Verify your account credit balance at [app.smsmanager.com](https://app.smsmanager.com).
+    2. Confirm the phone number is in E.164 format without a leading `+` (e.g. `420777123456`).
+  </Accordion>
+
+  <Accordion title="Message shows as 'sent' but not 'delivered'">
+    You received a webhook with `result: sent` but never received a follow-up `result: delivered` callback.
+
+    This is normal in many cases. The `sent` status means the carrier accepted the message, but delivery confirmation (DLR) depends on whether the carrier supports it and whether the recipient's device is reachable. Some carriers and networks do not return delivery receipts at all.
+
+    If the message is time-sensitive, consider using a fallback channel (e.g. SMS → Viber) via the `flow` parameter.
+  </Accordion>
+
+  <Accordion title="Unsupported Media Type (415)">
+    You received a `415 Unsupported Media Type` response when calling the simple POST endpoint.
+
+    **Fix:** The `POST /simple/message` endpoint requires form-encoded data, not JSON. Set your `Content-Type` header to:
+
+    ```http
+    Content-Type: application/x-www-form-urlencoded
+    ```
+
+    All other JSON API v2 endpoints (`/message`, `/messages`) accept `application/json`.
+  </Accordion>
+</AccordionGroup>
+
+## Verify API error codes
+
+The Verify API returns structured error objects with a machine-readable `error` code alongside a human-readable `message`. Use the `error` field in your application logic to handle specific failure conditions.
+
+| Error code | HTTP status | Meaning |
+|------------|-------------|---------|
+| `INVALID_PHONE` | `400` | The phone number format is invalid. Ensure the number contains digits only, includes the country code, and matches the pattern `^[1-9]\d{6,14}$`. |
+| `MISSING_FIELD` | `400` | A required field is missing from the request body (e.g. `phoneNumber`). |
+| `MISSING_API_KEY` | `401` | The `X-API-Key` header was not included in the request. |
+| `INVALID_API_KEY` | `401` | The provided API key is invalid or has been disabled. |
+| `TENANT_RATE_LIMIT` | `429` | Your account has exceeded its allowed validation request rate. |
+| `PHONE_RATE_LIMIT` | `429` | Too many verification attempts have been made for this specific phone number. |
+| `INTERNAL_ERROR` | `500` | An unexpected server-side error occurred. Retry the request after a short delay. |

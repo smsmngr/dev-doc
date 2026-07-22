@@ -1,0 +1,147 @@
+---
+title: "Understanding Message IDs and Request IDs"
+sidebarTitle: "Message IDs"
+description: "Learn how SmsManager assigns message_id and request_id values, and how to use them for status tracking and webhook correlation."
+---
+
+Every message you send through SmsManager receives a unique identifier you can use to track delivery status, correlate webhook events, and debug unexpected behaviour. SmsManager returns two types of identifiers in every API response: a `request_id` that scopes the entire HTTP call, and one or more `message_id` values that scope individual messages to individual recipients.
+
+## request_id vs message_id
+
+These two identifiers serve different purposes:
+
+| Identifier   | Scope                        | Primary use                                          |
+|--------------|------------------------------|------------------------------------------------------|
+| `request_id` | One per HTTP API call        | Support tickets, server-side logging, debugging      |
+| `message_id` | One per individual message   | Delivery status polling, webhook event correlation   |
+
+**`request_id`** is generated for the entire HTTP request. No matter how many messages or recipients you include in a single API call, they all share the same `request_id`. Use it when contacting SmsManager support or when you need to trace a specific API call in your own logs.
+
+**`message_id`** is a UUID assigned to each individual message. You use this ID to query delivery status and to match incoming webhook events back to messages you sent.
+
+## Single send (`/message` endpoint)
+
+When you POST to `/message`, you send one message object with a `to` array of recipients (up to 10). SmsManager assigns a separate `message_id` for each accepted recipient in the `to` array.
+
+**Request:**
+
+```json
+{
+  "body": "Your appointment is confirmed for 3pm tomorrow.",
+  "to": [
+    { "phone_number": "420777111111" },
+    { "phone_number": "420777222222" }
+  ]
+}
+```
+
+**Response:**
+
+```json
+{
+  "request_id": "66666666-6666-6666-6666-666666666666",
+  "accepted": [
+    { "key": "0", "message_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" },
+    { "key": "1", "message_id": "ffffffff-gggg-hhhh-iiii-jjjjjjjjjjjj" }
+  ],
+  "rejected": []
+}
+```
+
+`key` corresponds to the zero-based index of the recipient in your `to` array. Recipient `0` (420777111111) gets `aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee`; recipient `1` (420777222222) gets `ffffffff-gggg-hhhh-iiii-jjjjjjjjjjjj`.
+
+## Batch send (`/messages` endpoint)
+
+When you POST to `/messages`, you send an array of message objects (up to 10 objects, each with up to 10 recipients — 100 recipients total per API call). SmsManager assigns one `message_id` **per message object in the batch**, not per recipient.
+
+To derive the per-recipient `message_id`, append `-<recipient_index>` to the message-level `message_id`.
+
+**Request (one batch item with 3 recipients):**
+
+```json
+[
+  {
+    "body": "Flash sale! 30% off all items today only.",
+    "to": [
+      { "phone_number": "420777111111" },
+      { "phone_number": "420777222222" },
+      { "phone_number": "420777333333" }
+    ]
+  }
+]
+```
+
+**Response:**
+
+```json
+{
+  "request_id": "66666666-6666-6666-6666-666666666666",
+  "accepted": [
+    { "key": "0", "message_id": "pppppppp-qqqq-rrrr-ssss-tttttttttttt" }
+  ],
+  "rejected": []
+}
+```
+
+The batch item at index `0` received `message_id` `pppppppp-qqqq-rrrr-ssss-tttttttttttt`. The per-recipient IDs are:
+
+| Recipient index | Phone number  | message_id                               |
+|-----------------|---------------|------------------------------------------|
+| `0`             | 420777111111  | `pppppppp-qqqq-rrrr-ssss-tttttttttttt-0` |
+| `1`             | 420777222222  | `pppppppp-qqqq-rrrr-ssss-tttttttttttt-1` |
+| `2`             | 420777333333  | `pppppppp-qqqq-rrrr-ssss-tttttttttttt-2` |
+
+<Note>
+  Webhook delivery notifications for `/messages` sends also use the `-<recipient_index>` suffix format. Make sure your webhook handler is prepared to receive and parse these compound IDs.
+</Note>
+
+## Using message_id for tracking
+
+### Polling delivery status
+
+You can query the delivery status of any message at any time using the REST API:
+
+```
+GET https://rest-api.smsmngr.com/v1/message?id=<message_id>
+```
+
+For example:
+
+```
+GET https://rest-api.smsmngr.com/v1/message?id=pppppppp-qqqq-rrrr-ssss-tttttttttttt-1
+```
+
+### Correlating webhook events
+
+When SmsManager sends a delivery notification to your [webhook callback URL](/api-reference/json-v2/webhooks), the payload includes the `message_id` of the delivered message. Match this value against the IDs you stored at send time to update your own delivery records.
+
+```json
+{
+  "request_id": "66666666-6666-6666-6666-666666666666",
+  "message_id": "pppppppp-qqqq-rrrr-ssss-tttttttttttt-1",
+  "gateway": "sms",
+  "result": "delivered",
+  "to": { "phone_number": "420777222222" }
+}
+```
+
+## Accepted vs. rejected
+
+Every response includes an `accepted` array and a `rejected` array:
+
+- **`accepted`** — entries for messages that were successfully queued for delivery. Each entry contains the recipient/item `key` and a `message_id` you can use for tracking.
+- **`rejected`** — entries for messages that could not be queued. Each entry contains the `key` of the failed item. Common rejection reasons include an invalid or unroutable phone number, insufficient account credit, or a malformed request field.
+
+```json
+{
+  "request_id": "66666666-6666-6666-6666-666666666666",
+  "accepted": [
+    { "key": "0", "message_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" }
+  ],
+  "rejected": [
+    { "key": "1" }
+  ]
+}
+```
+
+Rejected entries do **not** include a `message_id` because no message was created. If you need to understand why a message was rejected, check the error details in the API response body or contact SmsManager support with your `request_id`.

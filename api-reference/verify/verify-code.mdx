@@ -1,0 +1,108 @@
+---
+title: "POST /v1/validations/{token}/verify — Verify OTP Code"
+sidebarTitle: "Verify Code"
+description: "POST /v1/validations/{token}/verify checks the 6-digit OTP code entered by the user and returns the verified phone number and HMAC proof."
+---
+
+After your user receives the SMS and enters the 6-digit code, submit that code to this endpoint. A successful response confirms the phone number belongs to the user and returns the verified phone number along with an optional HMAC `proof` you can use for offline verification on your backend.
+
+## Endpoint
+
+```
+POST https://verify-api.smsmanager.com/v1/validations/{token}/verify
+```
+
+## Authentication
+
+Include your API key in the `X-API-Key` header.
+
+```http
+X-API-Key: <your-api-key>
+```
+
+## Path parameter
+
+<ParamField path="token" type="string" required>
+  The validation token returned by `POST /v1/validations` when you started the validation session.
+</ParamField>
+
+## Request body
+
+<ParamField body="code" type="string" required>
+  The 6-digit code the user entered from their SMS. Must match `^[0-9]{6}$`.
+</ParamField>
+
+## Response fields
+
+<ResponseField name="verified" type="boolean">
+  `true` when the code matched and the phone number is confirmed. `false` if the code was wrong but attempts remain.
+</ResponseField>
+
+<ResponseField name="phoneNumber" type="string">
+  The verified phone number. Present only when `verified` is `true`.
+</ResponseField>
+
+<ResponseField name="token" type="string">
+  The validation token for this session. Present only when `verified` is `true`.
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  The code that was successfully verified. Present only when `verified` is `true`.
+</ResponseField>
+
+<ResponseField name="timestamp" type="string (ISO 8601)">
+  The UTC timestamp from when the validation was started. Use this value alongside `phoneNumber`, `token`, `code`, and `proof` if you want to verify the HMAC proof offline. Present only when `verified` is `true`.
+</ResponseField>
+
+<ResponseField name="proof" type="string">
+  An HMAC proof that cryptographically binds `phoneNumber`, `token`, `code`, and `timestamp`. Present only when `verified` is `true` **and** your account has a `verificationSecret` configured. Pass this to `POST /v1/verify-proof` for offline verification.
+</ResponseField>
+
+<ResponseField name="verifiedAt" type="string (ISO 8601)">
+  The UTC timestamp at which the code was accepted. Present only when `verified` is `true`.
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST \
+  https://verify-api.smsmanager.com/v1/validations/61591bd88d8fbe7736bca535809d1216dd71cb0b5cbf2b07e5a08adfbeb5d35b/verify \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <your-api-key>" \
+  -d '{ "code": "123456" }'
+```
+
+```json Request body
+{
+  "code": "123456"
+}
+```
+
+```json Successful response
+{
+  "verified": true,
+  "phoneNumber": "14155550100",
+  "token": "61591bd88d8fbe7736bca535809d1216dd71cb0b5cbf2b07e5a08adfbeb5d35b",
+  "code": "123456",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "proof": "86dd8444ed76402c93ce62497cb29a0d7af7215261b8497cb355e617b13f4ef2",
+  "verifiedAt": "2024-01-15T10:31:15Z"
+}
+```
+
+</CodeGroup>
+
+## Attempt limits
+
+By default, each validation session allows up to **6 verification attempts**. Every failed attempt decrements the counter returned in the `attemptsRemaining` field of the error response. When the counter reaches zero, the session is locked and any further attempt returns a `429` response. Start a new validation session with `POST /v1/validations` if the user needs to retry.
+
+## Error responses
+
+| HTTP status | Condition | Example response |
+|---|---|---|
+| `400` | Code was wrong; attempts remain | `{ "message": "Invalid code", "attemptsRemaining": 3 }` |
+| `400` | Validation session has expired (>10 min) | `{ "message": "Validation expired" }` |
+| `404` | No session found for the supplied `token` | `{ "message": "Validation not found" }` |
+| `429` | All attempts exhausted | `{ "message": "Too many attempts" }` |

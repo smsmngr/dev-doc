@@ -1,28 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "SmsManager",
+  "projectType": "api-service",
+  "projectName": "SmsManager",
+  "projectDescription": "SmsManager is a multi-channel messaging API that lets developers send SMS, Viber, and WhatsApp messages, verify phone numbers, and receive delivery webhooks from a single unified platform.",
   "theme": "luma",
-  "colors": {
-    "primary": "#ac1c4c"
-  },
-  "favicon": "https://media.brand.dev/2f15212a-f2c6-4af0-9244-b9677cd91943.png",
-  "logo": {
-    "light": "https://media.brand.dev/ed8f86be-eb0f-4b70-973d-6b2d55ff3aa2.svg",
-    "dark": "https://media.brand.dev/ed8f86be-eb0f-4b70-973d-6b2d55ff3aa2.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:cc@smsmanager.cz"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.smsmanager.com"
-    }
-  },
+  "primaryColor": "#ac1c4c",
+  "lightColor": null,
+  "darkColor": null,
   "navigation": {
     "tabs": [
       {
@@ -110,9 +93,41 @@
       }
     ]
   },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/smsmanager"
-    }
-  }
+  "keyFeatures": [
+    "Multi-channel messaging: SMS, Viber, WhatsApp from one API",
+    "Message flow fallback (e.g., try Viber first, fall back to SMS)",
+    "Scheduled and time-windowed message delivery",
+    "Delivery webhooks with HMAC payload signing",
+    "Phone number verification (OTP) with offline proof support",
+    "Batch sending up to 100 recipients per API call",
+    "WhatsApp Business Partner onboarding API",
+    "Credit and account management via REST API",
+    "Inbox and message status polling",
+    "Simple GET/POST endpoint for low-code integrations"
+  ],
+  "publicApiSurface": [
+    "POST https://api.smsmngr.com/v2/message",
+    "POST https://api.smsmngr.com/v2/messages",
+    "GET  https://api.smsmngr.com/v2/simple/message",
+    "POST https://api.smsmngr.com/v2/simple/message",
+    "GET  https://rest-api.smsmngr.com/v1/apikey/me",
+    "POST https://rest-api.smsmngr.com/v1/apikey/add",
+    "POST https://rest-api.smsmngr.com/v1/apikey/update",
+    "GET  https://rest-api.smsmngr.com/v1/credit",
+    "GET  https://rest-api.smsmngr.com/v1/message",
+    "GET  https://rest-api.smsmngr.com/v1/messages",
+    "GET  https://rest-api.smsmngr.com/v1/requests",
+    "GET  https://rest-api.smsmngr.com/v1/inbox",
+    "POST https://verify-api.smsmanager.com/v1/validations",
+    "POST https://verify-api.smsmanager.com/v1/validations/{token}/verify",
+    "PATCH https://verify-api.smsmanager.com/v1/validations/{token}",
+    "POST https://verify-api.smsmanager.com/v1/verify-proof",
+    "POST https://rest-api.smsmngr.com/v1/whatsapp/signup",
+    "POST https://rest-api.smsmngr.com/v1/whatsapp/phone_numbers/list",
+    "POST https://rest-api.smsmngr.com/v1/whatsapp/templates/list",
+    "POST https://rest-api.smsmngr.com/v1/whatsapp/accounts/list",
+    "Webhook: sentMessage (delivery status)",
+    "Webhook: incomingReplyMessage (reply to outbound)",
+    "Webhook: incomingMessage (unsolicited inbound)"
+  ]
 }

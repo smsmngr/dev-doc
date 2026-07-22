@@ -1,0 +1,77 @@
+---
+title: "Verify API — Phone Number Validation Reference"
+sidebarTitle: "Overview"
+description: "SmsManager Verify API sends OTP codes via SMS to validate phone numbers. Supports HMAC offline proof verification for secure backends."
+---
+
+The Verify API handles the complete OTP lifecycle: it sends a 6-digit code to a phone number via SMS, verifies the code your user enters, and optionally generates a cryptographic HMAC proof that lets your backend confirm the validation offline — without making an additional authenticated API call.
+
+## Base URL
+
+```
+https://verify-api.smsmanager.com
+```
+
+## Authentication
+
+All endpoints require your API key in the `X-API-Key` request header.
+
+```http
+X-API-Key: <your-api-key>
+```
+
+**Exception:** `POST /v1/verify-proof` does not require authentication. The HMAC proof itself serves as the credential.
+
+## How it works
+
+1. **POST /v1/validations** — Submit the phone number. The API sends a 6-digit code via SMS and returns a `token` you use in subsequent calls.
+2. **User receives SMS** — Your user reads the 6-digit code from their phone.
+3. **POST /v1/validations/{token}/verify** — Submit the code the user entered. On success, you receive the verified phone number and an optional HMAC `proof`.
+4. **Verify HMAC proof (optional)** — Pass the `proof` and associated fields to `POST /v1/verify-proof` (no auth required) or `PATCH /v1/validations/{token}` to confirm the validation is authentic on your backend.
+
+## Validation statuses
+
+Each validation session moves through the following statuses:
+
+| Status | Description |
+|---|---|
+| `pending` | Validation was created; SMS has not yet been delivered. |
+| `code_sent` | The SMS with the 6-digit code has been delivered to the phone. |
+| `verified` | The user successfully entered the correct code. |
+| `failed` | Verification failed — all attempts were exhausted. |
+| `expired` | The validation session passed its 10-minute expiry without being verified. |
+
+## HMAC offline proof
+
+When your account has a `verificationSecret` configured, every validation response includes a `proof` field containing an HMAC signature computed from the phone number, token, code, and timestamp. You can pass these four fields plus the proof to `POST /v1/verify-proof` — which requires **no authentication** — to confirm that a verification was genuinely completed. This is useful for microservices, edge functions, or any backend that should not hold your API key.
+
+## Rate limiting
+
+The API applies multi-level rate limits:
+
+- **Per account (tenant)** — a cap on total validations across all phone numbers.
+- **Per country** — a cap on validations for phone numbers in a given country.
+- **Per phone number** — a cap on how many times a single number can be validated in a rolling window.
+
+Requests that exceed any limit receive a `429` response with an error code of `TENANT_RATE_LIMIT` or `PHONE_RATE_LIMIT`.
+
+## Endpoints summary
+
+| Method | Path | Auth required | Description |
+|---|---|---|---|
+| `POST` | `/v1/validations` | Yes | Start a new phone number validation. |
+| `POST` | `/v1/validations/{token}/verify` | Yes | Submit the OTP code entered by the user. |
+| `PATCH` | `/v1/validations/{token}` | Yes | Verify an HMAC proof against a stored session. |
+| `POST` | `/v1/verify-proof` | **No** | Verify an HMAC proof offline without storing state. |
+
+<CardGroup cols={3}>
+  <Card title="Start Validation" icon="play" href="/api-reference/verify/start-validation">
+    POST /v1/validations — initiate OTP delivery
+  </Card>
+  <Card title="Verify Code" icon="check" href="/api-reference/verify/verify-code">
+    POST /v1/validations/{token}/verify — check the user's code
+  </Card>
+  <Card title="Verify Proof" icon="shield-check" href="/api-reference/verify/verify-proof">
+    POST /v1/verify-proof — offline HMAC proof validation
+  </Card>
+</CardGroup>

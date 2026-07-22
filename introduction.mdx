@@ -1,0 +1,57 @@
+---
+title: "SmsManager: Multi-Channel Messaging API for Developers"
+sidebarTitle: "Introduction"
+description: "SmsManager lets you send SMS, Viber, and WhatsApp messages from a single API. Learn about channels, message flows, and account setup."
+---
+
+SmsManager is a cloud messaging platform built for developers and businesses that need reliable, programmable communication across multiple channels. With a single API key and a straightforward HTTP interface, you can send messages via SMS, Viber, and WhatsApp — individually or as part of automated fallback chains — without managing separate provider integrations.
+
+## What is SmsManager?
+
+SmsManager provides a unified API for multi-channel messaging. Instead of integrating with each channel separately, you send one request to SmsManager and the platform handles routing, delivery, and fallback logic on your behalf.
+
+Key capabilities include:
+
+- **Single and batch sending** — send to one recipient or up to 100 in a single HTTP call
+- **Multi-channel flows** — define a priority-ordered list of channels (e.g. Viber → SMS) using the `flow` property; SmsManager automatically falls back to the next channel if delivery fails
+- **Delivery webhooks** — receive real-time HTTP callbacks whenever a message is delivered, fails, or generates an inbound reply
+- **Phone number verification** — verify phone numbers with one-time passcodes (OTP) through the dedicated Verify API
+- **Scheduling** — send messages at a future date/time using the `datetime` field, with optional delivery-window constraints
+
+## API surfaces
+
+SmsManager exposes four APIs, each purpose-built for a different part of your integration.
+
+<CardGroup cols={2}>
+  <Card title="JSON API v2" href="/api-reference/json-v2/overview">
+    The primary API for sending messages. Supports SMS, Viber, and WhatsApp (text and templates). Base URL: `https://api.smsmngr.com/v2`
+  </Card>
+  <Card title="REST API" href="/api-reference/rest/overview">
+    Account and key management. Create sub-keys, set callback URLs, and retrieve account info. Base URL: `https://rest-api.smsmngr.com/v1`
+  </Card>
+  <Card title="Verify API" href="/api-reference/verify/overview">
+    Generate and validate one-time passcodes for phone number verification and 2FA flows.
+  </Card>
+  <Card title="WhatsApp Partner API" href="/api-reference/waba/overview">
+    Programmatically onboard and manage WhatsApp Business Accounts for your platform or end customers.
+  </Card>
+</CardGroup>
+
+## How it works
+
+Getting started with SmsManager takes three steps:
+
+1. **Get your API key** — log in to [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud) and copy your key. You can also create scoped sub-keys through the REST API.
+2. **Send a message** — make a POST request to `https://api.smsmngr.com/v2/message` with your recipient's phone number and message body. Add a `flow` array to enable Viber or WhatsApp delivery.
+3. **Receive a webhook** — optionally pass a `callback` URL in your request body. SmsManager will POST a delivery notification to that URL when the message status changes.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Follow a step-by-step guide to send your first message in under 5 minutes.
+  </Card>
+  <Card title="Authentication" icon="lock" href="/authentication">
+    Learn how to obtain and securely use your API key in every request.
+  </Card>
+</CardGroup>

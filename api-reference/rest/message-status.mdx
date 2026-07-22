@@ -1,0 +1,299 @@
+---
+title: "Message Status Endpoints — REST API Reference"
+sidebarTitle: "Message Status"
+description: "Query message delivery status, list messages by date, and get sending statistics using SmsManager's REST API status endpoints."
+---
+
+Three endpoints let you poll the delivery status of your outbound messages and retrieve aggregated sending statistics. Use these for post-send verification, dashboards, and audit logs. For real-time updates, consider using [webhooks](/guides/webhooks) instead of polling.
+
+---
+
+## GET /message — Single message status
+
+Retrieve the full delivery details for a single message by its ID.
+
+**Endpoint:** `GET https://rest-api.smsmngr.com/v1/message?id=<message_id>`
+
+**Authentication:** `x-api-key` header required.
+
+### Query parameters
+
+<ParamField query="id" type="string" required>
+  The `message_id` returned in the response when you originally sent the message via the JSON API v2.
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the request succeeds.
+</ResponseField>
+
+<ResponseField name="message" type="object" required>
+  Full status and metadata for the requested message.
+
+  <Expandable title="message properties">
+    <ResponseField name="request_id" type="string">
+      The request ID associated with this message.
+    </ResponseField>
+    <ResponseField name="status_code" type="string">
+      Current status code of the message (for example, `delivered` or `failed`).
+    </ResponseField>
+    <ResponseField name="delivery_code" type="string">
+      Human-readable delivery status description.
+    </ResponseField>
+    <ResponseField name="tag" type="string">
+      Custom tag you attached when sending the message, if any.
+    </ResponseField>
+    <ResponseField name="ts_sent" type="integer">
+      Unix timestamp of when the message was sent to the carrier.
+    </ResponseField>
+    <ResponseField name="ts_delivered" type="integer">
+      Unix timestamp of when the message was delivered to the handset. `0` if not yet delivered.
+    </ResponseField>
+    <ResponseField name="ts_created" type="integer">
+      Unix timestamp of when the message was created in SmsManager.
+    </ResponseField>
+    <ResponseField name="body" type="string">
+      The text content of the message.
+    </ResponseField>
+    <ResponseField name="flow" type="string">
+      The channel used to deliver the message, such as `sms` or `whatsapp`.
+    </ResponseField>
+    <ResponseField name="price" type="object">
+      Pricing information for this message.
+
+      <Expandable title="price properties">
+        <ResponseField name="price_czk" type="number">
+          Cost of the message in Czech Koruna (CZK).
+        </ResponseField>
+        <ResponseField name="price_eur" type="number">
+          Cost of the message in Euro (EUR).
+        </ResponseField>
+        <ResponseField name="mcc" type="string">
+          Mobile Country Code of the recipient's network.
+        </ResponseField>
+        <ResponseField name="mnc" type="string">
+          Mobile Network Code of the recipient's network.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example response
+
+```json
+{
+  "success": true,
+  "message": {
+    "request_id": "req_abc123",
+    "status_code": "delivered",
+    "delivery_code": "Message delivered to handset",
+    "tag": "order-confirmation",
+    "ts_sent": 1700001000,
+    "ts_delivered": 1700001045,
+    "ts_created": 1700000950,
+    "body": "Your order #1234 has been confirmed.",
+    "flow": "sms",
+    "price": {
+      "price_czk": 0.85,
+      "price_eur": 0.034,
+      "mcc": "230",
+      "mnc": "01"
+    }
+  }
+}
+```
+
+### cURL example
+
+```bash
+curl "https://rest-api.smsmngr.com/v1/message?id=msg_abc123" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+---
+
+## GET /messages — List messages by date
+
+Retrieve a list of all messages sent on a specific date, along with their aggregate delivery counts.
+
+**Endpoint:** `GET https://rest-api.smsmngr.com/v1/messages?date=YYYY-MM-DD`
+
+**Authentication:** `x-api-key` header required.
+
+### Query parameters
+
+<ParamField query="date" type="string" required>
+  The date for which you want to retrieve messages. Format: `YYYY-MM-DD` (for example, `2025-06-15`).
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the request succeeds.
+</ResponseField>
+
+<ResponseField name="messages" type="array" required>
+  Array of message objects sent on the specified date.
+
+  <Expandable title="message object properties">
+    <ResponseField name="message_id" type="string">
+      Unique identifier for the message.
+    </ResponseField>
+    <ResponseField name="message_parts" type="number">
+      Number of SMS parts the message was split into.
+    </ResponseField>
+    <ResponseField name="ts_sent" type="integer">
+      Unix timestamp of when the message was sent.
+    </ResponseField>
+    <ResponseField name="ts_delivered" type="integer">
+      Unix timestamp of when the message was delivered.
+    </ResponseField>
+    <ResponseField name="sent" type="integer">
+      Total number of recipients the message was sent to.
+    </ResponseField>
+    <ResponseField name="delivered" type="integer">
+      Number of recipients who received the message.
+    </ResponseField>
+    <ResponseField name="nondelivered" type="integer">
+      Number of recipients for whom delivery failed.
+    </ResponseField>
+    <ResponseField name="body" type="string">
+      Text content of the message.
+    </ResponseField>
+    <ResponseField name="sender" type="string">
+      Sender ID or phone number used for the message.
+    </ResponseField>
+    <ResponseField name="to" type="string">
+      Recipient phone number.
+    </ResponseField>
+    <ResponseField name="flow" type="string">
+      Channel used to deliver the message, such as `sms` or `whatsapp`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example response
+
+```json
+{
+  "success": true,
+  "messages": [
+    {
+      "message_id": "msg_abc123",
+      "message_parts": 1,
+      "ts_sent": 1700001000,
+      "ts_delivered": 1700001045,
+      "sent": 1,
+      "delivered": 1,
+      "nondelivered": 0,
+      "body": "Your order #1234 has been confirmed.",
+      "sender": "MyShop",
+      "to": "420777123456",
+      "flow": "sms"
+    }
+  ]
+}
+```
+
+### cURL example
+
+```bash
+curl "https://rest-api.smsmngr.com/v1/messages?date=2025-06-15" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+---
+
+## GET /requests — Sending statistics
+
+Retrieve aggregated sending statistics for one or more specific dates. Each date in the response includes a breakdown of delivered, non-delivered, sent, and not-sent message counts.
+
+**Endpoint:** `GET https://rest-api.smsmngr.com/v1/requests?dates=YYYY-MM-DD,YYYY-MM-DD`
+
+**Authentication:** `x-api-key` header required.
+
+### Query parameters
+
+<ParamField query="dates" type="string" required>
+  One or more dates for which you want statistics, separated by commas. Format: `YYYY-MM-DD` (for example, `2025-06-14,2025-06-15`).
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the request succeeds.
+</ResponseField>
+
+<ResponseField name="requests" type="array" required>
+  Array of per-date statistics objects.
+
+  <Expandable title="request object properties">
+    <ResponseField name="date" type="string">
+      The date these statistics cover, in `YYYY-MM-DD` format.
+    </ResponseField>
+    <ResponseField name="stats" type="object">
+      Aggregated counts for the date.
+
+      <Expandable title="stats properties">
+        <ResponseField name="count_delivered" type="integer">
+          Number of messages successfully delivered to handsets.
+        </ResponseField>
+        <ResponseField name="count_nondelivered" type="integer">
+          Number of messages that failed delivery.
+        </ResponseField>
+        <ResponseField name="count_sent" type="integer">
+          Number of messages submitted to carriers.
+        </ResponseField>
+        <ResponseField name="count_notsent" type="integer">
+          Number of messages that were not submitted to carriers (for example, due to balance issues).
+        </ResponseField>
+        <ResponseField name="msg_sent" type="integer">
+          Total number of individual message parts sent (accounts for multi-part SMS).
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example response
+
+```json
+{
+  "success": true,
+  "requests": [
+    {
+      "date": "2025-06-14",
+      "stats": {
+        "count_delivered": 980,
+        "count_nondelivered": 12,
+        "count_sent": 995,
+        "count_notsent": 5,
+        "msg_sent": 1010
+      }
+    },
+    {
+      "date": "2025-06-15",
+      "stats": {
+        "count_delivered": 1200,
+        "count_nondelivered": 8,
+        "count_sent": 1210,
+        "count_notsent": 2,
+        "msg_sent": 1225
+      }
+    }
+  ]
+}
+```
+
+### cURL example
+
+```bash
+curl "https://rest-api.smsmngr.com/v1/requests?dates=2025-06-14,2025-06-15" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+<Tip>
+  Use this endpoint to power dashboard reporting widgets or automated daily throughput monitors. Request up to several dates at once to backfill data or compare day-over-day delivery rates.
+</Tip>

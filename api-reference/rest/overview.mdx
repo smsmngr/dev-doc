@@ -1,0 +1,55 @@
+---
+title: "REST API — Account and Message Management Reference"
+sidebarTitle: "Overview"
+description: "SmsManager REST API for managing API keys, checking credit balance, querying message status, and reading the message inbox."
+---
+
+The SmsManager REST API is a separate API from the JSON API v2 (the sending API). While the JSON API v2 handles outbound message delivery, the REST API covers account management tasks: creating and updating API keys, checking your credit balance, querying individual message status, listing sent messages, and reading inbound messages in your inbox.
+
+## Base URL
+
+All REST API requests are made to:
+
+```
+https://rest-api.smsmngr.com/v1
+```
+
+## Authentication
+
+Every request must include your API key in the `x-api-key` request header. This is the same API key you use with the JSON API v2.
+
+```http
+x-api-key: YOUR_API_KEY
+```
+
+You can find and manage your API keys in the [SmsManager Dashboard](https://app.smsmanager.com).
+
+## Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/apikey/me` | Get current API key info |
+| `POST` | `/apikey/add` | Create a new sub-key |
+| `POST` | `/apikey/update` | Update API key settings |
+| `GET` | `/credit` | Check credit balance |
+| `GET` | `/message` | Get single message status |
+| `GET` | `/messages` | List messages by date |
+| `GET` | `/requests` | Get sending statistics |
+| `GET` | `/inbox` | Read incoming messages |
+
+## Explore the endpoints
+
+<CardGroup cols={2}>
+  <Card title="API Keys" icon="key" href="/api-reference/rest/api-keys">
+    Create sub-keys, view key details, and configure callback URLs.
+  </Card>
+  <Card title="Credit" icon="coins" href="/api-reference/rest/credit">
+    Check your prepaid credit balance in CZK and EUR.
+  </Card>
+  <Card title="Message Status" icon="message" href="/api-reference/rest/message-status">
+    Query delivery status for individual messages and get daily sending statistics.
+  </Card>
+  <Card title="Inbox" icon="inbox" href="/api-reference/rest/inbox">
+    Read inbound messages received on your virtual numbers.
+  </Card>
+</CardGroup>

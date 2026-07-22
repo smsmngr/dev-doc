@@ -1,0 +1,174 @@
+---
+title: "API Key Management — REST API Reference"
+sidebarTitle: "API Keys"
+description: "Create and manage SmsManager API keys programmatically. Get key info, create sub-keys with shared or separate credit, and set callback URLs."
+---
+
+These endpoints let you manage API keys for your SmsManager account. You can inspect the current key's settings, create sub-keys for multi-tenant integrations or separate billing units, and update key-level configuration such as the default webhook callback URL.
+
+---
+
+## GET /apikey/me
+
+Retrieve information about the API key you are currently using.
+
+**Endpoint:** `GET https://rest-api.smsmngr.com/v1/apikey/me`
+
+**Authentication:** `x-api-key` header required.
+
+**Request parameters:** none.
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the request succeeds.
+</ResponseField>
+
+<ResponseField name="me" type="object" required>
+  Details about the current API key.
+
+  <Expandable title="me properties">
+    <ResponseField name="note" type="string">
+      Your label for this key. Can be empty. You can set it with `POST /apikey/update`.
+    </ResponseField>
+    <ResponseField name="default_callback_url" type="string">
+      The default webhook URL used for incoming messages that have no relation to an outgoing message.
+    </ResponseField>
+    <ResponseField name="account" type="string">
+      Account billing type. One of `prepaid` or `postpaid`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example response
+
+```json
+{
+  "success": true,
+  "me": {
+    "note": "Production key",
+    "default_callback_url": "https://example.com/webhook",
+    "account": "prepaid"
+  }
+}
+```
+
+### cURL example
+
+```bash
+curl https://rest-api.smsmngr.com/v1/apikey/me \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+---
+
+## POST /apikey/add
+
+Create a new sub-key under your account. This is useful for multi-tenant applications where each customer needs their own key, or when you want to isolate billing for different services.
+
+**Endpoint:** `POST https://rest-api.smsmngr.com/v1/apikey/add`
+
+**Authentication:** `x-api-key` header required.
+
+### Request body
+
+<ParamField body="shared" type="boolean">
+  If `true`, the new key shares the credit balance of your parent key. If `false`, the new key has its own independent credit balance.
+</ParamField>
+
+<ParamField body="currency" type="string" default="CZK">
+  Currency for the new key's credit balance. Accepted values: `EUR`, `CZK`. Only relevant when `shared` is `false`.
+</ParamField>
+
+<Warning>
+  When `shared` is `true`, the `currency` must match your parent key's currency. Mismatched currencies will result in an error.
+</Warning>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the key was created successfully.
+</ResponseField>
+
+<ResponseField name="apikey" type="string" required>
+  The newly created API key string.
+</ResponseField>
+
+### Example request and response
+
+```json
+// Request body
+{
+  "shared": false,
+  "currency": "EUR"
+}
+```
+
+```json
+// Response
+{
+  "success": true,
+  "apikey": "new_api_key_here"
+}
+```
+
+### cURL example
+
+```bash
+curl -X POST https://rest-api.smsmngr.com/v1/apikey/add \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"shared": false, "currency": "EUR"}'
+```
+
+---
+
+## POST /apikey/update
+
+Update the settings for the API key you are currently using. You can change the default webhook URL for inbound messages and set a human-readable label (note) for the key.
+
+**Endpoint:** `POST https://rest-api.smsmngr.com/v1/apikey/update`
+
+**Authentication:** `x-api-key` header required.
+
+### Request body
+
+<ParamField body="default_callback_url" type="string">
+  The webhook URL to call when an inbound message arrives that has no relation to a previously sent outgoing message.
+</ParamField>
+
+<ParamField body="note" type="string">
+  A human-readable label for this key. Useful for identifying keys in the dashboard or via `GET /apikey/me`.
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the key was updated successfully.
+</ResponseField>
+
+### Example request and response
+
+```json
+// Request body
+{
+  "default_callback_url": "https://example.com/webhook",
+  "note": "Production key"
+}
+```
+
+```json
+// Response
+{
+  "success": true
+}
+```
+
+### cURL example
+
+```bash
+curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"default_callback_url": "https://example.com/webhook", "note": "Production key"}'
+```

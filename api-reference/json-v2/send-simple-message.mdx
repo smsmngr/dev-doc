@@ -1,0 +1,188 @@
+---
+title: "Simple Message Endpoint — GET and POST /simple/message"
+sidebarTitle: "Simple Message"
+description: "The /simple/message endpoint lets you send a single SMS via a GET request with query params or a POST with form-encoded body."
+---
+
+The `/simple/message` endpoint is designed for simple integrations where a full JSON body is inconvenient — such as CRM systems, low-code platforms, or legacy tools that can only make GET requests. You provide your API key, a phone number, a message, and a sender name, and SmsManager dispatches a single SMS immediately. Both a GET variant (query parameters) and a POST variant (form-encoded body) are available, so you can choose whichever fits your integration.
+
+<Note>
+  The simple endpoint sends SMS only and does not support multi-channel `flow`, message scheduling, batch sending, delivery windows, or the `payload` field. For those features, use [POST /message](/api-reference/json-v2/send-message) or [POST /messages](/api-reference/json-v2/send-messages).
+</Note>
+
+## GET /simple/message
+
+### Endpoint
+
+```text
+GET https://api.smsmngr.com/v2/simple/message
+```
+
+### Authentication
+
+Authentication uses the `apikey` query parameter rather than an HTTP header — this is the only endpoint in JSON API v2 that works this way.
+
+### Query parameters
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `apikey` | Yes | Your SmsManager API key. |
+| `phone_number` | Yes | Recipient's phone number in international E.164 format without a leading `+` or `00`, e.g. `420777123456`. |
+| `message` | Yes | The SMS text to send. |
+| `sender` | Yes | Alphanumeric sender name (max 11 characters, pre-registration may be required) or dedicated virtual number. |
+
+### Example URL
+
+```text
+https://api.smsmngr.com/v2/simple/message?apikey=YOUR_API_KEY&phone_number=420777123456&message=Hello&sender=MySender
+```
+
+### cURL example
+
+```bash
+curl "https://api.smsmngr.com/v2/simple/message?apikey=YOUR_API_KEY&phone_number=420777123456&message=Hello&sender=MySender"
+```
+
+### Response
+
+```json
+{
+  "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+  "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+  "accepted": true
+}
+```
+
+If the message is rejected, `accepted` is `false` and `message_id` is absent:
+
+```json
+{
+  "request_id": "77777777-7777-7777-7777-777777777777",
+  "accepted": false
+}
+```
+
+---
+
+## POST /simple/message
+
+### Endpoint
+
+```text
+POST https://api.smsmngr.com/v2/simple/message
+```
+
+### Authentication
+
+Pass your API key in the `x-api-key` request header:
+
+```http
+x-api-key: YOUR_API_KEY
+```
+
+### Content-Type
+
+You must set `Content-Type: application/x-www-form-urlencoded`. Sending a JSON body returns a `415 Unsupported Media Type` error.
+
+### Body fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `phone_number` | Yes | Recipient's phone number in international format without a leading `+` or `00`. |
+| `message` | Yes | The SMS text to send. |
+| `sender` | Yes | Alphanumeric sender name or dedicated virtual number. |
+
+### cURL example
+
+```bash
+curl -X POST https://api.smsmngr.com/v2/simple/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "phone_number=420777123456" \
+  --data-urlencode "message=Hello from SmsManager" \
+  --data-urlencode "sender=MySender"
+```
+
+<Warning>
+  You must use `Content-Type: application/x-www-form-urlencoded` for the POST variant. Sending `Content-Type: application/json` returns `415 Unsupported Media Type`.
+</Warning>
+
+---
+
+## Response schema
+
+Both the GET and POST variants return the same `MessageSimpleResponse` object.
+
+<ResponseField name="request_id" type="string">
+  Unique identifier for this API request.
+
+  Example: `"bc36f3d1-d284-463a-921b-a3560c154649"`
+</ResponseField>
+
+<ResponseField name="message_id" type="string">
+  Unique identifier for the accepted message. Present only when `accepted` is `true`. Use this ID to correlate delivery webhook events.
+
+  Example: `"e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"`
+</ResponseField>
+
+<ResponseField name="accepted" type="boolean">
+  `true` if the message was queued for delivery; `false` if it was rejected (for example due to an invalid phone number, unrecognised sender, or insufficient credit).
+</ResponseField>
+
+---
+
+## Full examples
+
+<CodeGroup>
+
+```bash GET request
+curl "https://api.smsmngr.com/v2/simple/message?apikey=YOUR_API_KEY&phone_number=420777123456&message=Hello%20from%20SmsManager&sender=MySender"
+```
+
+```bash POST request
+curl -X POST https://api.smsmngr.com/v2/simple/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "phone_number=420777123456" \
+  --data-urlencode "message=Hello from SmsManager" \
+  --data-urlencode "sender=MySender"
+```
+
+</CodeGroup>
+
+**Successful response**
+
+```json
+{
+  "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+  "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+  "accepted": true
+}
+```
+
+**Rejected response**
+
+```json
+{
+  "request_id": "77777777-7777-7777-7777-777777777777",
+  "accepted": false
+}
+```
+
+---
+
+## When to use Simple vs full endpoint
+
+| Capability | Simple (`/simple/message`) | Full (`/message`, `/messages`) |
+|------------|---------------------------|-------------------------------|
+| Send SMS | ✅ | ✅ |
+| Send Viber / WhatsApp | ❌ | ✅ (via `flow`) |
+| Batch multiple recipients | ❌ | ✅ (up to 10 per object) |
+| Schedule delivery | ❌ | ✅ (`datetime`) |
+| Delivery time window | ❌ | ✅ (`delivery_time`) |
+| Custom `payload` for webhooks | ❌ | ✅ |
+| GET request (no HTTP client) | ✅ | ❌ |
+| Form-encoded POST | ✅ | ❌ |
+| JSON POST | ❌ | ✅ |
+
+Use the simple endpoint when you need the quickest possible integration path or when your environment only supports GET requests. Use `/message` or `/messages` for anything that requires multi-channel delivery, scheduling, batch sends, or rich webhook correlation data.
