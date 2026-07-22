@@ -1,7 +1,7 @@
 ---
-title: "How SmsManager Message Flows Work"
+title: "SmsManager Message Flow: Multi-Channel Fallback Guide"
 sidebarTitle: "Message Flow"
-description: "Understand SmsManager's channel flow system for multi-channel fallback: try Viber, fall back to SMS, and more."
+description: "Learn how SmsManager's flow array enables multi-channel fallback delivery — try Viber first, then fall back to SMS or WhatsApp automatically."
 ---
 
 When you send a message through SmsManager, you can define a **flow** — an ordered list of channels to try for each recipient. If the first channel can't deliver the message (for example, the recipient doesn't have Viber installed), SmsManager automatically attempts the next channel in the list. This lets you maximize delivery rates across SMS, Viber, and WhatsApp without writing any retry logic yourself.

@@ -1,7 +1,7 @@
 ---
-title: "Send WhatsApp Messages via SmsManager"
+title: "Send WhatsApp Template and Text Messages via SmsManager"
 sidebarTitle: "Send WhatsApp"
-description: "Guide to sending WhatsApp template and text messages using SmsManager, including template setup and sender configuration."
+description: "Guide to sending WhatsApp template and text messages using SmsManager, covering Phone Number ID setup, template parameters, and SMS fallback."
 ---
 
 SmsManager lets you send WhatsApp messages through your connected WhatsApp Business Account. You can send pre-approved **template messages** to any opted-in number, or send **free-form text messages** within an active 24-hour customer service window. Both message types fit naturally into SmsManager's multi-channel `flow`, so you can add an SMS fallback for recipients not reachable on WhatsApp.
@@ -39,7 +39,7 @@ Before you write any code, it's important to understand which message type fits 
   </Step>
 
   <Step title="Send the template message">
-    Use the `whatsapp_template` key inside your `flow` array. Set `sender` to your Phone Number ID, `template_name` to the approved template name, and `language` to the template language code. If the template contains variable placeholders (`{{1}}`, `{{2}}`, etc.), pass their values in the `params` array.
+    Use the `whatsapp_template` key inside your `flow` array. Set `sender` to your Phone Number ID, `template_name` to the approved template name, and `language` to the template language code. If the template contains variable placeholders (numbered like `{1}`, `{2}`, etc.), pass their values in the `params` array.
 
     ```json Request body
     {
@@ -142,7 +142,7 @@ WhatsApp templates can contain variable placeholders in three locations. Use the
 
 | Field | Fills placeholders in | Example |
 |-------|----------------------|---------|
-| `params` | Message body — `{{1}}`, `{{2}}`, … | `["John", "ORDER-123", "tomorrow"]` |
+| `params` | Message body variables (positional: first value maps to the first variable, etc.) | `["John", "ORDER-123", "tomorrow"]` |
 | `params_header` | Template header (text headers only) | `["ORDER-123"]` |
 | `params_buttons` | Button URLs with dynamic path segments | `["abc123"]` |
 
@@ -165,7 +165,7 @@ WhatsApp templates can contain variable placeholders in three locations. Use the
 ```
 
 <Note>
-  The order of values in each `params` array maps positionally to the `{{1}}`, `{{2}}`, … placeholders in your template. Make sure the array length matches the number of variables in the template or the request will be rejected.
+  The order of values in each `params` array maps positionally to the numbered placeholders in your template. Make sure the array length matches the number of variables in the template or the request will be rejected.
 </Note>
 
 ---

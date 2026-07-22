@@ -1,7 +1,7 @@
 ---
 title: "Authenticate API Requests to SmsManager"
 sidebarTitle: "Authentication"
-description: "Learn how to obtain and use SmsManager API keys to authenticate requests via header or query parameter."
+description: "Learn how to obtain and use SmsManager API keys to authenticate every request — via the x-api-key header or the apikey query parameter."
 ---
 
 SmsManager uses API key authentication for all requests. Every call to the JSON API v2 and REST API must include a valid API key — there are no OAuth flows or session tokens to manage. You can pass your key as an HTTP header (recommended for all endpoints) or as a query parameter on the simple GET endpoint.
@@ -20,7 +20,7 @@ Log in to your SmsManager account and go to the [API & Cloud](https://app.smsman
 
 Include your API key in the `x-api-key` request header. This method is supported on all endpoints across both the JSON API v2 and the REST API.
 
-```
+```http
 x-api-key: YOUR_API_KEY
 ```
 
@@ -37,8 +37,8 @@ curl -X POST https://api.smsmngr.com/v2/message \
 
 On the `GET /simple/message` endpoint you can authenticate by appending your key as the `apikey` query parameter instead of using a header.
 
-```
-https://api.smsmngr.com/v2/simple/message?apikey=YOUR_API_KEY&to=420777123456&message=Hello
+```http
+https://api.smsmngr.com/v2/simple/message?apikey=YOUR_API_KEY&phone_number=420777123456&message=Hello&sender=MySender
 ```
 
 <Note>

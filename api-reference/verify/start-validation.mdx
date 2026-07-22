@@ -1,7 +1,7 @@
 ---
 title: "POST /v1/validations — Start Phone Number Validation"
 sidebarTitle: "Start Validation"
-description: "POST /v1/validations initiates phone number OTP verification, sending a 6-digit code via SMS and returning a validation token."
+description: "POST /v1/validations initiates phone number OTP verification, sending a 6-digit SMS code and returning a session token for subsequent calls."
 ---
 
 Call this endpoint to begin verifying a phone number. The API sends a 6-digit code to the supplied phone number via SMS and returns a `token` that you pass to subsequent verification calls. Each validation session is valid for approximately 10 minutes.
@@ -27,7 +27,7 @@ X-API-Key: <your-api-key>
 </ParamField>
 
 <ParamField body="turnstileToken" type="string">
-  A Cloudflare Turnstile token. Required only if your tenant has the `requireTurnstile` option enabled. Obtain this token from the Turnstile widget rendered on your front end.
+  A Cloudflare Turnstile token. Required only if your account has the `requireTurnstile` option enabled. Obtain this token from the Turnstile widget rendered on your front end.
 </ParamField>
 
 <ParamField body="payload" type="object">

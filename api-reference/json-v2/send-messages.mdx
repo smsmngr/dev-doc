@@ -1,5 +1,5 @@
 ---
-title: "POST /messages — Batch Send Multiple Messages"
+title: "POST /messages — Batch Send Messages via JSON API v2"
 sidebarTitle: "POST /messages"
 description: "POST /messages sends up to 10 message objects in one API call, with up to 10 recipients each — 100 recipients total per request."
 ---
@@ -54,6 +54,10 @@ The request body is a JSON array containing 1–10 message objects. Each object 
 
 <ParamField body="[n].payload" type="object">
   Arbitrary key-value data echoed back in webhook events for this message object.
+</ParamField>
+
+<ParamField body="[n].params" type="object">
+  Special processing parameters (e.g. link shortening). Contact SmsManager support for details.
 </ParamField>
 
 ## Limits

@@ -1,7 +1,7 @@
 ---
-title: "Understanding Message IDs and Request IDs"
+title: "Message IDs and Request IDs in SmsManager Explained"
 sidebarTitle: "Message IDs"
-description: "Learn how SmsManager assigns message_id and request_id values, and how to use them for status tracking and webhook correlation."
+description: "Understand how SmsManager generates message_id and request_id, how they differ, and how to use them for delivery tracking and webhook correlation."
 ---
 
 Every message you send through SmsManager receives a unique identifier you can use to track delivery status, correlate webhook events, and debug unexpected behaviour. SmsManager returns two types of identifiers in every API response: a `request_id` that scopes the entire HTTP call, and one or more `message_id` values that scope individual messages to individual recipients.

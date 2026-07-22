@@ -1,14 +1,14 @@
 ---
-title: "GET /credit — Check Account Credit Balance"
+title: "Check Credit Balance — SmsManager REST API Reference"
 sidebarTitle: "Credit"
-description: "GET /credit returns the current prepaid credit balance for your SmsManager API key in both CZK and EUR."
+description: "Check your SmsManager prepaid credit balance in CZK and EUR. Use GET /credit before batch sends to confirm you have sufficient funds."
 ---
 
 Before sending a large batch of messages, you can check your remaining prepaid credit balance to make sure you have enough funds. This endpoint returns balances in both Czech Koruna (CZK) and Euro (EUR) simultaneously, so you always have an up-to-date view regardless of which currency your account operates in.
 
 ## Endpoint
 
-```
+```text
 GET https://rest-api.smsmngr.com/v1/credit
 ```
 

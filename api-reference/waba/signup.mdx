@@ -81,7 +81,13 @@ x-api-key: <your-api-key>
 
 ## Redirecting the client
 
-After you receive the response, build the full redirect URL by appending the `token` as a query parameter:
+After you receive the response, build the full redirect URL by appending the `token` as a query parameter named `token` to the `redirect_url` value from the response:
+
+```
+{redirect_url}?token=<JWT_TOKEN>
+```
+
+For example, if the response returns `"redirect_url": "https://waba.smsmanager.com/registration/"`, the full URL becomes:
 
 ```
 https://waba.smsmanager.com/registration/?token=<JWT_TOKEN>

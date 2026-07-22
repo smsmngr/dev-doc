@@ -1,5 +1,5 @@
 ---
-title: "JSON API v2 — SmsManager Sending API Reference"
+title: "JSON API v2 — SmsManager Message Sending Reference"
 sidebarTitle: "Overview"
 description: "Overview of SmsManager's JSON API v2 for sending SMS, Viber, and WhatsApp messages. Base URL, authentication, and endpoint summary."
 ---
@@ -54,6 +54,7 @@ The following fields are shared across `POST /message` and `POST /messages`. Eac
 | `tag` | string | No | Label for grouping messages. Built-in values: `promotional` (default), `transactional`, `priority`. Accepts custom strings. |
 | `datetime` | string (ISO 8601, UTC) | No | Schedule the message for a future UTC datetime, e.g. `2025-06-01T09:00:00Z`. |
 | `delivery_time` | object | No | Restrict delivery to a time window: `days` (array of weekday names), `start` (HH:MM), `end` (HH:MM), `tz` (IANA timezone, default `UTC`). |
+| `params` | object | No | Special processing parameters (e.g. link shortening). Contact SmsManager support for details. |
 | `payload` | object | No | Arbitrary key-value data that SmsManager echoes back in every webhook event for this message. |
 
 <Note>

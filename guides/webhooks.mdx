@@ -1,5 +1,5 @@
 ---
-title: "Receive Delivery Notifications via Webhooks"
+title: "Webhooks: Real-Time Delivery and Inbound Message Events"
 sidebarTitle: "Webhooks"
 description: "Set up SmsManager webhooks to receive real-time delivery status updates, incoming messages, and reply notifications at your endpoint."
 ---
@@ -43,7 +43,7 @@ You can configure webhook delivery in two ways:
 **2. Account-wide default** — set a `default_callback_url` on your API key via the SmsManager REST API. All messages sent with that API key will use this URL unless overridden by a per-message `callback` field.
 
 ```bash Set default callback URL
-curl -X POST https://api.smsmngr.com/v1/apikey/update \
+curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
   -H "x-api-key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -165,17 +165,15 @@ For Viber and WhatsApp, you may also receive a `seen` event when the recipient o
 ```json incomingReplyMessage payload
 [
   {
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
     "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
-    "type": "reply",
+    "payload": { "order_id": "ORD-123" },
     "gateway": "sms",
     "timestamp": 1700000120,
-    "from": {
-      "phone_number": "420777123456"
-    },
-    "body": "Yes, please confirm my booking.",
-    "to": {
-      "sender": "MySender"
-    }
+    "type": "incoming",
+    "sender": "420777123456",
+    "recipient": "420777654321",
+    "body": "Yes, please confirm my booking."
   }
 ]
 ```
@@ -185,16 +183,12 @@ For Viber and WhatsApp, you may also receive a `seen` event when the recipient o
 ```json incomingMessage payload
 [
   {
-    "type": "incoming",
     "gateway": "sms",
     "timestamp": 1700000500,
-    "from": {
-      "phone_number": "420777999888"
-    },
-    "body": "STOP",
-    "to": {
-      "sender": "MySender"
-    }
+    "type": "incoming",
+    "sender": "420777999888",
+    "recipient": "420777654321",
+    "body": "STOP"
   }
 ]
 ```

@@ -12,7 +12,7 @@ SmsManager provides a unified API for multi-channel messaging. Instead of integr
 
 Key capabilities include:
 
-- **Single and batch sending** — send to one recipient or up to 100 in a single HTTP call
+- **Single and batch sending** — send to one recipient or up to 10 per request; use the `/messages` batch endpoint to send up to 10 requests (100 recipients) in a single HTTP call
 - **Multi-channel flows** — define a priority-ordered list of channels (e.g. Viber → SMS) using the `flow` property; SmsManager automatically falls back to the next channel if delivery fails
 - **Delivery webhooks** — receive real-time HTTP callbacks whenever a message is delivered, fails, or generates an inbound reply
 - **Phone number verification** — verify phone numbers with one-time passcodes (OTP) through the dedicated Verify API

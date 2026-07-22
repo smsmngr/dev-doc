@@ -27,10 +27,9 @@ For campaigns larger than these limits, split your recipients across multiple se
 
 ## Verify API rate limits
 
-The Verify API implements multi-level rate limiting to prevent abuse and protect both your account and individual users. Limits are enforced simultaneously at three levels:
+The Verify API implements multi-level rate limiting to prevent abuse and protect both your account and individual users. Limits are enforced simultaneously at two levels:
 
-- **Per-account (tenant):** Caps the total number of new validation sessions your account can start within a rolling time window. This protects your overall monthly quota.
-- **Per-country:** Limits the number of validations that can be started for phone numbers belonging to a specific country code. This prevents bulk abuse targeting a single country.
+- **Per-account (tenant):** Caps the total number of new validation sessions your account can start within a rolling time window. This protects your overall quota.
 - **Per-phone-number:** Prevents a single phone number from being flooded with verification codes by limiting how many sessions can be started for that number within a time window.
 
 When any of these limits is exceeded, the API returns an `HTTP 429` response with one of the following error codes in the response body:

@@ -1,7 +1,7 @@
 ---
 title: "Simple Message Endpoint — GET and POST /simple/message"
 sidebarTitle: "Simple Message"
-description: "The /simple/message endpoint lets you send a single SMS via a GET request with query params or a POST with form-encoded body."
+description: "The /simple/message endpoint lets you send a single SMS via a GET request with query parameters or a form-encoded POST body. No JSON required."
 ---
 
 The `/simple/message` endpoint is designed for simple integrations where a full JSON body is inconvenient — such as CRM systems, low-code platforms, or legacy tools that can only make GET requests. You provide your API key, a phone number, a message, and a sender name, and SmsManager dispatches a single SMS immediately. Both a GET variant (query parameters) and a POST variant (form-encoded body) are available, so you can choose whichever fits your integration.

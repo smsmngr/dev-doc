@@ -83,5 +83,5 @@ This means:
 ```
 
 <Warning>
-  Invalid phone numbers cause messages to be **rejected before they are sent**. A rejected message still consumes a validation attempt and may trigger a `result: rejected` webhook callback. Always validate and normalise phone numbers on your side before calling the API, and check the `rejected` array in API responses to identify any numbers that failed.
+  Invalid phone numbers cause messages to be **rejected before they are sent**. A rejected message may trigger a `result: rejected` webhook callback. Always validate and normalise phone numbers on your side before calling the API, and check the `rejected` array in API responses to identify any numbers that failed.
 </Warning>

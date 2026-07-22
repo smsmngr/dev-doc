@@ -1,14 +1,14 @@
 ---
-title: "GET /inbox — Read Incoming Messages"
+title: "GET /inbox — Incoming Messages — SmsManager REST API"
 sidebarTitle: "Inbox"
-description: "GET /inbox retrieves inbound SMS and other messages received on your SmsManager virtual number for a given date."
+description: "Read inbound SMS messages received on your SmsManager virtual numbers. Poll by date or configure a webhook for real-time inbox delivery."
 ---
 
 The inbox stores incoming messages received on your virtual numbers or shared numbers. You can use this endpoint to poll for inbound messages on a given date — for example, opt-out replies, incoming two-way conversations, or verification responses. For real-time handling, consider configuring a webhook instead of polling on a schedule.
 
 ## Endpoint
 
-```
+```text
 GET https://rest-api.smsmngr.com/v1/inbox?date=YYYY-MM-DD
 ```
 

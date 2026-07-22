@@ -100,9 +100,11 @@ By default, each validation session allows up to **6 verification attempts**. Ev
 
 ## Error responses
 
-| HTTP status | Condition | Example response |
+| HTTP status | Error code | Condition |
 |---|---|---|
-| `400` | Code was wrong; attempts remain | `{ "message": "Invalid code", "attemptsRemaining": 3 }` |
-| `400` | Validation session has expired (>10 min) | `{ "message": "Validation expired" }` |
-| `404` | No session found for the supplied `token` | `{ "message": "Validation not found" }` |
-| `429` | All attempts exhausted | `{ "message": "Too many attempts" }` |
+| `400` | — | Code was wrong; attempts remain — `{ "message": "Invalid code", "attemptsRemaining": 3 }` |
+| `400` | — | Validation session has expired (>10 min) — `{ "message": "Validation expired" }` |
+| `401` | `MISSING_API_KEY` | The `X-API-Key` header was not present in the request. |
+| `401` | `INVALID_API_KEY` | The supplied API key is invalid or has been disabled. |
+| `404` | — | No session found for the supplied `token` — `{ "message": "Validation not found" }` |
+| `429` | — | All attempts exhausted — `{ "message": "Too many attempts" }` |

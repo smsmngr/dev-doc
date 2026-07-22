@@ -1,5 +1,5 @@
 ---
-title: "Verify API — Phone Number Validation Reference"
+title: "Verify API — Phone Number OTP Validation Reference"
 sidebarTitle: "Overview"
 description: "SmsManager Verify API sends OTP codes via SMS to validate phone numbers. Supports HMAC offline proof verification for secure backends."
 ---
@@ -47,13 +47,12 @@ When your account has a `verificationSecret` configured, every validation respon
 
 ## Rate limiting
 
-The API applies multi-level rate limits:
+The API applies two levels of rate limiting:
 
-- **Per account (tenant)** — a cap on total validations across all phone numbers.
-- **Per country** — a cap on validations for phone numbers in a given country.
+- **Per account (tenant)** — a cap on total validations across all phone numbers on your account.
 - **Per phone number** — a cap on how many times a single number can be validated in a rolling window.
 
-Requests that exceed any limit receive a `429` response with an error code of `TENANT_RATE_LIMIT` or `PHONE_RATE_LIMIT`.
+Requests that exceed either limit receive a `429` response with an error code of `TENANT_RATE_LIMIT` or `PHONE_RATE_LIMIT`.
 
 ## Endpoints summary
 
