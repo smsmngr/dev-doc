@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "SmsManager",
-  "theme": "luma",
+  "theme": "maple",
   "colors": {
     "primary": "#ac1c4c"
   },
@@ -73,7 +73,6 @@
             "group": "JSON API v2",
             "pages": [
               "api-reference/json-v2/overview",
-              "api-reference/json-v2/send-message",
               "api-reference/json-v2/send-messages",
               "api-reference/json-v2/send-simple-message",
               "api-reference/json-v2/webhooks"
