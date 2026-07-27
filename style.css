@@ -1,0 +1,33 @@
+/* ─────────────────────────────────────────────────────────────
+   Match the look & feel of smsmanager.cz
+   (auto-loaded by Mintlify on every page)
+   ───────────────────────────────────────────────────────────── */
+
+/* Body copy uses the same system-ui stack as smsmanager.cz — not Inter.
+   Headings keep GothamRounded (set via docs.json > fonts.heading). */
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    "Noto Sans", "Liberation Sans", Arial, sans-serif !important;
+}
+
+/* Top-navbar "Dashboard" CTA: smsmanager.cz buttons use a 0.4rem radius,
+   not a full pill. */
+#topbar-cta-button,
+#topbar-cta-button > * {
+  border-radius: 0.4rem !important;
+}
+
+/* Top-navbar links: semibold with the site's base text colour in light mode,
+   turning brand-crimson on hover. */
+.navbar-link {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+html:not(.dark) .navbar-link {
+  color: #1c1e21;
+}
+
+.navbar-link:hover {
+  color: #a81943 !important;
+}
