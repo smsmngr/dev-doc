@@ -1,0 +1,159 @@
+Při odesílání zprávy přes SmsManager můžete definovat **flow** — seřazený seznam kanálů, které se pro každého příjemce zkusí. Pokud první kanál není schopen zprávu doručit (například příjemce nemá nainstalovaný Viber), SmsManager automaticky vyzkouší další kanál v seznamu. To vám umožňuje maximalizovat míru doručení přes SMS, Viber a WhatsApp bez nutnosti psát vlastní logiku pro opakování.
+
+## Co je tok zpráv?
+
+Vlastnost `flow` je pole objektů kanálů. Každý objekt obsahuje přesně jeden klíč — `sms`, `viber`, `whatsapp_text` nebo `whatsapp_template` — spolu s konfigurací toho kanálu. SmsManager prochází pole od prvního k poslednímu: vyzkouší první kanál, a pokud selže nebo je nedostupný pro daného příjemce, přejde na druhý a tak dále.
+
+```json
+"flow": [
+  { "viber": { "sender": "MujSender", "ttl": 60, "body": "Ahoj přes Viber" } },
+  { "sms":   { "sender": "MujSender", "body": "Ahoj přes SMS" } }
+]
+```
+
+Ve výše uvedeném příkladu se SmsManager nejprve pokusí doručit zprávu přes Viber. Pokud příjemce nemá Viber, nebo Viber TTL vyprší před doručením, SmsManager přejde a odešle zprávu jako standardní SMS.
+
+## Výchozí chování (bez flow)
+
+Pokud do svého požadavku nezahrnete vlastnost `flow`, SmsManager použije SMS přes bránu `high` jako výchozí kanál. To je ekvivalentní zápisu:
+
+```json
+"flow": [
+  { "sms": { "gateway": "high" } }
+]
+```
+
+Pole `body` z kořene vašeho požadavku se použije jako text zprávy a platí standardní směrování SMS.
+
+## Příklady flow
+
+### Jednoduchý tok pouze pro SMS
+
+Když chcete jemné řízení SMS — například určení jména odesílatele, brány nebo zpracování Unicode — definujte jednoprvkový flow s kanálem `sms`:
+
+```json
+{
+  "body": "Váš ověřovací kód je 4821.",
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "sms": {
+        "sender": "MojeFirma",
+        "gateway": "high",
+        "type": "sms",
+        "ttl": 10
+      }
+    }
+  ]
+}
+```
+
+### Viber s SMS zálohou (nejčastější vzor)
+
+Toto je doporučený produkční vzor pro propagační nebo transakční zprávy. Nejprve se pokusí doručit přes Viber; pokud selže z jakéhokoli důvodu, zpráva přejde na SMS, abyste dosáhli každého příjemce.
+
+```json
+{
+  "body": "Ahoj! Vaše objednávka #1042 byla odeslána.",
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "viber": {
+        "sender": "MujObchod",
+        "ttl": 60,
+        "body": "Ahoj! Vaše objednávka #1042 byla odeslána. 📦",
+        "buttons": [
+          { "title": "Sledovat zásilku", "url": "https://example.com/track/1042" }
+        ]
+      }
+    },
+    {
+      "sms": {
+        "sender": "MujObchod",
+        "body": "Ahoj! Vaše objednávka #1042 byla odeslána. Sledovat: https://example.com/track/1042"
+      }
+    }
+  ]
+}
+```
+
+Všimněte si, že Viber krok má bohatší tělo s emoji a tlačítkem, zatímco SMS záloha používá prostý textový ekvivalent. Hodnoty `body` na úrovni kanálu vám umožňují přizpůsobit obsah pro každý kanál.
+
+### WhatsApp šablona s SMS zálohou
+
+Pro proaktivní oslovování, kdy vám příjemce jako první nenapsal, použijte předschválenou WhatsApp šablonu. Pokud doručení přes WhatsApp selže, SmsManager přejde na SMS.
+
+```json
+{
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "whatsapp_template": {
+        "sender": "514578330250514",
+        "template_name": "order_shipped",
+        "language": "cs",
+        "params": ["Jan", "1042"],
+        "ttl": 60
+      }
+    },
+    {
+      "sms": {
+        "sender": "MujObchod",
+        "body": "Ahoj Jane, vaše objednávka #1042 byla odeslána!"
+      }
+    }
+  ]
+}
+```
+
+## Podmínky selhání flow
+
+SmsManager přeskočí kanál a zkusí další, když nastane některá z následujících podmínek:
+
+**Viber**
+
+- Příjemce nemá na svém zařízení nainstalovaný Viber.
+- Viber `ttl` vyprší před doručením zprávy.
+
+**WhatsApp šablona**
+
+- Určená šablona nebyla ještě schválena Metou.
+- WhatsApp `ttl` vyprší před doručením zprávy.
+
+**WhatsApp text**
+
+- Příjemce vám nikdy neposlal zprávu ani neodpověděl na jednu z vašich šablonových zpráv. WhatsApp textové zprávy jsou povoleny pouze v rámci 24hodinového zákaznického okna, které se otevře poté, co příjemce zahájí kontakt.
+
+**SMS**
+
+- Protože SMS je nejuniverzálnějším dostupným kanálem, jen zřídka selže na úrovni kanálu. Selhání SMS označuje hlubší problém (neplatné číslo, nedostatečný kredit apod.), nikoli problém dostupnosti kanálu.
+
+## Priorita body a sender
+
+Pole `body` můžete definovat na kořenové úrovni požadavku i uvnitř jednotlivých objektů kanálů v `flow`. Pokud jsou přítomny obě hodnoty, **body na úrovni kanálu má prioritu** pro daný kanál. Pokud kanál nezadá své vlastní `body`, použije se kořenové `body`.
+
+```json
+{
+  "body": "Prostý záložní text pro všechny kanály.",
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "viber": {
+        "sender": "MujSender",
+        "body": "🎉 Kanálově specifická Viber zpráva s emoji!"
+      }
+    },
+    {
+      "sms": {
+        "sender": "MujSender"
+      }
+    }
+  ]
+}
+```
+
+V tomto příkladu Viber krok použije tělo s emoji, zatímco SMS záloha využije prostý kořenový text.
+
+<Tip>
+  Vždy zahrnujte SMS jako poslední kanál ve svém `flow` pro produkční provoz. SMS je k dispozici na každém mobilním zařízení a nevyžaduje instalaci žádné aplikace, což z ní činí nejspolehlivější zálohu, která zajistí, že vaše zpráva dojde každému příjemci.
+</Tip>

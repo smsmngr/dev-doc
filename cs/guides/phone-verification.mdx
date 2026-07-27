@@ -1,0 +1,197 @@
+SmsManager Verify API zpracovává kompletní OTP (one-time password) tok pro ověření telefonního čísla — od generování a doručení 6místného kódu přes SMS až po validaci kódu, který uživatel zadá. Zůstáváte pánem svého UI; Verify API se stará o generování kódu, doručení, expiraci a limity pokusů.
+
+---
+
+## Jak to funguje
+
+Ověřovací tok zahrnuje dvě volání API na straně serveru a jednu akci uživatele:
+
+1. Váš server volá `POST /v1/validations` s telefonním číslem k ověření → obdržíte `token`.
+2. SmsManager posílá 6místný OTP na telefonní číslo přes SMS.
+3. Uživatel obdrží SMS a zadá kód do vašeho UI.
+4. Váš server volá `POST /v1/validations/{token}/verify` s kódem, který uživatel zadal.
+5. Při úspěchu odpověď obsahuje `verified: true`, potvrzený `phoneNumber` a — pokud váš účet má nakonfigurované ověřovací tajemství — HMAC `proof`, který můžete použít pro pozdější offline ověření.
+
+---
+
+## Základní URL a autentizace
+
+- **Základní URL**: `https://verify-api.smsmanager.com`
+- **Hlavička autentizace**: `X-API-Key: YOUR_API_KEY`
+
+Všechny požadavky kromě `POST /v1/verify-proof` vyžadují hlavičku `X-API-Key`.
+
+---
+
+## Krok za krokem integrace
+
+<Steps>
+  <Step title="Zahájení validace">
+    Zavolejte `POST /v1/validations` s telefonním číslem, které chcete ověřit. Telefonní číslo by mělo být v mezinárodním formátu bez úvodního `+`.
+
+    ```bash cURL
+    curl -X POST https://verify-api.smsmanager.com/v1/validations \
+      -H "X-API-Key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"phoneNumber": "420777123456"}'
+    ```
+
+    ```json Odpověď
+    {
+      "token": "61591bd8-3f2a-4c89-b1d5-0e9a7f2c4831",
+      "status": "pending",
+      "expiresAt": "2024-06-01T12:15:00Z",
+      "timestamp": "2024-06-01T12:10:00Z"
+    }
+    ```
+
+    Uložte `token` — budete jej potřebovat v dalším kroku. Timestamp `expiresAt` vám sdělí, jak dlouho je session platná. Po vypršení kód již není akceptován a uživatel musí začít znovu.
+  </Step>
+  <Step title="Uživatel obdrží OTP kód přes SMS">
+    SmsManager automaticky odešle 6místný kód na telefonní číslo. Zobrazte ve svém UI vstupní pole pro kód a počkejte, až jej uživatel odešle. Během tohoto kroku nemusíte na straně serveru nic dělat.
+
+    <Tip>
+      Ukážte uživateli odpočet založený na `expiresAt`, aby věděl, jak dlouho má na zadání kódu. Pokud kód vyprší, zavolejte znovu `POST /v1/validations` pro zahájení nové session.
+    </Tip>
+  </Step>
+  <Step title="Ověření kódu">
+    Jakmile uživatel odešle kód, zavolejte `POST /v1/validations/{token}/verify` — nahraďte `{token}` tokenem z kroku 1 — a předejte kód v těle požadavku.
+
+    ```bash cURL
+    curl -X POST https://verify-api.smsmanager.com/v1/validations/61591bd8-3f2a-4c89-b1d5-0e9a7f2c4831/verify \
+      -H "X-API-Key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"code": "123456"}'
+    ```
+
+    ```json Odpověď — úspěch
+    {
+      "verified": true,
+      "phoneNumber": "420777123456",
+      "token": "61591bd8-3f2a-4c89-b1d5-0e9a7f2c4831",
+      "code": "123456",
+      "timestamp": "2024-06-01T12:10:00Z",
+      "verifiedAt": "2024-06-01T12:11:42Z"
+    }
+    ```
+
+    Zkontrolujte pole `verified`. Pokud `true`, telefonní číslo je potvrzeno a můžete pokračovat. Pokud `false`, kód byl špatný — viz [Zpracování chyb](#zpracovani-chyb) níže.
+  </Step>
+  <Step title="Použití výsledku ve vaší aplikaci">
+    Jakmile `verified: true`, označte telefonní číslo ve vaší databázi jako potvrzené a pokračujte ve svém aplikačním toku — vytvoření účtu, odemknutí funkce, dokončení transakce a tak dále. Pokud má váš účet nakonfigurován `verificationSecret`, uložte také pole `proof` pro offline ověření (viz níže).
+  </Step>
+</Steps>
+
+---
+
+## HMAC offline proof
+
+Pokud má váš účet nakonfigurován `verificationSecret` v dashboardu SmsManager, odpověď verify obsahuje další pole `proof` vedle standardních polí. Proof je HMAC podpis nad ověřovacími daty.
+
+Offline proof je užitečný, když chcete, aby **jiný server** (například mikroslužba nebo backend mobilní aplikace) potvrdil, že ověření skutečně proběhlo, bez dalšího API volání a bez potřeby přístupu k API klíči.
+
+K offline ověření proof zavolejte `POST /v1/verify-proof` — tento endpoint **nevyžaduje autentizaci**:
+
+```bash cURL
+curl -X POST https://verify-api.smsmanager.com/v1/verify-proof \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phoneNumber": "420777123456",
+    "token": "61591bd8-3f2a-4c89-b1d5-0e9a7f2c4831",
+    "code": "123456",
+    "timestamp": "2024-06-01T12:10:00Z",
+    "proof": "a3f8c2d1e4b5..."
+  }'
+```
+
+```json Odpověď — proof platný
+{
+  "valid": true
+}
+```
+
+<Note>
+  Přístup pomocí `proof` vám umožňuje předát výsledek ověření (spolu s proof) klientovi, který jej pak může prezentovat kterékoli z vašich služeb. Každá služba může nezávisle potvrdit autenticitu pomocí sdíleného `verificationSecret`, bez centrálního úložiště stavu.
+</Note>
+
+---
+
+## Zpracování chyb
+
+| HTTP status | Chyba | Význam |
+| --- | --- | --- |
+| `400` | `invalid_code` | Zadaný kód nesouhlasí. Vyzvěte uživatele, aby to zkusil znovu. |
+| `400` | `expired` | Token vypršel. Zahájit novou validaci. |
+| `400` | `too_many_attempts` | Byl dosažen maximální počet nesprávných pokusů. Zahájit novou session. |
+| `429` | `rate_limited` | Příliš mnoho požadavků z tohoto účtu, země nebo telefonního čísla. Počkejte před opakováním. |
+| `404` | `not_found` | Token neexistuje. Ujistěte se, že používáte správný token z kroku 1. |
+
+Vždy kontrolujte HTTP status kód spolu s boolean `verified`. Odpověď `200` s `verified: false` znamená, že kód byl špatný, ale session je stále aktivní (pokud není vráceno `too_many_attempts`).
+
+---
+
+## Rate limiting
+
+Verify API vynucuje rate limity na třech úrovních pro prevenci zneužití:
+
+- **Per účet** — globální strop ověření započatých za minutu.
+- **Per země** — limity kolik ověření lze poslat na konkrétní kód země.
+- **Per telefonní číslo** — zklidnění po několika nesprávných pokusech nebo opakovaných ověřeních stejného čísla.
+
+Při obdržení odpovědi `429` couvněte a zkuste znovu po prodlevě. Zobrazte uživatelsky přívětivou zprávu ("Příliš mnoho pokusů — prosím chvíli počkejte a zkuste to znovu") místo technické chyby.
+
+---
+
+## Kompletní cURL příklady
+
+<CodeGroup>
+
+```bash Zahájení validace
+curl -X POST https://verify-api.smsmanager.com/v1/validations \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"phoneNumber": "420777123456"}'
+```
+
+```bash Ověření kódu
+curl -X POST https://verify-api.smsmanager.com/v1/validations/61591bd8-3f2a-4c89-b1d5-0e9a7f2c4831/verify \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"code": "482910"}'
+```
+
+```bash Offline ověření proof (nevyžaduje autentizaci)
+curl -X POST https://verify-api.smsmanager.com/v1/verify-proof \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phoneNumber": "420777123456",
+    "token": "61591bd8-3f2a-4c89-b1d5-0e9a7f2c4831",
+    "code": "482910",
+    "timestamp": "2024-06-01T12:10:00Z",
+    "proof": "a3f8c2d1e4b5..."
+  }'
+```
+
+</CodeGroup>
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Odeslat SMS" icon="message-sms" href="/cs/guides/send-sms">
+    Odesílejte transakční SMS zprávy včetně OTP kódů.
+  </Card>
+
+  <Card title="Webhooky" icon="webhook" href="/cs/guides/webhooks">
+    Sledujte doručení vašich OTP SMS zpráv v reálném čase.
+  </Card>
+
+  <Card title="Hromadné odesílání" icon="layer-group" href="/cs/guides/batch-sending">
+    Odesílejte zprávy více příjemcům v jednom API volání.
+  </Card>
+
+  <Card title="Odeslat WhatsApp" icon="whatsapp" href="/cs/guides/send-whatsapp">
+    Doručujte OTP kódy přes WhatsApp šablonové zprávy.
+  </Card>
+</CardGroup>

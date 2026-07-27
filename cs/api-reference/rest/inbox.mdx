@@ -1,0 +1,96 @@
+Schránka ukládá příchozí zprávy přijaté na vašich virtuálních číslech nebo sdílených číslech. Tento endpoint můžete použít k dotazování příchozích zpráv v daný den — například opt-out odpovědi, příchozí obousměrné konverzace nebo ověřovací odpovědi. Pro zpracování v reálném čase zvažte místo pravidelného dotazování nakonfigurování webhooku.
+
+## Endpoint
+
+```text
+GET https://rest-api.smsmngr.com/v1/inbox?date=YYYY-MM-DD
+```
+
+## Autentizace
+
+Zahrňte váš API klíč v hlavičce požadavku `x-api-key`.
+
+```http
+x-api-key: YOUR_API_KEY
+```
+
+## Query parametry
+
+<ParamField query="date" type="string" required>
+  Datum, pro které chcete získat zprávy ze schránky. Formát: `YYYY-MM-DD` (například `2025-06-15`).
+</ParamField>
+
+## Odpověď
+
+<ResponseField name="success" type="boolean" required>
+  `true`, když požadavek uspěl.
+</ResponseField>
+
+<ResponseField name="messages" type="array" required>
+  Pole objektů příchozích zpráv přijatých v zadaný den.
+
+  <Expandable title="vlastnosti message">
+    <ResponseField name="id" type="string" required>
+      Jedinečný identifikátor této příchozí zprávy.
+    </ResponseField>
+
+    <ResponseField name="from" type="string" required>
+      Telefonní číslo odesílatele v mezinárodním formátu (například `420777123456`).
+    </ResponseField>
+
+    <ResponseField name="to" type="string" required>
+      Vaše virtuální číslo, které zprávu přijalo, v mezinárodním formátu.
+    </ResponseField>
+
+    <ResponseField name="body" type="string" required>
+      Textový obsah příchozí zprávy.
+    </ResponseField>
+
+    <ResponseField name="ts_received" type="integer" required>
+      Unix timestamp, kdy byla zpráva přijata SmsManagerem.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Příkladová odpověď
+
+```json
+{
+  "success": true,
+  "messages": [
+    {
+      "id": "abc123",
+      "from": "420777123456",
+      "to": "420123456789",
+      "body": "STOP",
+      "ts_received": 1700000000
+    }
+  ]
+}
+```
+
+## cURL příklad
+
+```bash
+curl "https://rest-api.smsmngr.com/v1/inbox?date=2025-06-15" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+## Chybové odpovědi
+
+Pokud požadavek selže, API vrací HTTP `400` s JSON chybovým tělem.
+
+```json
+{
+  "success": false,
+  "message": "Failed to read inbox"
+}
+```
+
+<Tip>
+  Pro oznámení schránky v reálném čase — například okamžité zpracování opt-out odpovědí — nakonfigurujte webhook `incomingMessage` na vašem API klíči pomocí `POST /apikey/update`. Webhooky eliminují potřebu dotazování tohoto endpointu a snižují latenci na takéřka nulu.
+</Tip>
+
+<Note>
+  Přístup do schránky je k dispozici pouze pokud má váš účet přiřazené vyhrazené virtuální číslo. Pokud nevidíte žádné zprávy a očekáváte je, kontaktujte [podporu SmsManager](mailto:cc@smsmanager.cz) pro potvrzení nastavení virtuálního čísla.
+</Note>

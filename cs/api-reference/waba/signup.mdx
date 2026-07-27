@@ -1,0 +1,145 @@
+Použijte tento endpoint k zahájení session onboardingu WhatsApp Business Account pro jednoho z vašich klientů. Odpověď vám dává krátkodobý JWT token a základní přesměrovací URL. Zkombinujete je, přesměrujete prohlížeč klienta na výslednou URL a SmsManager převezme — slouží hostovaný registrační tok, který váš klient dokončí bez dalšího vývoje na vaší straně.
+
+## Endpoint
+
+```text
+POST https://rest-api.smsmngr.com/v1/whatsapp/signup
+```
+
+## Autentizace
+
+Zahrňte váš API klíč v hlavičce `x-api-key`.
+
+```http
+x-api-key: <your-api-key>
+```
+
+## Tělo požadavku
+
+<ParamField body="partner_name" type="string">
+  Název vaší společnosti nebo značky. Zobrazuje se klientovi během hostovaného registračního toku SmsManageru, aby věděl, kdo onboarding umožňuje.
+</ParamField>
+
+<ParamField body="partner_logo" type="string">
+  Veřejně přístupná URL na obrázek vašeho loga. Zobrazuje se vedle `partner_name` v registrační UI.
+</ParamField>
+
+<ParamField body="partner_callback_url" type="string">
+  URL na vašem serveru, kam SmsManager posílá POST oznámení o stavu onboardingu. Použijte to k tomu, abyste věděli, kdy je klientovo WABA připraveno.
+</ParamField>
+
+<ParamField body="partner_client_id" type="string">
+  Váš vlastní interní identifikátor tohoto klienta. SmsManager vrací tuto hodnotu v každém callback oznámení, takže můžete událost spojit se správným záznamem ve vašem systému.
+</ParamField>
+
+<ParamField body="partner_finish_url" type="string">
+  URL, na kterou SmsManager přesměruje klienta poté, co dokončí (nebo opustí) registrační tok.
+</ParamField>
+
+<ParamField body="phone_number" type="string">
+  Řídí, jak je přiřazeno WhatsApp telefonní číslo. Přijaté hodnoty:
+
+  - `automatic` _(výchozí)_ — SmsManager automaticky přiřadí telefonní číslo na základě `country`, které poskytnete.
+  - `manual` — klient si zvolí nebo zadá vlastní telefonní číslo během hostovaného toku.
+</ParamField>
+
+<ParamField body="wa_name" type="string">
+  Název zobrazovaný ve WhatsApp / název firmy, který se objeví v konverzacích.
+</ParamField>
+
+<ParamField body="wa_email" type="string">
+  E-mailová adresa spojená s WhatsApp Business účtem.
+</ParamField>
+
+<ParamField body="wa_website" type="string">
+  URL firemního webu spojeného s WhatsApp účtem.
+</ParamField>
+
+<ParamField body="country" type="string">
+  Země klienta ve formátu ISO alpha-2 (např. `US`, `DE`, `GB`). **Vyžadováno**, když `phone_number` je `automatic`, aby SmsManager mohl přiřadit číslo se správným kódem země.
+</ParamField>
+
+## Pole odpovědi
+
+<ResponseField name="success" type="boolean">
+  `true`, když byla registrační session úspěšně vytvořena.
+</ResponseField>
+
+<ResponseField name="token" type="string">
+  Krátkodobý JWT, který autentizuje session prohlížeče klienta s hostovaným registračním tokem SmsManageru. Zacházejte s ním jako s tajemstvím — nevystavujte jej v klientském JavaScriptu ani jej nelogujte.
+</ResponseField>
+
+<ResponseField name="redirect_url" type="string">
+  Základní URL hostované registrační stránky SmsManageru. Přidejte `?token=<JWT>` k této URL před přesměrováním klienta.
+</ResponseField>
+
+## Přesměrování klienta
+
+Po obdržení odpovědi sestavte plnou přesměrovací URL přidáním `token` jako query parametru pojmenovaného `token` k hodnotě `redirect_url` z odpovědi:
+
+```text
+{redirect_url}?token=<JWT_TOKEN>
+```
+
+Například, pokud odpověď vrací `"redirect_url": "https://waba.smsmanager.com/registration/"`, plná URL je:
+
+```text
+https://waba.smsmanager.com/registration/?token=<JWT_TOKEN>
+```
+
+Poté přesměrujte prohlížeč klienta (server-side `302`, meta-refresh nebo `window.location`) na tuto URL. Klient dokončí zbývající kroky registrace v UI SmsManageru.
+
+<Warning>
+  Nevystavujte JWT token v klientském JavaScriptu ani nepředvejte přes nedůvěryhodný frontend. Sestavte přesměrovací URL na vašem serveru a pošlete přesměrovací odpověď přímo prohlížeči.
+</Warning>
+
+## Callback oznámení
+
+SmsManager posílá POST požadavky na váš `partner_callback_url` jak klient postupuje onboardingem. Každé oznámení obsahuje `partner_client_id`, který jste zadali, takže můžete identifikovat, ke kterému klientovi událost patří. Poslouchejte na událost dokončení, abyste věděli, kdy je WABA aktivní a připravené k použití.
+
+## Příklad
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://rest-api.smsmngr.com/v1/whatsapp/signup \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: <your-api-key>" \
+  -d '{
+    "partner_name": "Acme Corp",
+    "partner_logo": "https://acme.com/logo.png",
+    "partner_callback_url": "https://acme.com/webhooks/waba",
+    "partner_client_id": "client-789",
+    "partner_finish_url": "https://acme.com/dashboard",
+    "phone_number": "automatic",
+    "wa_name": "Acme Support",
+    "wa_email": "support@acme.com",
+    "wa_website": "https://acme.com",
+    "country": "US"
+  }'
+```
+
+```json Tělo požadavku
+{
+  "partner_name": "Acme Corp",
+  "partner_logo": "https://acme.com/logo.png",
+  "partner_callback_url": "https://acme.com/webhooks/waba",
+  "partner_client_id": "client-789",
+  "partner_finish_url": "https://acme.com/dashboard",
+  "phone_number": "automatic",
+  "wa_name": "Acme Support",
+  "wa_email": "support@acme.com",
+  "wa_website": "https://acme.com",
+  "country": "US"
+}
+```
+
+```json Odpověď
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "redirect_url": "https://waba.smsmanager.com/registration/"
+}
+```
+
+</CodeGroup>

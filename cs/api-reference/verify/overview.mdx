@@ -1,0 +1,72 @@
+Verify API zpracovává kompletní OTP životní cyklus: posílá 6místný kód na telefonní číslo přes SMS, ověřuje kód, který váš uživatel zadá, a volitelně generuje kryptografický HMAC proof, který vašemu backendu umožňuje potvrdit validaci offline — bez dalšího autentizovaného API volání.
+
+## Základní URL
+
+```text
+https://verify-api.smsmanager.com
+```
+
+## Autentizace
+
+Všechny endpointy vyžadují váš API klíč v hlavičce požadavku `X-API-Key`.
+
+```http
+X-API-Key: <your-api-key>
+```
+
+**Výjimka:** `POST /v1/verify-proof` nevyžaduje autentizaci. Sam otný HMAC proof slouží jako credentiál.
+
+## Jak to funguje
+
+1. **POST /v1/validations** — Předejte telefonní číslo. API posílá 6místný kód přes SMS a vrací `token`, který použijete v následujících voláních.
+2. **Uživatel obdrží SMS** — Váš uživatel přečte 6místný kód ze svého telefonu.
+3. **POST /v1/validations/**{token}**/verify** — Předejte kód, který uživatel zadal. Při úspěchu obdržíte ověřené telefonní číslo a volitelný HMAC `proof`.
+4. **Ověření HMAC proof (volitelné)** — Předejte `proof` a přidružená pole na `POST /v1/verify-proof` (nevyžaduje autentizaci) nebo `PATCH /v1/validations/{token}` k potvrzení, že je validace autentická na vašem backendu.
+
+## Stavy validace
+
+Každá validační session prolézá následující stavy:
+
+| Stav | Popis |
+| --- | --- |
+| `pending` | Validace byla vytvořena; SMS ještě nebyla doručena. |
+| `code_sent` | SMS se 6místným kódem byla doručena do telefonu. |
+| `verified` | Uživatel úspěšně zadal správný kód. |
+| `failed` | Ověření selhalo — všechny pokusy byly vyčerpány. |
+| `expired` | Validační session prošla 10minutovou platností bez ověření. |
+
+## HMAC offline proof
+
+Když má váš účet nakonfigurován `verificationSecret`, každá validační odpověď obsahuje pole `proof` s HMAC podpisem vypočítaným z telefonního čísla, tokenu, kódu a timestamp pomocí vašeho tajemství. Můžete předat těchto čtyř polí plus proof na `POST /v1/verify-proof` — který **nevyžaduje autentizaci** — k potvrzení, že ověření skutečně proběhlo. To je užitečné pro mikroslužby, edge funkce nebo jakýkoli backend, který by neměl držet váš API klíč.
+
+## Rate limiting
+
+API aplikuje dvě úrovně rate limitingu:
+
+- **Per účet (tenant)** — strop na celkový počet validací napříč všemi telefonními čísly na vašem účtu.
+- **Per telefonní číslo** — strop na počet ověření jednoho čísla v rolling okně.
+
+Požadavky překračující některý limit dostanou odpověď `429` s chybovým kódem `TENANT_RATE_LIMIT` nebo `PHONE_RATE_LIMIT`.
+
+## Souhrn endpointů
+
+| Metoda | Cesta | Vyžaduje autentizaci | Popis |
+| --- | --- | --- | --- |
+| `POST` | `/v1/validations` | Ano | Zahájit novou validaci telefonního čísla. |
+| `POST` | `/v1/validations/{token}/verify` | Ano | Odeslat OTP kód zadaný uživatelem. |
+| `PATCH` | `/v1/validations/{token}` | Ano | Ověřit HMAC proof proti uložené session. |
+| `POST` | `/v1/verify-proof` | **Ne** | Ověřit HMAC proof offline bez ukládání stavu. |
+
+<CardGroup cols={3}>
+  <Card title="Zahájení validace" icon="play" href="/cs/api-reference/verify/start-validation">
+    POST /v1/validations — zahájit doručení OTP
+  </Card>
+
+  <Card title="Ověřit kód" icon="check" href="/cs/api-reference/verify/verify-code">
+    POST /v1/validations/{token}/verify — zkontrolovat kód uživatele
+  </Card>
+
+  <Card title="Ověřit proof" icon="shield-check" href="/cs/api-reference/verify/verify-proof">
+    POST /v1/verify-proof — offline HMAC proof validace
+  </Card>
+</CardGroup>

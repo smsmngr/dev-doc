@@ -1,0 +1,82 @@
+Každé telefonní číslo příjemce předávané SmsManageru musí obsahovat plnou mezinárodní volící předvolbu — žádné lokální zkratky ani nejednoznačné národní formáty. SmsManager používá **standard E.164** jako svou kanonickou formu, ale odstraňuje úvodní znak `+`. To znamená, že předáváte prostý číselný řetězec začínající kódem země bez mezer, pomlček nebo jiných oddělovačů.
+
+## Požadovaný formát
+
+SmsManager očekává telefonní čísla ve formátu **E.164 bez úvodního `+` nebo `00`**. Začněte přímo kódem země následovaným účastnickým číslem, bez formátovacích znaků.
+
+| Země | Mezinárodní (E.164) | Formát SmsManager |
+| --- | --- | --- |
+| Česko | \+420 777 123 456 | `420777123456` |
+| Velká Británie | \+44 7700 900123 | `447700900123` |
+| USA | \+1 415 555 0100 | `14155550100` |
+| Německo | \+49 151 23456789 | `4915123456789` |
+| Slovensko | \+421 902 123 456 | `421902123456` |
+
+Vzor je přímočarý: vezměte plné mezinárodní číslo, odstraňte úvodní `+` a odstraňte všechny mezery, pomlčky a závorky.
+
+## Automatická normalizace
+
+SmsManager přijímá několik dalších běžných reprezentací a před zpracováním je převádí do kanonické formy. I když vám to dává určitou flexibilitu, předávání čísel v doporučeném formátu E.164-bez-`+` se vyhýbá jakékoli nejednoznačnosti a poskytuje vám nejspolehlivější výsledky — zejména pro čísla ze zemí, které mají ne-zřejmé národní volící konvence.
+
+Mezi automaticky normalizované formáty patří:
+
+- Čísla s předponou literal `+` (např. `+420777123456`)
+- Čísla s předponou mezinárodního výstupního kódu `00` (např. `00420777123456`)
+- Čísla obsahující mezery, pomlčky, tečky nebo závorky jako oddělovače (např. `420 777 123-456`)
+- Národní formát čísel s úvodní `0`, kde lze zemi odvodit (např. `0777123456` v některých konfiguracích)
+
+<Note>
+  Národní formát s úvodní `0` (např. `0777123456`) nemusí být správně identifikován pro všechny země, protože kód země nelze vždy odvodit z čísla samotného. Vždy zahrnujte plný kód země pro zaručení správného směrování.
+</Note>
+
+## Tabulka validace formátu
+
+| Formát | Příklad | Přijato? |
+| --- | --- | --- |
+| E.164 bez `+` **(doporučeno)** | `420777123456` | ✅ Přijato tak, jak je |
+| S úvodním `+` | `+420777123456` | ⚠️ Přijato — normalizováno odstraněním `+` |
+| S úvodním `00` | `00420777123456` | ⚠️ Přijato — normalizováno odstraněním `00` |
+| Národní s úvodní `0` | `0777123456` | ⚠️ Přijato pro některé země — nemusí fungovat univerzálně |
+| S mezerami nebo pomlčkami | `420 777 123-456` | ⚠️ Přijato — oddělovače se odstraňují |
+
+## Kódy zemí
+
+Vždy zahrnujte plný volící kód země jako první číslice čísla — nepřidávejte úvodní `+`. Například:
+
+- Česko (`420`) → `420XXXXXXXXX`
+- Německo (`49`) → `49XXXXXXXXXX`
+- USA (`1`) → `1XXXXXXXXXX`
+
+Kód země dělá víc než jen směruje zprávu — také určuje platnou cenu za zprávu, požadovaná pravidla registrace odesílatele a případná obsahová omezení specifická pro zemi. Použití špatného nebo chybějícího kódu země může mít za následek nesprávně směrované zprávy nebo neočekávané poplatky.
+
+<Tip>
+  Pokud ukládáte telefonní čísla v databázi s úvodním `+`, odstraňte jej před předáním čísel SmsManager API. Jednoduchý `phone.replace(/^\+/, "")` v JavaScriptu nebo `phone.lstrip("+")` v Pythonu je vše, co potřebujete.
+</Tip>
+
+## Telefonní čísla ve Verify API
+
+Verify API přijímá telefonní čísla v poli `phoneNumber` těla požadavku pomocí stejného formátu: pouze číslice, včetně kódu země, bez úvodního `+` nebo `00`.
+
+Verify API validuje číslo proti následujícímu vzoru před přijetím požadavku session:
+
+```text
+^[1-9]\d{6,14}$
+```
+
+To znamená:
+
+- První číslice musí být `1–9` (žádné úvodní nuly)
+- Celková délka musí být mezi 7 a 15 číslicemi (včetně)
+- Akceptovány jsou pouze číselné znaky — žádné mezery, pomlčky nebo `+`
+
+**Příklad těla požadavku Verify API:**
+
+```json
+{
+  "phoneNumber": "420777123456"
+}
+```
+
+<Warning>
+  Neplatná telefonní čísla způsobují **odmítnutí zpráv před odesláním**. Odmítnutá zpráva může spustit webhook callback `result: rejected`. Vždy validujte a normalizujte telefonní čísla na vaší straně před voláním API a kontrolujte pole `rejected` v odpovědích API pro identifikaci čísel, která selhala.
+</Warning>

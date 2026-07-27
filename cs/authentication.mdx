@@ -1,0 +1,76 @@
+SmsManager používá autentizaci API klíčem pro všechny požadavky. Každé volání JSON API v2 a REST API musí obsahovat platný API klíč — nejsou žádné OAuth toky ani session tokeny ke správě. Klíč můžete předat jako HTTP hlavičku (doporučeno pro všechny endpointy) nebo jako query parametr u jednoduchého GET endpointu.
+
+## Získání API klíče
+
+Přihlaste se ke svému účtu SmsManager a přejděte na stránku [API & Cloud](https://app.smsmanager.com/api-cloud). Váš hlavní API klíč je tam zobrazen. Zkopírujte jej a uložte na bezpečné místo — použijete jej v každém požadavku na API.
+
+<Tip>
+  Prostřednictvím REST API si můžete vytvořit další sub-klíče s izolovaným nebo sdíleným kreditem. Viz [Správa API klíčů](#sprava-api-klicu) níže pro podrobnosti.
+</Tip>
+
+## Předávání API klíče
+
+### Pomocí hlavičky (doporučeno)
+
+Zahrňte svůj API klíč do hlavičky požadavku `x-api-key`. Tato metoda je podporována na všech endpointech JSON API v2 i REST API.
+
+```http
+x-api-key: YOUR_API_KEY
+```
+
+**Příklad cURL:**
+
+```bash
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"body": "Ahoj!", "to": [{"phone_number": "420777123456"}]}'
+```
+
+### Pomocí query parametru (pouze simple endpoint)
+
+Na endpointu `GET /simple/message` se můžete autentizovat připojením klíče jako query parametru `apikey` místo použití hlavičky.
+
+```http
+https://api.smsmngr.com/v2/simple/message?apikey=YOUR_API_KEY&phone_number=420777123456&message=Ahoj&sender=MujSender
+```
+
+<Note>
+  Query parametr `apikey` je podporován **pouze** na endpointu `GET /simple/message`. Všechny ostatní endpointy vyžadují hlavičku `x-api-key`.
+</Note>
+
+## Správa API klíčů
+
+Sub-klíče můžete programově vytvářet a spravovat přes [REST API](/cs/api-reference/rest/api-keys). Sub-klíče jsou užitečné, pokud provozujete více integrací nebo služeb a chcete sledovat využití nebo nezávisle odvolávat přístup.
+
+Při vytváření sub-klíče můžete nastavit:
+
+- **`note`** — čitelný popisek, abyste snadno identifikovali, která integrace používá který klíč
+- **`default_callback_url`** — záložní webhook URL použitá pro všechny zprávy odeslané tímto klíčem, pokud není zadán per-request `callback`
+- **`shared`** — nastavte na `true` pro sdílení kreditu s nadřazeným účtem nebo na `false` pro samostatný kredit sub-klíče
+- **`currency`** — fakturační měna sub-klíče (`EUR` nebo `CZK`; musí odpovídat nadřazenému, pokud `shared` je `true`)
+
+<Note>
+  API klíče jsou vázány na účet. Sub-klíče vytvořené pod vaším účtem mohou sdílet vaši kreditní linku nebo mít vlastní zůstatek podle toho, jak nastavíte příznak `shared` při volání REST API.
+</Note>
+
+## Bezpečnostní doporučení
+
+Dodržujte tato doporučení pro ochranu vašich API klíčů a dat uživatelů:
+
+- **Nikdy nezakódujte API klíče do klientského kódu** — klíče v prohlížečovém JavaScriptu, mobilních aplikacích nebo veřejných repozitářích mohou být extrahovány a zneužity
+- **Používejte proměnné prostředí** — načítejte klíče z proměnných prostředí nebo správce tajemství (např. AWS Secrets Manager, HashiCorp Vault), nekomitujte je do zdrojové kontroly
+- **Rotujte klíče při kompromitaci** — pokud se domníváte, že klíč unikl, ihned vytvořte nový přes [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud) nebo REST API, aktualizujte integrace a starý klíč smažte
+- **Používejte sub-klíče pro každou integraci** — přiřaďte vyhrazený sub-klíč každé službě nebo prostředí (produkce, staging atd.), abyste mohli odvolat jediný klíč, aniž byste narušili vše ostatní
+
+## Chyby autentizace
+
+Pokud váš API klíč chybí, je poškozený nebo není autorizován pro požadovanou operaci, API vrátí HTTP odpověď `400`.
+
+| HTTP status | Význam | Typická chybová zpráva |
+| --- | --- | --- |
+| `400` | Bad request — klíč chybí, je neplatný nebo explicitně zamítnut | `User is not authorized to access this resource with an explicit deny` |
+
+<Warning>
+  SmsManager vrací `400` (nikoli `401`) pro chyby autentizace. Ujistěte se, že vaše logika zpracování chyb kontroluje odpovědi `400` a zkoumá pole `Message` v těle odpovědi, aby rozlišila chyby autentizace od validačních chyb.
+</Warning>

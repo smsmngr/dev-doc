@@ -1,0 +1,141 @@
+Každá zpráva odeslaná přes SmsManager obdrží jedinečný identifikátor, který můžete použít ke sledování stavu doručení, korelaci webhook událostí a ladění neočekávaného chování. SmsManager vrací v každé odpovědi API dva typy identifikátorů: `request_id`, který zahrnuje celé HTTP volání, a jednu nebo více hodnot `message_id`, které zahrnují jednotlivé zprávy jednotlivým příjemcům.
+
+## request\_id vs message\_id
+
+Tyto dva identifikátory slouží různým účelům:
+
+| Identifikátor | Rozsah | Primární použití |
+| --- | --- | --- |
+| `request_id` | Jeden na HTTP API volání | Podporní tikety, logování na serveru, ladění |
+| `message_id` | Jeden na jednotlivou zprávu | Dotazování stavu doručení, korelace webhook událostí |
+
+**`request_id`** je generován pro celý HTTP požadavek. Bez ohledu na to, kolik zpráv nebo příjemců v jednom API volání zahrnete, všichni sdílejí stejné `request_id`. Použijte jej při kontaktování podpory SmsManager nebo pokud potřebujete vysledovat konkrétní API volání ve vašich vlastních logech.
+
+**`message_id`** je UUID přiřazené každé jednotlivé zprávě. Tento identifikátor používejte k dotazování stavu doručení a párování příchozích webhook událostí zpět na zprávy, které jste odeslali.
+
+## Jednoduché odeslání (endpoint `/message`)
+
+Při POST na `/message` odešlete jeden objekt zprávy s polem `to` příjemců (max 10). SmsManager přiřadí samostatný `message_id` každému přijatému příjemci v poli `to`.
+
+**Požadavek:**
+
+```json
+{
+  "body": "Vaše schůzka je potvrzena na zítra 15:00.",
+  "to": [
+    { "phone_number": "420777111111" },
+    { "phone_number": "420777222222" }
+  ]
+}
+```
+
+**Odpověď:**
+
+```json
+{
+  "request_id": "66666666-6666-6666-6666-666666666666",
+  "accepted": [
+    { "key": "0", "message_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" },
+    { "key": "1", "message_id": "ffffffff-gggg-hhhh-iiii-jjjjjjjjjjjj" }
+  ],
+  "rejected": []
+}
+```
+
+`key` odpovídá indexu příjemce v poli `to` (od nuly). Příjemce `0` (420777111111) dostane `aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee`; příjemce `1` (420777222222) dostane `ffffffff-gggg-hhhh-iiii-jjjjjjjjjjjj`.
+
+## Hromadné odeslání (endpoint `/messages`)
+
+Při POST na `/messages` odešlete pole objektů zpráv (max 10 objektů, každý s max 10 příjemci — celkem 100 příjemců na API volání). SmsManager přiřadí jeden `message_id` **na objekt zprávy v dávce**, nikoli na příjemce.
+
+Chcete-li odvodit `message_id` na příjemce, přidejte `-<index_příjemce>` k `message_id` na úrovni zprávy.
+
+**Požadavek (jedna položka dávky se 3 příjemci):**
+
+```json
+[
+  {
+    "body": "Flash sleva! 30 % ze všeho jen dnes.",
+    "to": [
+      { "phone_number": "420777111111" },
+      { "phone_number": "420777222222" },
+      { "phone_number": "420777333333" }
+    ]
+  }
+]
+```
+
+**Odpověď:**
+
+```json
+{
+  "request_id": "66666666-6666-6666-6666-666666666666",
+  "accepted": [
+    { "key": "0", "message_id": "pppppppp-qqqq-rrrr-ssss-tttttttttttt" }
+  ],
+  "rejected": []
+}
+```
+
+Položka dávky na indexu `0` obdržela `message_id` `pppppppp-qqqq-rrrr-ssss-tttttttttttt`. ID na příjemce jsou:
+
+| Index příjemce | Telefonní číslo | message\_id |
+| --- | --- | --- |
+| `0` | 420777111111 | `pppppppp-qqqq-rrrr-ssss-tttttttttttt-0` |
+| `1` | 420777222222 | `pppppppp-qqqq-rrrr-ssss-tttttttttttt-1` |
+| `2` | 420777333333 | `pppppppp-qqqq-rrrr-ssss-tttttttttttt-2` |
+
+<Note>
+  Webhook oznámení o doručení pro odeslání přes `/messages` také používají formát přípony `-<index_příjemce>`. Ujistěte se, že váš webhook handler je připraven přijímat a parsovat tato složená ID.
+</Note>
+
+## Použití message\_id ke sledování
+
+### Dotazování stavu doručení
+
+Stav doručení jakékoli zprávy můžete kdykoli dotazovat pomocí REST API:
+
+```text
+GET https://rest-api.smsmngr.com/v1/message?id=<message_id>
+```
+
+Například:
+
+```text
+GET https://rest-api.smsmngr.com/v1/message?id=pppppppp-qqqq-rrrr-ssss-tttttttttttt-1
+```
+
+### Korelace webhook událostí
+
+Když SmsManager posílá oznámení o doručení na vaši [callback URL](/cs/api-reference/json-v2/webhooks), payload obsahuje `message_id` doručené zprávy. Porovnejte tuto hodnotu s ID, které jste uložili při odeslání, a aktualizujte své vlastní záznamy o doručení.
+
+```json
+{
+  "request_id": "66666666-6666-6666-6666-666666666666",
+  "message_id": "pppppppp-qqqq-rrrr-ssss-tttttttttttt-1",
+  "gateway": "sms",
+  "result": "delivered",
+  "to": { "phone_number": "420777222222" }
+}
+```
+
+## Accepted vs. rejected
+
+Každá odpověď obsahuje pole `accepted` a pole `rejected`:
+
+- **`accepted`** — záznamy zpráv, které byly úspěšně zařazeny k doručení. Každý záznam obsahuje `key` příjemce/položky a `message_id`, které můžete použít ke sledování.
+- **`rejected`** — záznamy zpráv, které nebylo možné zařadit. Každý záznam obsahuje `key` neuspělé položky. Běžné důvody odmítnutí zahrnují neplatné nebo nesměrovatelné telefonní číslo, nedostatečný kredit účtu nebo chybně formátované pole požadavku.
+
+```json
+{
+  "request_id": "66666666-6666-6666-6666-666666666666",
+  "accepted": [
+    { "key": "0", "message_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" }
+  ],
+  "rejected": [
+    { "key": "1" }
+  ]
+}
+```
+
+Odmítnuté záznamy **neobsahují** `message_id`, protože žádná zpráva nebyla vytvořena. Pokud potřebujete pochopit, proč byla zpráva odmítnuta, zkontrolujte detaily chyby v těle odpovědi API nebo kontaktujte podporu SmsManager s vaším `request_id`.
