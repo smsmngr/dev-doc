@@ -1,0 +1,247 @@
+openapi: 3.1.0
+info:
+  title: WhatsApp Business Partner API (REST API)
+  description: |
+    API pro onboarding a správu účtů WhatsApp Business.
+  version: v1
+  contact:
+    url: https://smsmanager.com
+    email: cc@smsmanager.com
+servers:
+  - url: https://rest-api.smsmngr.com/v1
+    description: Odpoví s daty vašeho požadavku
+paths:
+  /whatsapp/signup:
+    post:
+      tags:
+        - WhatsApp Business Partner API
+      summary: Vytvořit proces registrace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                partner_name:
+                  type: string
+                  example: Partner s.r.o.
+                  description: Jméno partnera.
+                partner_logo:
+                  type: string
+                  example: https://partner.com/logo.png
+                  description: URL k logu partnera.
+                partner_callback_url:
+                  type: string
+                  example: https://partner.com/callback
+                  description: Callback URL pro příjem oznámení o stavu procesu onboardingu.
+                partner_client_id:
+                  type: string
+                  example: ''
+                  description: ID klienta poskytnuté partnerem (k identifikaci klienta partnera v callbacku).
+                partner_finish_url:
+                  type: string
+                  example: ''
+                  description: URL pro přesměrování po zpracování.
+                phone_number:
+                  type: string
+                  default: automatic
+                  enum:
+                    - manual
+                    - automatic
+                  description: Pokud je `manual`, musíte během procesu onboardingu zadat telefonní číslo. Pokud je `automatic`, systém automaticky přidělí telefonní číslo (na základě kódu země).
+                wa_name:
+                  type: string
+                  example: Jméno
+                  description: Zobrazované/obchodní jméno WhatsApp.
+                wa_email:
+                  type: string
+                  example: email@example.com
+                  description: E-mail spojený s účtem WhatsApp.
+                wa_website:
+                  type: string
+                  example: https://example.com
+                  description: Webová adresa související s účtem WhatsApp.
+                country:
+                  type: string
+                  example: US
+                  description: Kód země ve formátu ISO alpha-2. Povinné, pokud je `phone_number` nastaveno na `automatic`.
+      responses:
+        '200':
+          description: Proces registrace byl úspěšně vytvořen
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Stav úspěchu.
+                    example: true
+                  token:
+                    type: string
+                    description: JWT token pro proces registrace.
+                    example: eyJhbGciOiJIUzI...
+                  redirect_url:
+                    type: string
+                    description: URL pro přesměrování po zpracování. **Musíte připojit token k URL a přesměrovat na ni uživatele a vložit jej do GET parametru s názvem klíče `token`.**
+                    example: https://waba.smsmanager.com/registration/
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Stav úspěchu.
+                    example: false
+                  message:
+                    type: string
+                    description: Chybová zpráva.
+                    example: Registrace na WhatsApp se nezdařila
+  /whatsapp/phone_numbers/list:
+    post:
+      tags:
+        - WhatsApp Business Partner API
+      summary: Seznam telefonních čísel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                waba_id:
+                  type: string
+                  example: ''
+                  description: WABA ID pro výpis telefonních čísel.
+      responses:
+        '200':
+          description: Seznam telefonních čísel
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Stav úspěchu.
+                    example: true
+                  phone_numbers:
+                    type: array
+                    description: Seznam telefonních čísel.
+                    items:
+                      type: object
+                      properties:
+                        phone_number:
+                          type: string
+                          description: Telefonní číslo.
+                        phone_number_id:
+                          type: string
+                          description: ID telefonního čísla.
+                        status:
+                          type: string
+                          description: Stav telefonního čísla.
+  /whatsapp/templates/list:
+    post:
+      tags:
+        - WhatsApp Business Partner API
+      summary: Seznam šablon
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                waba_id:
+                  type: string
+                  example: ''
+                  description: WABA ID pro výpis šablon.
+      responses:
+        '200':
+          description: Seznam šablon
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Stav úspěchu.
+                    example: true
+                  templates:
+                    type: array
+                    description: Seznam šablon.
+                    items:
+                      type: object
+                      properties:
+                        template_name:
+                          type: string
+                          description: Název šablony.
+                        status:
+                          type: string
+                          description: Stav šablony.
+  /whatsapp/accounts/list:
+    post:
+      tags:
+        - WhatsApp Business Partner API
+      summary: Seznam účtů
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                waba_id:
+                  type: string
+                  example: ''
+                  description: WABA ID pro výpis účtů.
+      responses:
+        '200':
+          description: Seznam účtů
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Stav úspěchu.
+                    example: true
+                  accounts:
+                    type: array
+                    description: Seznam účtů.
+                    items:
+                      type: object
+                      properties:
+                        client_id:
+                          type: string
+                          description: ID klienta z procesu registrace.
+                        whatsapp_name:
+                          type: string
+                          description: Zobrazované/obchodní jméno WhatsApp.
+                        whatsapp_id:
+                          type: string
+                          description: WhatsApp ID (WABA ID)
+                        whatsapp_currency:
+                          type: string
+                          description: Měna WhatsApp (USD, EUR, GBP atd.).
+                        whatsapp_owner_name:
+                          type: string
+                          description: Jméno vlastníka WhatsApp (obvykle název firmy).
+                        whatsapp_owner_id:
+                          type: string
+                          description: ID vlastníka WhatsApp (obvykle ID Meta Business Account).
+                        country:
+                          type: string
+                          description: Země ve formátu ISO alpha-2.
+components:
+  securitySchemes:
+    x-api-key:
+      type: apiKey
+      in: header
+      name: x-api-key

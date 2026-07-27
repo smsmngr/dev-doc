@@ -1,0 +1,411 @@
+openapi: 3.1.0
+info:
+  title: JSON API
+  description: |
+    API for sending messages via SMS, Viber, WhatsApp and other communication channels.
+
+    ## JSON API v1
+
+    API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+
+    This JSON API v1 is deprecated now and you should use this [JSON API v2](/api-json-v2/) instead.
+  version: v2
+  contact:
+    url: https://smsmanager.cz
+    email: cc@smsmanager.cz
+
+security: 
+  -  xapikey: []
+
+servers:
+  - url: 'https://api.smsmngr.com/v1'
+    description: Responds with your request data
+
+paths:
+  /message:
+    post:
+      tags:
+        - Sending messages
+      summary: Send a message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Message'
+            examples:
+              Simple message:
+                value:
+                  body: "Test message"
+                  to:
+                    - phone_number: "420777123456"
+              Message with flow:
+                value:
+                  body: "Test message"
+                  to:
+                    - phone_number: "420777123456"
+                  flow:
+                    - sms:
+                        sender: "SmsManager"
+                        gateway: "high"
+                        ttl: 10
+      responses:
+        '200':
+          description: Messages sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Message:
+                    type: string
+                    description: Error message.
+                    example: User is not authorized to access this resource with an explicit deny
+
+  /messages:
+    post:
+      tags:
+        - Sending messages
+      summary: Send multiple messages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                $ref: '#/components/schemas/Message'
+      responses:
+        '200':
+          description: Messages sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagesResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Message:
+                    type: string
+                    description: Error message.
+                    example: User is not authorized to access this resource with an explicit deny
+
+webhooks:
+  sentMessage:
+    post:
+      tags:
+        - Webhooks
+      summary: Sent message webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  requestId:
+                    type: string
+                  messageId:
+                    type: string
+                  gateway:
+                    type: enum
+                    enum:
+                      - sms
+                      - viber
+                      - whatsapp_text
+                      - whatsapp_template
+                  timestamp:
+                    type: integer
+                  payload:
+                    type: object
+                  type:
+                    type: string
+                    enum:
+                      - outgoing
+                      - incoming
+                  to:
+                    type: object
+                    properties:
+                      phone_number:
+                        type: string
+                  result:
+                    type: string
+                    enum:
+                      - delivered
+                      - failed
+                      - pending
+                  sms:
+                    type: object
+                    properties:
+                      gateway:
+                        type: string
+                      sender:
+                        type: string
+                      country:
+                        type: integer
+                      operator:
+                        type: integer
+
+components:
+  schemas:
+    Message:
+      type: object
+      required:
+        - body
+        - to
+      properties:
+        body:
+          type: string
+          maxLength: 1000
+          description: The message body (if not defined in the flow).
+        to:
+          type: array
+          minItems: 1
+          maxItems: 10
+          description: List of recipients.
+          items:
+            type: object
+            properties:
+              phone_number:
+                type: string
+                description: Recipient's phone number in international format (E.164) without leading `+` or `00`.
+                examples:
+                  - 420777123456
+            required:
+              - phone_number
+        callback:
+          type: string
+          format: uri
+          description: Callback URL for delivery notifications.
+        tag:
+          type: string
+          default: 'promotional'
+          description: 'Tag for the message. You can use it to group messages (e.g. by campaign id). There are also some special tags you can use: `priority` (for priority messages), `transactional` (for transactional messages).'
+        datetime:
+          type: string
+          format: date-time
+          description: Scheduled time for sending the message. Always in UTC timezone.
+          examples:
+            - 2025-01-11T10:00:00Z
+        delivery_time:
+          type: object
+          properties:
+            days:
+              type: array
+              items:
+                type: string
+                enum:
+                  - monday
+                  - tuesday
+                  - wednesday
+                  - thursday
+                  - friday
+                  - saturday
+                  - sunday
+              description: Days of the week for the scheduled time.
+            start:
+              type: string
+              description: Start time for the scheduled time.
+              examples:
+                - 08:00
+            end:
+              type: string
+              description: End time for the scheduled time.
+              examples:
+                - 21:00
+        flow:
+          type: array
+          description: A list of communication channels for the message flow. If defined, must not be empty.
+          items:
+            type: object
+            properties:
+              sms:
+                type: object
+                properties:
+                  body:
+                    type: string
+                    maxLength: 1000
+                    description: This definition of message body have higher priority than the one defined in the root object.
+                  sender:
+                    type: string
+                    description: Alphanumeric sender name (max. 11 characters, pre-registration may be required) or dedicated virtual number (without `+`).
+                    examples:
+                      - Mojefirma
+                      - 420777123456
+                  gateway:
+                    type: enum
+                    enum:
+                      - high
+                      - direct
+                      - custom
+                    default: high
+                    description: Use `direct` if you use dedicated virtual number. Use `custom` if you use SIM hosting. 
+                  ttl:
+                    type: integer
+                  type:
+                    type: string
+                    enum:
+                      - sms
+                      - utf
+                    default: utf
+                    description: Set `utf` if you want to keep unicode characters in the message. Set `sms` if you want to convert or remove unicode from message to keep maximal capacity in SMS.
+                required:
+                  - body
+              viber:
+                type: object
+                properties:
+                  body:
+                    type: string
+                    maxLength: 1000
+                    description: This definition of message body have higher priority than the one defined in the root object.
+                  sender:
+                    type: string
+                    description: Use the name of the sender you have pre-registered for your Viber Business Message.
+                  buttons:
+                    type: array
+                    maxItems: 1
+                    items:
+                      type: object
+                      properties:
+                        title:
+                          required: true
+                          type: string
+                        url:
+                          required: true
+                          type: string
+                          format: uri
+                  ttl:
+                    type: integer
+                    description: Time to live in minutes.
+                required:
+                  - body
+                  - sender
+              whatsapp_text:
+                type: object
+                properties:
+                  body:
+                    type: string
+                  sender:
+                    type: string
+                required:
+                  - body
+                  - sender
+              whatsapp_template:
+                type: object
+                properties:
+                  template_name:
+                    type: string
+                    description: The name of the template you have pre-registered and approved before use.
+                  params:
+                    type: array
+                    items:
+                      type: string
+                    description: If your template has parameters, you need to pass values for them here.
+                  language:
+                    type: string
+                    examples:
+                      - en
+                      - cs
+                    description: The language of the template (you can have multiple languages for the same template).
+                  ttl:
+                    type: integer
+                    description: Time to live in minutes.
+                required:
+                  - template_name
+        payload:
+          type: object
+          description: |
+            *Customizable object* You can even create for the message, where you can define any parameters for the message. This object is returned in the delivery notification and replies.
+          examples:
+            value:
+              user_id: "123456"
+    
+    MessagesResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          description: Unique request identifier.
+        accepted:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                description: 'Index of the original request from the body array.'
+              messageId:
+                type: string
+                description: Unique message identifier for each request in the body array.
+        rejected:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                description: 'Index of the original request from the body array.'
+      
+    MessageResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          description: Unique request identifier.
+        accepted:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                description: 'Index of the original recipient from the `to` array.'
+              messageId:
+                type: string
+                description: Unique message identifier for accepted message.
+        rejected:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                description: 'Index of the original recipient from the `to` array.'
+
+    MessageSimpleResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          description: Unique request identifier.
+          example: "bc36f3d1-d284-463a-921b-a3560c154649"
+        messageId:
+          type: string
+          description: Unique message identifier.
+          example: "bc36f3d1-d284-463a-921b-a3560c154649"
+        accepted:
+          type: boolean
+          description: True if the message was accepted, false if rejected.
+          example: true
+
+
+  securitySchemes:
+    x-api-key:
+      type: apiKey
+      in: header
+      name: x-api-key

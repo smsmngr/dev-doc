@@ -1,0 +1,257 @@
+openapi: 3.1.0
+info:
+  title: WhatsApp Business Partner API (REST API)
+  description: |
+    API for onboarding and managing WhatsApp Business accounts.
+  version: v1
+  contact:
+    url: https://smsmanager.com
+    email: cc@smsmanager.com
+
+servers:
+  - url: 'https://rest-api.smsmngr.com/v1'
+    description: Responds with your request data
+
+paths:
+  /whatsapp/signup:
+    post:
+      tags:
+        - WhatsApp Business Partner API
+      summary: Create a signup process
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                partner_name:
+                  type: string
+                  example: "Partner Inc."
+                  description: "The name of the partner."
+                partner_logo:
+                  type: string
+                  example: "https://partner.com/logo.png"
+                  description: "URL to the partner's logo."
+                partner_callback_url:
+                  type: string
+                  example: "https://partner.com/callback"
+                  description: "Callback URL to receive notifications with the status of the onboarding process."
+                partner_client_id:
+                  type: string
+                  example: ""
+                  description: "Client ID provided by the partner (to identify partner's client in the callback)."
+                partner_finish_url:
+                  type: string
+                  example: ""
+                  description: "URL for redirection after processing."
+                phone_number:
+                  type: string
+                  default: "automatic"
+                  enum:
+                    - "manual"
+                    - "automatic"
+                  description: "If `manual`, you need to provide a phone number during the onboarding process. If `automatic`, the system will automatically assign a phone number (based on the country code)."
+                wa_name:
+                  type: string
+                  example: "Name"
+                  description: "WhatsApp display/business name."
+                wa_email:
+                  type: string
+                  example: "Email"
+                  description: "Email associated with the WhatsApp account."
+                wa_website:
+                  type: string
+                  example: "https://"
+                  description: "Website address related to the WhatsApp account."
+                country:
+                  type: string
+                  example: "US"
+                  description: "Country code in ISO alpha-2 format. Mandatory if `phone_number` is `automatic`."
+      responses:
+        '200':
+          description: Signup process created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: true
+                  token:
+                    type: string
+                    description: JWT token for the signup process.
+                    example: "eyJhbGciOiJIUzI..."
+                  redirect_url:
+                    type: string
+                    description: URL for redirection after processing. **You have to append the token to the URL and redirect the user to it and put it in to the GET parameter with key name `token`.**
+                    example: "https://waba.smsmanager.com/registration/"
+
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: false
+                  message:
+                    type: string
+                    description: Error message.
+                    example: "Failed to whatsapp registration"
+
+  /whatsapp/phone_numbers/list:
+    post:
+      tags:
+        - WhatsApp Business Partner API
+      summary: List phone numbers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                waba_id:
+                  type: string
+                  example: ""
+                  description: "WABA ID to list phone numbers for."
+                  
+      responses:
+        '200':
+          description: List of phone numbers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: true
+                  phone_numbers:
+                    type: array
+                    description: List of phone numbers.
+                    items:
+                      type: object
+                      properties:
+                        phone_number:
+                          type: string
+                          description: Phone number.
+                        phone_number_id:
+                          type: string
+                          description: Phone number ID.
+                        status:
+                          type: string
+                          description: Phone number status.       
+  
+  /whatsapp/templates/list:
+    post:
+      tags:
+        - WhatsApp Business Partner API
+      summary: List templates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                waba_id:
+                  type: string
+                  example: ""
+                  description: "WABA ID to list phone numbers for."
+                  
+      responses:
+        '200':
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: true
+                  templates:
+                    type: array
+                    description: List of templates.
+                    items:
+                      type: object
+                      properties:
+                        template_name:
+                          type: string
+                          description: Template name.
+                        status:
+                          type: string
+                          description: Template status.
+  
+  /whatsapp/accounts/list:
+    post:
+      tags:
+        - WhatsApp Business Partner API
+      summary: List accounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                waba_id:
+                  type: string
+                  example: ""
+                  description: "WABA ID to list phone numbers for."
+                  
+      responses:
+        '200':
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: true
+                  accounts:
+                    type: array
+                    description: List of accounts.
+                    items:
+                      type: object
+                      properties:
+                        client_id:
+                          type: string
+                          description: Client ID from signup process.
+                        whatsapp_name:
+                          type: string
+                          description: WhatsApp display/business name.
+                        whatsapp_id:
+                          type: string
+                          description: WhatsApp ID (WABA ID)
+                        whatsapp_currency:
+                          type: string
+                          description: WhatsApp currency (USD, EUR, GBP, etc.).
+                        whatsapp_owner_name:
+                          type: string
+                          description: WhatsApp owner name (usually the name of the business).
+                        whatsapp_owner_id:
+                          type: string
+                          description: WhatsApp owner ID (usually the ID of the Meta Business Account).
+                        country:
+                          type: string
+                          description: Country in ISO alpha-2 format.
+
+components:
+  securitySchemes:
+    x-api-key:
+      type: apiKey
+      in: header
+      name: x-api-key

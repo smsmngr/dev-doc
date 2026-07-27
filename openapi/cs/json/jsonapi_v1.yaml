@@ -1,0 +1,399 @@
+openapi: 3.1.0
+info:
+  title: JSON API
+  description: |
+    API pro odesílání zpráv přes SMS, Viber, WhatsApp a další komunikační kanály.
+
+    ## JSON API v1
+
+    API klíč je vyžadován pro všechny požadavky. Svůj API klíč naleznete v [nastavení účtu](https://app.smsmanager.com/api-cloud).
+
+    Toto JSON API v1 je nyní zastaralé a měli byste místo něj použít [JSON API v2](/api-json-v2/).
+  version: v2
+  contact:
+    url: https://smsmanager.cz
+    email: cc@smsmanager.cz
+security:
+  - xapikey: []
+servers:
+  - url: https://api.smsmngr.com/v1
+    description: Odpoví s daty vašeho požadavku
+paths:
+  /message:
+    post:
+      tags:
+        - Sending messages
+      summary: Odeslat zprávu
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Message'
+            examples:
+              Simple message:
+                value:
+                  body: Test message
+                  to:
+                    - phone_number: '420777123456'
+              Message with flow:
+                value:
+                  body: Test message
+                  to:
+                    - phone_number: '420777123456'
+                  flow:
+                    - sms:
+                        sender: SmsManager
+                        gateway: high
+                        ttl: 10
+      responses:
+        '200':
+          description: Zprávy úspěšně odeslány
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Message:
+                    type: string
+                    description: Chybová zpráva.
+                    example: Uživatel není oprávněn přistupovat k tomuto zdroji s explicitním zamítnutím
+  /messages:
+    post:
+      tags:
+        - Sending messages
+      summary: Odeslat více zpráv
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                $ref: '#/components/schemas/Message'
+      responses:
+        '200':
+          description: Zprávy úspěšně odeslány
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagesResponse'
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Message:
+                    type: string
+                    description: Chybová zpráva.
+                    example: Uživatel není oprávněn přistupovat k tomuto zdroji s explicitním zamítnutím
+webhooks:
+  sentMessage:
+    post:
+      tags:
+        - Webhooks
+      summary: Webhook odeslané zprávy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  requestId:
+                    type: string
+                  messageId:
+                    type: string
+                  gateway:
+                    type: enum
+                    enum:
+                      - sms
+                      - viber
+                      - whatsapp_text
+                      - whatsapp_template
+                  timestamp:
+                    type: integer
+                  payload:
+                    type: object
+                  type:
+                    type: string
+                    enum:
+                      - outgoing
+                      - incoming
+                  to:
+                    type: object
+                    properties:
+                      phone_number:
+                        type: string
+                  result:
+                    type: string
+                    enum:
+                      - delivered
+                      - failed
+                      - pending
+                  sms:
+                    type: object
+                    properties:
+                      gateway:
+                        type: string
+                      sender:
+                        type: string
+                      country:
+                        type: integer
+                      operator:
+                        type: integer
+components:
+  schemas:
+    Message:
+      type: object
+      required:
+        - body
+        - to
+      properties:
+        body:
+          type: string
+          maxLength: 1000
+          description: Tělo zprávy (pokud není definováno v toku).
+        to:
+          type: array
+          minItems: 1
+          maxItems: 10
+          description: Seznam příjemců.
+          items:
+            type: object
+            properties:
+              phone_number:
+                type: string
+                description: Telefonní číslo příjemce v mezinárodním formátu (E.164) bez úvodního `+` nebo `00`.
+                examples:
+                  - 420777123456
+            required:
+              - phone_number
+        callback:
+          type: string
+          format: uri
+          description: URL pro zpětné volání pro oznámení o doručení.
+        tag:
+          type: string
+          default: promotional
+          description: 'Tag pro zprávu. Můžete jej použít k seskupování zpráv (např. podle ID kampaně). Existují také speciální tagy, které můžete použít: `priority` (pro prioritní zprávy), `transactional` (pro transakční zprávy).'
+        datetime:
+          type: string
+          format: date-time
+          description: Naplánovaný čas odeslání zprávy. Vždy v časovém pásmu UTC.
+          examples:
+            - {}
+        delivery_time:
+          type: object
+          properties:
+            days:
+              type: array
+              items:
+                type: string
+                enum:
+                  - monday
+                  - tuesday
+                  - wednesday
+                  - thursday
+                  - friday
+                  - saturday
+                  - sunday
+              description: Dny v týdnu pro naplánovaný čas.
+            start:
+              type: string
+              description: Počáteční čas pro naplánovaný čas.
+              examples:
+                - '08:00'
+            end:
+              type: string
+              description: Koncový čas pro naplánovaný čas.
+              examples:
+                - '21:00'
+        flow:
+          type: array
+          description: Seznam komunikačních kanálů pro tok zprávy. Pokud je definován, nesmí být prázdný.
+          items:
+            type: object
+            properties:
+              sms:
+                type: object
+                properties:
+                  body:
+                    type: string
+                    maxLength: 1000
+                    description: Tato definice těla zprávy zde má vyšší prioritu než ta definovaná v kořenovém objektu.
+                  sender:
+                    type: string
+                    description: Alfanumerické jméno odesílatele (max. 11 znaků, může být vyžadována předběžná registrace) nebo vyhrazené virtuální číslo (bez `+`).
+                    examples:
+                      - Mojefirma
+                      - 420777123456
+                  gateway:
+                    type: enum
+                    enum:
+                      - high
+                      - direct
+                      - custom
+                    default: high
+                    description: Použijte `direct`, pokud používáte vyhrazené virtuální číslo. Použijte `custom`, pokud používáte SIM hosting.
+                  ttl:
+                    type: integer
+                  type:
+                    type: string
+                    enum:
+                      - sms
+                      - utf
+                    default: utf
+                    description: Nastavte `utf`, pokud chcete zachovat unicode znaky ve zprávě. Nastavte `sms`, pokud chcete převést nebo odebrat unicode ze zprávy, abyste zachovali maximální kapacitu v SMS.
+                required:
+                  - body
+              viber:
+                type: object
+                properties:
+                  body:
+                    type: string
+                    maxLength: 1000
+                    description: Tato definice těla zprávy zde má vyšší prioritu než ta definovaná v kořenovém objektu.
+                  sender:
+                    type: string
+                    description: Použijte jméno odesílatele, které jste předregistrovali pro svou Viber Business zprávu.
+                  buttons:
+                    type: array
+                    maxItems: 1
+                    items:
+                      type: object
+                      properties:
+                        title:
+                          required: true
+                          type: string
+                        url:
+                          required: true
+                          type: string
+                          format: uri
+                  ttl:
+                    type: integer
+                    description: Doba života v minutách.
+                required:
+                  - body
+                  - sender
+              whatsapp_text:
+                type: object
+                properties:
+                  body:
+                    type: string
+                  sender:
+                    type: string
+                required:
+                  - body
+                  - sender
+              whatsapp_template:
+                type: object
+                properties:
+                  template_name:
+                    type: string
+                    description: Název šablony, kterou jste předregistrovali a schválili před použitím.
+                  params:
+                    type: array
+                    items:
+                      type: string
+                    description: Pokud má vaše šablona parametry, musíte zde pro ně předat hodnoty.
+                  language:
+                    type: string
+                    examples:
+                      - en
+                      - cs
+                    description: Jazyk šablony (pro stejnou šablonu můžete mít více jazyků).
+                  ttl:
+                    type: integer
+                    description: Doba života v minutách.
+                required:
+                  - template_name
+        payload:
+          type: object
+          description: |
+            *Vlastní objekt* Můžete dokonce vytvořit pro zprávu, kde můžete definovat jakékoli parametry pro zprávu. Tento objekt je vrácen v oznámení o doručení a odpovědích.
+          examples:
+            value:
+              user_id: '123456'
+    MessagesResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          description: Jedinečný identifikátor požadavku.
+        accepted:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                description: Index původního požadavku z pole těla.
+              messageId:
+                type: string
+                description: Jedinečný identifikátor zprávy pro každý požadavek v poli těla.
+        rejected:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                description: Index původního požadavku z pole těla.
+    MessageResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          description: Jedinečný identifikátor požadavku.
+        accepted:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                description: Index původního příjemce z pole `to`.
+              messageId:
+                type: string
+                description: Jedinečný identifikátor zprávy pro přijatou zprávu.
+        rejected:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                description: Index původního příjemce z pole `to`.
+    MessageSimpleResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          description: Jedinečný identifikátor požadavku.
+          example: bc36f3d1-d284-463a-921b-a3560c154649
+        messageId:
+          type: string
+          description: Jedinečný identifikátor zprávy.
+          example: bc36f3d1-d284-463a-921b-a3560c154649
+        accepted:
+          type: boolean
+          description: True, pokud byla zpráva přijata, false, pokud byla zamítnuta.
+          example: true
+  securitySchemes:
+    x-api-key:
+      type: apiKey
+      in: header
+      name: x-api-key

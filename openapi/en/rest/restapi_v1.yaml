@@ -1,0 +1,486 @@
+openapi: 3.1.0
+info:
+  title: REST API SmsManager
+  description: |
+    API for managing accounts and other resources of SmsManager.
+  version: v1
+  contact:
+    url: https://smsmanager.com
+    email: cc@smsmanager.com
+
+servers:
+  - url: 'https://rest-api.smsmngr.com/v1'
+    description: Production server
+
+components:
+  securitySchemes:
+    x-api-key:
+      type: apiKey
+      in: header
+      name: x-api-key
+
+security:
+  - x-api-key: []
+
+paths:
+  /apikey/me:
+    get:
+      tags:
+        - api
+      summary: Get current API key info
+      responses:
+        '200':
+          description: Information about the API key
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: true
+                  me:
+                    type: object
+                    description: Information about the API key.
+                    properties:
+                      note:
+                        type: string
+                        description: Note for the API key (can be empty). You can use it to store any information you want when you create the API key.
+                      default_callback_url:
+                        type: string
+                        description: Default callback URL for this API key.
+                      account:
+                        type: string
+                        description: Account type.
+                        enum:
+                          - prepaid
+                          - postpaid
+
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: false
+                  message:
+                    type: string
+                    description: Error message.
+                    example: "Failed to read API key"
+  /apikey/add:
+    post:
+      tags:
+        - api
+      summary: Create new API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shared:
+                  type: boolean
+                  description: If true, the new API key will shared your credit line. If false, the new API key will have its own credit.
+                currency:
+                  type: string
+                  description: Currency for the API key. If the new API key is shared, the currency must be the same as the parent API key(!)
+                  default: "CZK"
+                  enum:
+                    - EUR
+                    - CZK
+                    
+      responses:
+        '200':
+          description: New API key
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: true
+                  apikey:
+                    type: string
+                    description: New API key.
+                    example: "1234567890"
+  /apikey/update:
+    post:
+      tags:
+        - api
+      summary: Update API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                default_callback_url:
+                  type: string
+                  description: Default callback URL for this API key. This URL will be used for incoming messages without relation to outgoing messages.
+                note:
+                  type: string
+                  description: Note for the API key.
+                    
+      responses:
+        '200':
+          description: Updated API key
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: true
+  /credit:
+    get:
+      tags:
+        - credit
+      summary: Get current credit balance for API key
+      responses:
+        '200':
+          description: Information about the credit balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: true
+                  credit:
+                    type: object
+                    description: Information about the credit balance.
+                    properties:
+                      credit_czk:
+                        type: number
+                        description: Credit balance in CZK.
+                      credit_eur:
+                        type: number
+                        description: Credit balance in EUR.
+
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: false
+                  message:
+                    type: string
+                    description: Error message.
+                    example: "Failed to read credit balance"
+  /message:
+    get:
+      tags:
+        - status
+      summary: Read status of sent message
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: Message ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Information about the message
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                        success:
+                          type: boolean
+                          description: Success status.
+                        message:
+                          type: object
+                          description: Message.
+                          properties:
+                            request_id:
+                              type: string
+                              description: Request ID.
+                            status_code:
+                              type: string
+                              description: Status code of the message.
+                            delivery_code:
+                              type: string
+                              description: Status message of the message.
+                            tag:
+                              type: string
+                              description: Tag of the message.
+                            ts_sent:
+                              type: integer
+                              description: Timestamp of the message sending.
+                            ts_delivered:
+                              type: integer
+                              description: Timestamp of the message delivery.
+                            ts_created:
+                              type: integer
+                              description: Timestamp of the message creation.
+                            body:
+                              type: string
+                              description: Message.
+                            flow:
+                              type: string
+                              description: Flow of the message.
+                            price:
+                              type: object
+                              description: Price of the message.
+                              properties:
+                                price_czk:
+                                  type: number
+                                  description: Price in CZK.
+                                price_eur:
+                                  type: number
+                                  description: Price in EUR.
+                                mcc:
+                                  type: string
+                                  description: MCC of the message.
+                                mnc:
+                                  type: string
+                                  description: MNC of the message.
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: false
+                  message:
+                    type: string
+                    description: Error message.
+                    example: "Failed to whatsapp registration"
+  /messages:
+    get:
+      tags:
+        - status
+      summary: Read sent messages
+      parameters:
+        - name: date
+          in: query
+          required: true
+          description: Date in format YYYY-MM-DD
+          schema:
+            type: string
+            format: date
+            example: '2025-01-01'
+      responses:
+        '200':
+          description: Information about the message
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: true
+                  messages:
+                    type: array
+                    description: Array of messages.
+                    items:
+                      type: object
+                      properties:
+                        message_id:
+                          type: string
+                          description: Message ID.
+                        message_parts:
+                          type: number
+                          description: Number of message parts.
+                        ts_sent:
+                          type: integer
+                          description: Timestamp of the message sending.
+                        ts_delivered:
+                          type: integer
+                          description: Timestamp of the message delivery.
+                        sent:
+                          type: integer
+                          description: Number of sent messages.
+                        delivered:
+                          type: integer
+                          description: Number of delivered messages.
+                        nondelivered:
+                          type: integer
+                          description: Number of non-delivered messages.
+                        body:
+                          type: string
+                          description: Message body.
+                        sender:
+                          type: string
+                          description: Sender.
+                        to:
+                          type: string
+                          description: Recipient.
+                        flow:
+                          type: string
+                          description: Flow definiton. Usually "whatsapp" or "sms" etc.
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: false
+                  message:
+                    type: string
+                    description: Error message.
+                    example: "Failed to whatsapp registration"
+  /requests:
+    get:
+      tags:
+        - status
+      summary: Read sent requests
+      parameters:
+        - name: dates
+          in: query
+          required: true
+          description: Dates in format YYYY-MM-DD separated by comma
+          schema:
+            type: string
+            example: '2025-01-01,2025-01-02'
+      responses:
+        '200':
+          description: Information about the requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: true
+                  requests:
+                    type: array
+                    description: Array of requests.
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                          description: Date in format YYYY-MM-DD.
+                        stats:
+                          type: object
+                          description: Stats for the request.
+                          properties:
+                            count_delivered:
+                              type: integer
+                              description: Number of delivered messages.
+                            count_nondelivered:
+                              type: integer
+                              description: Number of non-delivered messages.
+                            count_sent:
+                              type: integer
+                              description: Number of sent messages.
+                            count_notsent:
+                              type: integer
+                              description: Number of not sent messages.
+                            msg_sent:
+                              type: integer
+                              description: Number of messages sent.
+
+                              
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Success status.
+                    example: false
+                  message:
+                    type: string
+                    description: Error message.
+                    example: "Failed to whatsapp registration"
+
+  /inbox:
+    get:
+      tags:
+        - inbox
+      summary: Get inbox messages
+      parameters:
+        - name: date
+          in: query
+          required: true
+          description: Date in format YYYY-MM-DD
+          schema:
+            type: string
+            format: date
+            example: '2025-01-01'
+      responses:
+        '200':
+          description: Inbox messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  messages:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          description: Message ID.
+                        from:
+                          type: string
+                          description: Sender.
+                        to:
+                          type: string
+                          description: Recipient.
+                        body:
+                          type: string
+                          description: Message body.
+                        ts_received:
+                          type: integer
+                          description: Timestamp of the message creation.
+
+tags:
+  - name: api
+    x-displayName: API keys
+    description: |
+      For managing API keys use the following endpoints.
+  - name: status
+    x-displayName: Status
+    description: |
+      For reading status of sent messages use the following endpoints.
+  - name: inbox
+    x-displayName: Inbox
+    description: |
+      For reading inbox messages use the following endpoints.
+  - name: credit
+    x-displayName: Credit
+    description: |
+      For reading credit balance or pricelist info use the following endpoints.
