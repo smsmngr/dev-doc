@@ -1,0 +1,127 @@
+SmsManager vynucuje limity jak na počet příjemců, které můžete cílit v jednom API volání, tak na to, jak často můžete zahajovat ověřování telefonních čísel. Pochopení těchto limitů vám pomůže navrhnout robustní integrace, které efektivně dávkují požadavky a elegantně se zotavují při dosažení limitu.
+
+## Limity odesílacího API
+
+Odesílací API nevynucuje pevný rate limit požadavků za sekundu, ale vynucuje limity příjemců na požadavek, které musíte dodržovat při dávkování odchozích zpráv.
+
+| Endpoint | Max příjemců na volání | Poznámky |
+| --- | --- | --- |
+| `POST /message` | 10 příjemců | Předejte až 10 telefonních čísel v poli `to`. |
+| `POST /messages` | 10 objektů zpráv × 10 příjemců = **100 celkem** | Každý objekt zprávy v poli podporuje až 10 příjemců. |
+
+Pro kampaně větší než tyto limity rozdělte příjemce mezi několik sekvenčních nebo souvislých API volání.
+
+<Tip>
+  Pokud potřebujete odesílat velmi velké objemy — desítky tisíc zpráv v krátkém okně — kontaktujte [podporu SmsManager](mailto:cc@smsmanager.cz) pro diskusi o vysoko-objemových ujednáních a vyhrazené kapacitě.
+</Tip>
+
+<Note>
+  Odpověď `200` neznamená, že každá zpráva byla odeslána. Zkontrolujte pole `rejected` v těle odpovědi pro identifikaci příjemců, kteří nebyli přijati v rámci jednoho volání. Odmítnuté záznamy se **nepočítají** do rate limitů — můžete je ihned znovu odeslat po vyřešení hlavního problému (například dobití kreditu).
+</Note>
+
+## Rate limity Verify API
+
+Verify API implementuje víceúrovňový rate limiting pro prevenci zneužití a ochranu vašeho účtu i jednotlivých uživatelů. Limity jsou vynucovány současně na dvou úrovních:
+
+- **Per účet (tenant):** Omezuje celkový počet nových validačních sessionů, které váš účet může zahájit v rolling okně. Chrání vaši celkovou kvotu.
+- **Per telefonní číslo:** Zabraňuje zahlcení jednoho telefonního čísla ověřovacími kódy omezením počtu sessionů, které lze zahájit pro dané číslo v časovém okně.
+
+Při překročení kteréhokoli z těchto limitů API vrací odpověď `HTTP 429` s jedním z následujících chybových kódů v těle odpovědi:
+
+| Kód chyby | Typ limitu |
+| --- | --- |
+| `TENANT_RATE_LIMIT` | Limit per účet překročen |
+| `PHONE_RATE_LIMIT` | Limit per telefonní číslo překročen |
+
+## Zpracování rate limitů
+
+Když obdržíte odpověď `429`, neměli byste ihned opakovat. Použijte exponenciální backoff s jitterem k rozprostření opakování a vyhnutí se stampede podmínkám.
+
+<AccordionGroup>
+  <Accordion title="Python — opakování s exponenciálním backoff">
+    ```python
+    import time
+    import random
+    import requests
+    
+    def start_validation_with_retry(phone_number: str, api_key: str, max_retries: int = 5):
+        url = "https://verify-api.smsmanager.com/v1/validations"
+        headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
+        payload = {"phoneNumber": phone_number}
+    
+        for attempt in range(max_retries):
+            response = requests.post(url, json=payload, headers=headers)
+    
+            if response.status_code == 200:
+                return response.json()
+    
+            if response.status_code == 429:
+                # Exponenciální backoff: 1s, 2s, 4s, 8s, 16s — plus náhodný jitter
+                wait = (2 ** attempt) + random.uniform(0, 1)
+                print(f"Rate limited. Retrying in {wait:.1f}s (attempt {attempt + 1}/{max_retries})")
+                time.sleep(wait)
+                continue
+    
+            # Pro chyby jiné než 429 ihned vyhod
+            response.raise_for_status()
+    
+        raise Exception(f"Max retries exceeded for phone number {phone_number}")
+    ```
+  </Accordion>
+
+  <Accordion title="Node.js — opakování s exponenciálním backoff">
+    ```javascript
+    async function startValidationWithRetry(phoneNumber, apiKey, maxRetries = 5) {
+      const url = "https://verify-api.smsmanager.com/v1/validations";
+    
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "X-API-Key": apiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ phoneNumber }),
+        });
+    
+        if (response.ok) {
+          return await response.json();
+        }
+    
+        if (response.status === 429) {
+          // Exponenciální backoff: 1s, 2s, 4s, 8s, 16s — plus náhodný jitter
+          const wait = (2 ** attempt + Math.random()) * 1000;
+          console.log(`Rate limited. Retrying in ${(wait / 1000).toFixed(1)}s (attempt ${attempt + 1}/${maxRetries})`);
+          await new Promise((resolve) => setTimeout(resolve, wait));
+          continue;
+        }
+    
+        // Pro chyby jiné než 429 vyhod ihned
+        const error = await response.json().catch(() => ({}));
+        throw new Error(`API error ${response.status}: ${error.message ?? "unknown"}`);
+      }
+    
+      throw new Error(`Max retries exceeded for phone number ${phoneNumber}`);
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Limity pokusů o ověření
+
+Každá validační session (zahájená přes `POST /v1/validations`) povoluje omezený počet pokusů o ověření kódu před uzamčením.
+
+| Limit | Výchozí hodnota |
+| --- | --- |
+| Max ověřovacích pokusů na session | **6** |
+| Vypršení session | **~10 minut** |
+
+Jakmile session dosáhne maximálního počtu neuspěšných pokusů, následující volání `POST /v1/validations/{token}/verify` vrací `HTTP 429` se zprávou `"Too many attempts"`. V tom okamžiku musíte zahájit novou validační session.
+
+<Tip>
+  Zobrazte uživatelům počítadlo pokusů (pole `attemptsRemaining` je vraceno v chybových odpovědích), aby věděli, kolik pokusů zbývá před vypršením session. To snižuje frustraci a zbytečná API volání.
+</Tip>
+
+<Warning>
+  Neopakujte automaticky neuspěšné ověření kódu v těsné smyčce — každý neuspěšný pokus spotřebuje jeden z omezených pokusů session. Vyzvěte uživatele k ručnímu opětovnému zadání kódu.
+</Warning>

@@ -1,0 +1,128 @@
+Zavolejte tento endpoint k zahájení ověřování telefonního čísla. API posílá 6místný kód na dodané telefonní číslo přes SMS a vrací `token`, který předáte dalším ověřovacím voláním. Každá validační session je platná přibližně 10 minut.
+
+## Endpoint
+
+```text
+POST https://verify-api.smsmanager.com/v1/validations
+```
+
+## Autentizace
+
+Zahrňte váš API klíč v hlavičce `X-API-Key` v každém požadavku.
+
+```http
+X-API-Key: <your-api-key>
+```
+
+## Tělo požadavku
+
+<ParamField body="phoneNumber" type="string" required>
+  Telefonní číslo k validaci. Poskytněte pouze číslice bez mezer, pomlček nebo úvodního `+` — včetně kódu země (např. `14155550100` pro USA číslo). Musí odpovídat `^[1-9]\d{6,14}$`.
+</ParamField>
+
+<ParamField body="turnstileToken" type="string">
+  Cloudflare Turnstile token. Vyžadováno pouze pokud má váš účet povolenou volbu `requireTurnstile`. Získejte tento token z Turnstile widgetu vykresleného na vašem frontendu.
+</ParamField>
+
+<ParamField body="payload" type="object">
+  Volitelný objekt klíč-hodnota, který chcete připojit k této validaci. Payload je vrácen v callbaccích, což usnadňuje propojení validace s uživatelskou session nebo objednávkou.
+
+  ```json
+  { "userId": "user123", "source": "checkout" }
+  ```
+</ParamField>
+
+## Pole odpovědi
+
+<ResponseField name="token" type="string">
+  Jedinečný validační token. Předejte jej jako parametr cesty `{token}` při volání `/v1/validations/{token}/verify`.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Aktuální stav validace. V této fázi bude hodnota `pending` (SMS ještě nebyla doručena) nebo `code_sent` (SMS byla doručena). Vizte [referenci stavů](/cs/api-reference/verify/overview#stavy-validace) pro všechny možné hodnoty.
+</ResponseField>
+
+<ResponseField name="expiresAt" type="string (ISO 8601)">
+  UTC timestamp, kdy tato validační session vyprší, přibližně 10 minut od vytvoření. Pokus o ověření vypršené session vrací chybu `400`.
+</ResponseField>
+
+<ResponseField name="timestamp" type="string (ISO 8601)">
+  UTC timestamp vytvoření této validace. Tato hodnota je použita jako vstup do výpočtu HMAC proof.
+</ResponseField>
+
+<ResponseField name="proof" type="string">
+  HMAC proof vypočítaný z validačních dat. Přítomný **pouze** pokud má váš účet nakonfigurován `verificationSecret`. Tento proof můžete použít s `POST /v1/verify-proof` pro offline ověření.
+</ResponseField>
+
+## Příklady
+
+<CodeGroup>
+
+```bash cURL — základní požadavek
+curl -X POST https://verify-api.smsmanager.com/v1/validations \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <your-api-key>" \
+  -d '{ "phoneNumber": "14155550100" }'
+```
+
+```bash cURL — s vlastním payloadem
+curl -X POST https://verify-api.smsmanager.com/v1/validations \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <your-api-key>" \
+  -d '{
+    "phoneNumber": "14155550100",
+    "payload": { "userId": "user123", "source": "checkout" }
+  }'
+```
+
+```json Základní tělo požadavku
+{
+  "phoneNumber": "14155550100"
+}
+```
+
+```json Tělo požadavku s payloadem
+{
+  "phoneNumber": "14155550100",
+  "payload": {
+    "userId": "user123",
+    "source": "checkout"
+  }
+}
+```
+
+</CodeGroup>
+
+**Odpověď — bez proof** (není nakonfigurován `verificationSecret`):
+
+```json
+{
+  "token": "61591bd88d8fbe7736bca535809d1216dd71cb0b5cbf2b07e5a08adfbeb5d35b",
+  "status": "pending",
+  "expiresAt": "2024-01-01T00:10:00.000Z",
+  "timestamp": "2024-01-01T00:00:00.000Z"
+}
+```
+
+**Odpověď — s proof** (`verificationSecret` nakonfigurován):
+
+```json
+{
+  "token": "61591bd88d8fbe7736bca535809d1216dd71cb0b5cbf2b07e5a08adfbeb5d35b",
+  "status": "pending",
+  "expiresAt": "2024-01-01T00:10:00.000Z",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "proof": "a2c4e6f8b0d2e4f6a8c0e2f4b6d8f0a2c4e6f8b0d2e4f6a8c0e2f4b6d8f0a2"
+}
+```
+
+## Chybové odpovědi
+
+| HTTP status | Kód chyby | Popis |
+| --- | --- | --- |
+| `400` | `INVALID_PHONE` | `phoneNumber` chybí, obsahuje ne-číselné znaky nebo neodpovídá vzoru `^[1-9]\d{6,14}$`. |
+| `400` | `MISSING_FIELD` | Povinné pole (např. `phoneNumber`) nebylo obsaženo v těle požadavku. |
+| `401` | `MISSING_API_KEY` | Hlavička `X-API-Key` nebyla přítomna v požadavku. |
+| `401` | `INVALID_API_KEY` | Poskytnutý API klíč je neplatný nebo byl deaktivován. |
+| `429` | `TENANT_RATE_LIMIT` | Váš účet překročil svůj rate limit validací. |
+| `429` | `PHONE_RATE_LIMIT` | Toto konkrétní telefonní číslo bylo odesláno příliš mnohokrát v aktuálním okně. |

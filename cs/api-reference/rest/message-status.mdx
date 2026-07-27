@@ -1,0 +1,232 @@
+Tři endpointy vám umožňují dotazovat stav doručení vašich odchozích zpráv a získávat agregovanou statistiku odesílání. Použijte je pro post-send ověřování, dashboardy a audit logy. Pro aktualizace v reálném čase zvažte použití [webhooků](/cs/guides/webhooks) místo dotazování.
+
+---
+
+## GET /message — Stav jednotlivé zprávy
+
+Získat plné detaily doručení jednotlivé zprávy podle jejího ID.
+
+**Endpoint:** `GET https://rest-api.smsmngr.com/v1/message?id=<message_id>`
+
+**Autentizace:** vyžaduje hlavičku `x-api-key`.
+
+### Query parametry
+
+<ParamField query="id" type="string" required>
+  `message_id` vrácený v odpovědi, když jste zprávu původně odeslali přes JSON API v2.
+</ParamField>
+
+### Odpověď
+
+<ResponseField name="success" type="boolean" required>
+  `true`, když požadavek uspěl.
+</ResponseField>
+
+<ResponseField name="message" type="object" required>
+  Plný stav a metadata pro požadovanou zprávu.
+
+  <Expandable title="vlastnosti message">
+    <ResponseField name="request_id" type="string">
+      ID požadavku spojené s touto zprávou.
+    </ResponseField>
+
+    <ResponseField name="status_code" type="string">
+      Aktuální status kód zprávy (například `delivered` nebo `failed`).
+    </ResponseField>
+
+    <ResponseField name="delivery_code" type="string">
+      Čitelný popis stavu doručení.
+    </ResponseField>
+
+    <ResponseField name="tag" type="string">
+      Vlastní tag, který jste připojili při odesílání zprávy, pokud nějaký.
+    </ResponseField>
+
+    <ResponseField name="ts_sent" type="integer">
+      Unix timestamp, kdy byla zpráva odeslána operatérovi.
+    </ResponseField>
+
+    <ResponseField name="ts_delivered" type="integer">
+      Unix timestamp, kdy byla zpráva doručena na zařízení. `0` pokud ještě není doručeno.
+    </ResponseField>
+
+    <ResponseField name="ts_created" type="integer">
+      Unix timestamp, kdy byla zpráva vytvořena ve SmsManageru.
+    </ResponseField>
+
+    <ResponseField name="body" type="string">
+      Textový obsah zprávy.
+    </ResponseField>
+
+    <ResponseField name="flow" type="string">
+      Kanál použitý k doručení zprávy, jako `sms` nebo `whatsapp`.
+    </ResponseField>
+
+    <ResponseField name="price" type="object">
+      Cenové informace pro tuto zprávu.
+
+      <Expandable title="vlastnosti price">
+        <ResponseField name="price_czk" type="number">
+          Cena zprávy v českých korunách (CZK).
+        </ResponseField>
+
+        <ResponseField name="price_eur" type="number">
+          Cena zprávy v eurech (EUR).
+        </ResponseField>
+
+        <ResponseField name="mcc" type="string">
+          Mobile Country Code sítě příjemce.
+        </ResponseField>
+
+        <ResponseField name="mnc" type="string">
+          Mobile Network Code sítě příjemce.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Příkladová odpověď
+
+```json
+{
+  "success": true,
+  "message": {
+    "request_id": "req_abc123",
+    "status_code": "delivered",
+    "delivery_code": "Message delivered to handset",
+    "tag": "order-confirmation",
+    "ts_sent": 1700001000,
+    "ts_delivered": 1700001045,
+    "ts_created": 1700000950,
+    "body": "Vaše objednávka #1234 byla potvrzena.",
+    "flow": "sms",
+    "price": {
+      "price_czk": 0.85,
+      "price_eur": 0.034,
+      "mcc": "230",
+      "mnc": "01"
+    }
+  }
+}
+```
+
+### cURL příklad
+
+```bash
+curl "https://rest-api.smsmngr.com/v1/message?id=msg_abc123" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+---
+
+## GET /messages — Seznam zpráv podle data
+
+Získat seznam všech zpráv odeslaných v určitý den spolu s jejich agregovanými počty doručení.
+
+**Endpoint:** `GET https://rest-api.smsmngr.com/v1/messages?date=YYYY-MM-DD`
+
+**Autentizace:** vyžaduje hlavičku `x-api-key`.
+
+### Query parametry
+
+<ParamField query="date" type="string" required>
+  Datum, pro které chcete získat zprávy. Formát: `YYYY-MM-DD` (například `2025-06-15`).
+</ParamField>
+
+### Odpověď
+
+<ResponseField name="success" type="boolean" required>
+  `true`, když požadavek uspěl.
+</ResponseField>
+
+<ResponseField name="messages" type="array" required>
+  Pole objektů zpráv odeslaných v zadaný den.
+</ResponseField>
+
+### Příkladová odpověď
+
+```json
+{
+  "success": true,
+  "messages": [
+    {
+      "message_id": "msg_abc123",
+      "message_parts": 1,
+      "ts_sent": 1700001000,
+      "ts_delivered": 1700001045,
+      "sent": 1,
+      "delivered": 1,
+      "nondelivered": 0,
+      "body": "Vaše objednávka #1234 byla potvrzena.",
+      "sender": "MujObchod",
+      "to": "420777123456",
+      "flow": "sms"
+    }
+  ]
+}
+```
+
+### cURL příklad
+
+```bash
+curl "https://rest-api.smsmngr.com/v1/messages?date=2025-06-15" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+---
+
+## GET /requests — Statistika odesílání
+
+Získat agregovanou statistiku odesílání pro jedno nebo více konkrétních dat. Každé datum v odpovědi zahrnuje rozbor počtu doručených, nedoručených, odeslaných a neodeslaných zpráv.
+
+**Endpoint:** `GET https://rest-api.smsmngr.com/v1/requests?dates=YYYY-MM-DD,YYYY-MM-DD`
+
+**Autentizace:** vyžaduje hlavičku `x-api-key`.
+
+### Query parametry
+
+<ParamField query="dates" type="string" required>
+  Jedno nebo více dat, pro která chcete statistiku, oddělená čarkami. Formát: `YYYY-MM-DD` (například `2025-06-14,2025-06-15`).
+</ParamField>
+
+### Příkladová odpověď
+
+```json
+{
+  "success": true,
+  "requests": [
+    {
+      "date": "2025-06-14",
+      "stats": {
+        "count_delivered": 980,
+        "count_nondelivered": 12,
+        "count_sent": 995,
+        "count_notsent": 5,
+        "msg_sent": 1010
+      }
+    },
+    {
+      "date": "2025-06-15",
+      "stats": {
+        "count_delivered": 1200,
+        "count_nondelivered": 8,
+        "count_sent": 1210,
+        "count_notsent": 2,
+        "msg_sent": 1225
+      }
+    }
+  ]
+}
+```
+
+### cURL příklad
+
+```bash
+curl "https://rest-api.smsmngr.com/v1/requests?dates=2025-06-14,2025-06-15" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+<Tip>
+  Použijte tento endpoint pro pohon widgetů dashboardu reportingu nebo automatických denních monitorů průchodnosti. Požadujte až několik dat najednou pro backfill dat nebo srovnání mír doručení den ke dni.
+</Tip>

@@ -1,0 +1,135 @@
+Chyby ve SmsManageru se objevují na dvou místech: jako **HTTP status kódy** vrácené přímo z odpovědí API a jako pole **`result`** a **`result_info`** doručená na vaši webhook callback URL poté, co byla zpráva odeslána. Pochopení obou povrchů vám pomůže rozlišit mezi selháními na úrovni požadavku (kde se nic neodeslalo) a selháními na úrovni doručení (kde byla zpráva přijata, ale nedosáhla příjemce).
+
+## HTTP status kódy
+
+Následující tabulka pokrývá všechny HTTP status kódy, které můžete obdržet z SmsManager API. Odpověď `200` znamená, že server přijal váš požadavek — ale stále byste měli zkontrolovat pole `rejected` v těle odpovědi pro zachycení případných selhání jednotlivých příjemců.
+
+| Kód | Význam | Běžná příčina |
+| --- | --- | --- |
+| `200` | Úspěch | Požadavek přijat. Zkontrolujte pole `rejected` pro částečná selhání jednotlivých příjemců. |
+| `400` | Bad Request | Neplatné nebo chybějící parametry; neautorizovaný nebo neplatný API klíč na hlavním odesílacím API. |
+| `401` | Unauthorized | API klíč chybí nebo je neplatný (Verify API). |
+| `404` | Not Found | Token validační session nenalezen (Verify API). |
+| `415` | Unsupported Media Type | Špatná hlavička `Content-Type` odeslaná na simple POST endpoint. |
+| `429` | Too Many Requests | Překročen rate limit (Verify API). |
+| `500` | Internal Server Error | Došlo k neočekávané chybě na serveru SmsManager. |
+
+<Note>
+  Odpověď `200` z `/message` nebo `/messages` nezaručuje, že každý příjemce zprávu obdržel. Vždy kontrolujte pole `rejected` v těle odpovědi a sledujte webhook callbacky pro finální výsledky doručení.
+</Note>
+
+## Hodnoty result zprávy
+
+Po odeslání zprávy SmsManager doručí jeden nebo více webhook callbacků na vaši nakonfigurovanou callback URL. Každý callback obsahuje pole `result`, které odráží aktuální stav doručení zprávy. Můžete obdržet více callbacků pro stejnou zprávu, jak se její stav vyvíjí (například `sending` → `sent` → `delivered`).
+
+| Hodnota `result` | Význam |
+| --- | --- |
+| `sending` | Zpráva byla odeslána operatérovi a čeká na potvrzení. |
+| `sent` | Operatér přijal zprávu k doručení. |
+| `delivered` | Zařízení příjemce potvrdilo, že zpráva byla přijata. |
+| `undelivered` | Operatér se pokusil o doručení, ale nemohl dosáhnout zařízení příjemce. |
+| `rejected` | Zpráva nebyla vůbec odeslána — typicky kvůli nedostatečnému kreditu nebo neplatnému telefonnímu číslu. |
+| `failed` | Došlo k technickému selhání během odesílacího procesu. |
+| `seen` | Zpráva byla otevřena a viděna příjemcem (pouze Viber a WhatsApp). |
+
+<Warning>
+  Výsledek `rejected` znamená, že zpráva nebyla nikdy odeslána operatérovi. Zkontrolujte kreditní zůstatek účtu a ověřte formát telefonního čísla příjemce před opakováním.
+</Warning>
+
+## Kódy result\_info
+
+Pole `result_info` v webhook payloadech poskytuje dodatečné detaily o výsledku doručení. Sleduje formát `[kód] Popis`, kde obě části jsou volitelné — můžete obdržet pouze kód, pouze popis, nebo obojetě.
+
+- **Kód** — číselný identifikátor v hranatých závorkách, např. `[307]`
+- **Popis** — čitelné vysvětlení, např. `Insufficient credit`
+
+Běžné příklady, s nimiž se setkáte:
+
+| Hodnota `result_info` | Co znamená |
+| --- | --- |
+| `[0] Delivered` | Zpráva byla úspěšně doručena. |
+| `[307] Insufficient credit` | Kredit vašeho účtu byl vyčerpán před odesláním zprávy. |
+| `[131042] There was an error related to your payment method` | Problém s platební metodou specifický pro WhatsApp zabránil doručení. |
+| `[368]` | Výsledek pouze s kódem bez doprovodného popisu. |
+| `Unauthorized error` | Výsledek pouze s popisem označující selhání autorizace. |
+
+<Note>
+  WhatsApp chybové kódy (jako `131042`) sledují [WhatsApp error code referenci Mety](https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes). Ohledně úplného seznamu specifických WhatsApp kódů a jejich významu se podívejte na dokumentaci Mety.
+</Note>
+
+## Běžné chyby a jejich řešení
+
+<AccordionGroup>
+  <Accordion title="Neplatný API klíč">
+    Váš požadavek byl odmítnut, protože API klíč chybí, je poškozený nebo neodpovídá žádnému aktivnímu klíči na vašem účtu.
+
+    **Řešení:** Přihlaste se na [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud) a zkopírujte váš aktuální API klíč. Předejte jej v každém požadavku pomocí hlavičky `x-api-key`:
+
+    ```http
+    x-api-key: YOUR_API_KEY
+    ```
+
+    Alternativně jej můžete předat jako query parametr `apikey`, i když přístup přes hlavičku je doporučený z bezpečnostních důvodů.
+  </Accordion>
+
+  <Accordion title="Nedostatečný kredit">
+    Váš účet nemá dostatek kreditu k odeslání požadovaných zpráv. Postihované zprávy se objeví s `result: rejected` a `result_info: [307] Insufficient credit` ve vašich webhook callbaccích.
+
+    **Řešení:** Dobijte kredit účtu na [app.smsmanager.com](https://app.smsmanager.com). Po dobití neuspělé zprávy zopakujte.
+  </Accordion>
+
+  <Accordion title="Neplatné telefonní číslo">
+    Telefonní číslo, které jste poskytli, nebylo možno parsovat nebo normalizovat na platné E.164 číslo.
+
+    **Řešení:** Použijte formát E.164 **bez** úvodního `+` nebo `00`. Například české číslo \+420 777 123 456 by mělo být odesláno jako:
+
+    ```text
+    420777123456
+    ```
+
+    Kompletní seznam přijatých formátů najdete v [Telefonní čísla](/cs/reference/phone-numbers).
+  </Accordion>
+
+  <Accordion title="Zpráva odmítnuta">
+    Zpráva se objeví v poli `rejected` odpovědi API nebo dorazí do vašeho webhooku s `result: rejected`.
+
+    **Řešení:** Dvě nejčastější příčiny jsou nedostatečný kredit a neplatné telefonní číslo. Zkontrolujte obojetě:
+
+    1. Ověřte kreditní zůstatek na [app.smsmanager.com](https://app.smsmanager.com).
+    2. Potvrďte, že telefonní číslo je ve formátu E.164 bez úvodního `+` (např. `420777123456`).
+  </Accordion>
+
+  <Accordion title="Zpráva ukazuje 'sent' ale ne 'delivered'">
+    Obdrželi jste webhook s `result: sent`, ale nikdy jste neobdrželi navazující callback `result: delivered`.
+
+    To je v mnoha případech normální. Stav `sent` znamená, že operatér přijal zprávu, ale potvrzení doručení (DLR) závisí na tom, zda operatér podporuje potvrzení a zda je zařízení příjemce dostupné. Někteří operatoři a sítě nevracejí potvrzení doručení vůbec.
+
+    Pokud je zpráva časově citlivá, zvažte použití záložního kanálu (např. SMS → Viber) přes parametr `flow`.
+  </Accordion>
+
+  <Accordion title="Unsupported Media Type (415)">
+    Obdrželi jste odpověď `415 Unsupported Media Type` při volání simple POST endpointu.
+
+    **Řešení:** Endpoint `POST /simple/message` vyžaduje form-encoded data, ne JSON. Nastavte hlavičku `Content-Type` na:
+
+    ```http
+    Content-Type: application/x-www-form-urlencoded
+    ```
+
+    Všechny ostatní JSON API v2 endpointy (`/message`, `/messages`) přijímají `application/json`.
+  </Accordion>
+</AccordionGroup>
+
+## Chybové kódy Verify API
+
+Verify API vrací strukturované chybové objekty se strojově čitelným kódem `error` spolu s čitelným `message`. Ve vaší aplikační logice používejte pole `error` pro zpracování konkrétních podmínek selhání.
+
+| Kód chyby | HTTP status | Význam |
+| --- | --- | --- |
+| `INVALID_PHONE` | `400` | Formát telefonního čísla je neplatný. Ujistěte se, že číslo obsahuje pouze číslice, zahrnuje kód země a odpovídá vzoru `^[1-9]\d{6,14}$`. |
+| `MISSING_FIELD` | `400` | V těle požadavku chybí povinné pole (např. `phoneNumber`). |
+| `MISSING_API_KEY` | `401` | Hlavička `X-API-Key` nebyla obsažena v požadavku. |
+| `INVALID_API_KEY` | `401` | Poskytnutý API klíč je neplatný nebo byl deaktivován. |
+| `TENANT_RATE_LIMIT` | `429` | Váš účet překročil povolenou míru validačních požadavků. |
+| `PHONE_RATE_LIMIT` | `429` | Bylo provedeno příliš mnoho pokusů o ověření pro toto konkrétní telefonní číslo. |
+| `INTERNAL_ERROR` | `500` | Došlo k neočekávané chybě na serveru. Po krátké prodlevě požadavek zopakujte. |

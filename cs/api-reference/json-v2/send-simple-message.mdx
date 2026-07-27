@@ -1,0 +1,182 @@
+Endpoint `/simple/message` je navržen pro jednoduché integrace, kde je plné JSON tělo nepohodlné — jako CRM systémy, low-code platformy nebo starší nástroje, které mohou dělat jen GET požadavky. Poskytnete svůj API klíč, telefonní číslo, zprávu a jméno odesílatele a SmsManager ihned odesílá jednu SMS. K dispozici je jak GET varianta (query parametry), tak POST varianta (form-encoded tělo), takže můžete zvolit tu, která vyhovuje vaší integraci.
+
+<Note>
+  Simple endpoint odesílá pouze SMS a nepodporuje multikanálové `flow`, plánování zpráv, hromadné odesílání, doručovací okna ani pole `payload`. Pro tyto funkce použijte [POST /message](/cs/api-reference/json-v2/post-message) nebo [POST /messages](/cs/api-reference/json-v2/send-messages).
+</Note>
+
+## GET /simple/message
+
+### Endpoint
+
+```text
+GET https://api.smsmngr.com/v2/simple/message
+```
+
+### Autentizace
+
+Autentizace používá query parametr `apikey` spíše než HTTP hlavičku — to je jediný endpoint v JSON API v2, který takto funguje.
+
+### Query parametry
+
+| Parametr | Povinné | Popis |
+| --- | --- | --- |
+| `apikey` | Ano | Váš SmsManager API klíč. |
+| `phone_number` | Ano | Telefonní číslo příjemce v mezinárodním formátu E.164 bez úvodního `+` nebo `00`, např. `420777123456`. |
+| `message` | Ano | Text SMS k odeslání. |
+| `sender` | Ano | Alfanumerické jméno odesílatele (max 11 znaků, může vyžadovat předregistraci) nebo vyhrazené virtuální číslo. |
+
+### Příklad URL
+
+```text
+https://api.smsmngr.com/v2/simple/message?apikey=YOUR_API_KEY&phone_number=420777123456&message=Ahoj&sender=MujSender
+```
+
+### cURL příklad
+
+```bash
+curl "https://api.smsmngr.com/v2/simple/message?apikey=YOUR_API_KEY&phone_number=420777123456&message=Ahoj&sender=MujSender"
+```
+
+### Odpověď
+
+```json
+{
+  "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+  "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+  "accepted": true
+}
+```
+
+Pokud je zpráva odmítnuta, `accepted` je `false` a `message_id` chybí:
+
+```json
+{
+  "request_id": "77777777-7777-7777-7777-777777777777",
+  "accepted": false
+}
+```
+
+---
+
+## POST /simple/message
+
+### Endpoint
+
+```text
+POST https://api.smsmngr.com/v2/simple/message
+```
+
+### Autentizace
+
+Předejte váš API klíč v hlavičce požadavku `x-api-key`:
+
+```http
+x-api-key: YOUR_API_KEY
+```
+
+### Content-Type
+
+Musíte nastavit `Content-Type: application/x-www-form-urlencoded`. Odeslání JSON těla vrací chybu `415 Unsupported Media Type`.
+
+### Pole těla
+
+| Pole | Povinné | Popis |
+| --- | --- | --- |
+| `phone_number` | Ano | Telefonní číslo příjemce v mezinárodním formátu bez úvodního `+` nebo `00`. |
+| `message` | Ano | Text SMS k odeslání. |
+| `sender` | Ano | Alfanumerické jméno odesílatele nebo vyhrazené virtuální číslo. |
+
+### cURL příklad
+
+```bash
+curl -X POST https://api.smsmngr.com/v2/simple/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "phone_number=420777123456" \
+  --data-urlencode "message=Ahoj od SmsManageru" \
+  --data-urlencode "sender=MujSender"
+```
+
+<Warning>
+  Pro POST variantu musíte použít `Content-Type: application/x-www-form-urlencoded`. Odeslání `Content-Type: application/json` vrací `415 Unsupported Media Type`.
+</Warning>
+
+---
+
+## Schéma odpovědi
+
+Jak GET, tak POST varianta vracejí stejný objekt `MessageSimpleResponse`.
+
+<ResponseField name="request_id" type="string">
+  Jedinečný identifikátor tohoto API požadavku.
+
+  Příklad: `"bc36f3d1-d284-463a-921b-a3560c154649"`
+</ResponseField>
+
+<ResponseField name="message_id" type="string">
+  Jedinečný identifikátor přijaté zprávy. Přítomný pouze když je `accepted` `true`. Použijte toto ID k propojení webhook událostí doručení.
+
+  Příklad: `"e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"`
+</ResponseField>
+
+<ResponseField name="accepted" type="boolean">
+  `true` pokud byla zpráva zařazena k doručení; `false` pokud byla odmítnuta (například kvůli neplatnému telefonnímu číslu, neroz vyznávanému odesílateli nebo nedostatečnému kreditu).
+</ResponseField>
+
+---
+
+## Kompletní příklady
+
+<CodeGroup>
+
+```bash GET požadavek
+curl "https://api.smsmngr.com/v2/simple/message?apikey=YOUR_API_KEY&phone_number=420777123456&message=Ahoj%20od%20SmsManageru&sender=MujSender"
+```
+
+```bash POST požadavek
+curl -X POST https://api.smsmngr.com/v2/simple/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "phone_number=420777123456" \
+  --data-urlencode "message=Ahoj od SmsManageru" \
+  --data-urlencode "sender=MujSender"
+```
+
+</CodeGroup>
+
+**Úspěšná odpověď**
+
+```json
+{
+  "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+  "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+  "accepted": true
+}
+```
+
+**Odmítnutá odpověď**
+
+```json
+{
+  "request_id": "77777777-7777-7777-7777-777777777777",
+  "accepted": false
+}
+```
+
+---
+
+## Kdy použít Simple vs plnohodnotný endpoint
+
+| Schopnost | Simple (`/simple/message`) | Plný (`/message`, `/messages`) |
+| --- | --- | --- |
+| Odeslat SMS | ✅ | ✅ |
+| Odeslat Viber / WhatsApp | ❌ | ✅ (přes `flow`) |
+| Hromadné více příjemců | ❌ | ✅ (až 10 na objekt) |
+| Plánovat doručení | ❌ | ✅ (`datetime`) |
+| Doručovací časové okno | ❌ | ✅ (`delivery_time`) |
+| Vlastní `payload` pro webhooky | ❌ | ✅ |
+| GET požadavek (bez HTTP klienta) | ✅ | ❌ |
+| Form-encoded POST | ✅ | ❌ |
+| JSON POST | ❌ | ✅ |
+
+Použijte simple endpoint, když potřebujete nejrychlejší možnou cestu integrace nebo když vaše prostředí podporuje jen GET požadavky. Použijte `/message` nebo `/messages` pro cokoli, co vyžaduje multikanálové doručení, plánování, dávkové odesílání nebo bohatá data pro korelaci s webhooky.

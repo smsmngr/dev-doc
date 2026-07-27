@@ -1,0 +1,253 @@
+SmsManager JSON API v2 vám umožňuje odesílat SMS zprávy na jakékoli telefonní číslo po celém světě jediným HTTP požadavkem. Tento průvodce vás provede vším od minimálního jednoradkového po plně nakonfigurovanou zprávu s vlastním odesílatelem, podporou Unicode a doručovacími callbacky.
+
+## Předpoklady
+
+- Aktivní účet SmsManager
+- API klíč z [app.smsmanager.com](https://app.smsmanager.com)
+- Základní URL: `https://api.smsmngr.com/v2`
+- Hlavička autentizace: `x-api-key: YOUR_API_KEY`
+
+---
+
+<Steps>
+  <Step title="Odešlete svoji první SMS">
+    Nejjednodušší požadavek potřebuje jen dvě pole: `body` (text zprávy) a `to` (pole příjemců). Každý příjemce je objekt s polem `phone_number` v mezinárodním formátu bez úvodního `+`.
+
+    ```bash cURL
+    curl -X POST https://api.smsmngr.com/v2/message \
+      -H "x-api-key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "body": "Ahoj od SmsManageru!",
+        "to": [{"phone_number": "420777123456"}]
+      }'
+    ```
+
+    ```json Tělo požadavku
+    {
+      "body": "Ahoj od SmsManageru!",
+      "to": [{"phone_number": "420777123456"}]
+    }
+    ```
+
+    Úspěšná odpověď vrací `request_id` a pole přijatých příjemců, každý s jedinečným `message_id`, kterým můžete sledovat doručení.
+  </Step>
+  <Step title="Nastavte jméno odesílatele">
+    Pole `flow` slouží k nakonfigurování voleb specifických pro kanál. Pro SMS přidejte objekt `sms` uvnitř kroku flow s polem `sender`. Alfanumerická jména odesílatele mohou mít až 11 znaků. Pokud používáte jako odesílatele virtuální číslo, vynechte úvodní `+`.
+
+    ```json Tělo požadavku
+    {
+      "body": "Vaše objednávka byla odeslána!",
+      "to": [{"phone_number": "420777123456"}],
+      "flow": [
+        {
+          "sms": {
+            "sender": "MujObchod"
+          }
+        }
+      ]
+    }
+    ```
+
+    <Note>
+      Alfanumerická jména odesílatele mohou v některých zemích vyžadovat předregistraci (například Velká Británie, Indie a několik asijských trhů). Před odesíláním do těchto destinací kontaktujte podporu SmsManager pro registraci svého jména odesílatele.
+    </Note>
+  </Step>
+  <Step title="Vyberte bránu">
+    Pole `gateway` uvnitř flow objektu `sms` ovládá, jak SmsManager směruje vaši zprávu:
+
+    | Brána | Popis |
+    | --- | --- |
+    | `high` | Výchozí. Nejlepší míra doručení přes agregátorskou síť. |
+    | `direct` | Vyžadována při použití virtuálního čísla jako odesílatele. Směruje přes přímé spojení operatorů. |
+    | `custom` | Pro SIM hostování, kdy poskytujete vlastní SIM hardware. |
+
+    ```json Tělo požadavku
+    {
+      "body": "Váš ověřovací kód je 482910",
+      "to": [{"phone_number": "420777123456"}],
+      "flow": [
+        {
+          "sms": {
+            "sender": "420600123456",
+            "gateway": "direct"
+          }
+        }
+      ]
+    }
+    ```
+  </Step>
+  <Step title="Zpracujte Unicode znaky">
+    Standardní SMS používá znakovou sadu GSM-7. Pokud vaše zpráva obsahuje znaky mimo tuto sadu — například cyrilici, arabštinu, čínštinu nebo emoji — nastavte `type: "utf"` uvnitř flow objektu `sms` pro přechod na kódování UCS-2.
+
+    <Warning>
+      UCS-2 zprávy mají sníženou kapacitu 70 znaků na segment (oproti 160 pro GSM-7). Dlouhé Unicode zprávy budou rozděleny do více segmentů a budou stát více.
+    </Warning>
+
+    ```json Tělo požadavku
+    {
+      "body": "Ваш код подтверждения: 482910",
+      "to": [{"phone_number": "79161234567"}],
+      "flow": [
+        {
+          "sms": {
+            "sender": "MujApp",
+            "type": "utf"
+          }
+        }
+      ]
+    }
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Tagy
+
+Pole `tag` klasifikuje vaši zprávu pro směrování a reporting. Zadává se na nejvyšší úrovni těla požadavku.
+
+| Tag | Popis |
+| --- | --- |
+| `promotional` | Výchozí. Marketingové a hromadné zprávy. |
+| `transactional` | Potvrzení objednávek, účtenky, upozornění účtu. |
+| `priority` | Fronta s nejvyšší prioritou. Použijte pro časově citlivé OTP a upozornění. |
+
+```json
+{
+  "body": "Váš přihlašovací kód je 291847",
+  "to": [{"phone_number": "420777123456"}],
+  "tag": "priority"
+}
+```
+
+---
+
+## Doba života
+
+Nastavte `ttl` (v minutách) uvnitř flow objektu `sms` pro řízení, jak dlouho se SmsManager pokouší o doručení před opuštěním zprávy. To je užitečné pro časově citlivé kódy, které jsou bezcenné po krátkém okně.
+
+```json
+{
+  "body": "Váš jednorázový kód je 847201. Platnost 5 minut.",
+  "to": [{"phone_number": "420777123456"}],
+  "flow": [
+    {
+      "sms": {
+        "sender": "MujApp",
+        "ttl": 5
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Kompletní příklad
+
+Následující příklady ukazují kompletní SMS požadavek s jménem odesílatele, tagem priority, TTL a callback URL pro doručení.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Váš přihlašovací kód je 482910. Platnost 10 minut.",
+    "to": [{"phone_number": "420777123456"}],
+    "tag": "priority",
+    "callback": "https://yourapp.com/webhooks/sms",
+    "flow": [
+      {
+        "sms": {
+          "sender": "MujApp",
+          "gateway": "high",
+          "ttl": 10
+        }
+      }
+    ]
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://api.smsmngr.com/v2/message",
+    headers={
+        "x-api-key": "YOUR_API_KEY",
+        "Content-Type": "application/json",
+    },
+    json={
+        "body": "Váš přihlašovací kód je 482910. Platnost 10 minut.",
+        "to": [{"phone_number": "420777123456"}],
+        "tag": "priority",
+        "callback": "https://yourapp.com/webhooks/sms",
+        "flow": [
+            {
+                "sms": {
+                    "sender": "MujApp",
+                    "gateway": "high",
+                    "ttl": 10,
+                }
+            }
+        ],
+    },
+)
+
+print(response.json())
+```
+
+```javascript Node.js
+const response = await fetch("https://api.smsmngr.com/v2/message", {
+  method: "POST",
+  headers: {
+    "x-api-key": "YOUR_API_KEY",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    body: "Váš přihlašovací kód je 482910. Platnost 10 minut.",
+    to: [{ phone_number: "420777123456" }],
+    tag: "priority",
+    callback: "https://yourapp.com/webhooks/sms",
+    flow: [
+      {
+        sms: {
+          sender: "MujApp",
+          gateway: "high",
+          ttl: 10,
+        },
+      },
+    ],
+  }),
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+</CodeGroup>
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Hromadné odesílání" icon="layer-group" href="/cs/guides/batch-sending">
+    Odešlete až 100 zpráv v jednom API volání pomocí endpointu /messages.
+  </Card>
+
+  <Card title="Webhooky" icon="webhook" href="/cs/guides/webhooks">
+    Přijímejte aktualizace stavu doručení v reálném čase na vaši callback URL.
+  </Card>
+
+  <Card title="Odeslat Viber" icon="message" href="/cs/guides/send-viber">
+    Přidejte Viber Business Messages s bohatým obsahem a SMS zálohou.
+  </Card>
+
+  <Card title="Ověření telefonu" icon="shield-check" href="/cs/guides/phone-verification">
+    Ověřte telefonní čísla pomocí OTP přes SmsManager Verify API.
+  </Card>
+</CardGroup>

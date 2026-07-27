@@ -1,0 +1,251 @@
+SmsManager vám umožňuje odesílat WhatsApp zprávy přes váš připojený WhatsApp Business účet. Můžete odesílat předschválené **šablonové zprávy** každému přijatému číslu nebo odesílat **volné textové zprávy** v aktivním 24hodinovém zákaznickém okně. Obě typy zpráv se přirozeně vejdou do multikanálového `flow` SmsManageru, takže můžete přidat SMS zálohu pro příjemce nedostupné přes WhatsApp.
+
+---
+
+## Dva typy WhatsApp zpráv
+
+Před napsaním kódu je důležité pochopit, který typ zprávy pasuje k vašemu případu:
+
+- **Šablonové zprávy** (`whatsapp_template`) jsou předschválené formáty zpráv registrované přes Metu. Můžete je odeslat kdykoli jakémukoli příjemci, který souhlasil s příjmem zpráv od vaší firmy. Použijte je pro aktualizace objednávek, oznámení o dopravě, připomínky schůzek a OTP.
+- **Textové zprávy** (`whatsapp_text`) jsou volné zprávy, které sestavíte v čase odeslání. Můžete je odeslat pouze v rámci **24hodinového zákaznického okna** — tj. do 24 hodin od okamžiku, kdy vám příjemce naposledy poslal zprávu. Použijte je pro konverzace podpory a interaktivní odpovědi.
+
+---
+
+## Předpoklady
+
+- **WhatsApp Business účet** připojený k SmsManager. Postupujte podle průvodce nastavením na [app.smsmanager.com/whatsapp](https://app.smsmanager.com/whatsapp).
+- Vaše **Phone Number ID** z [app.smsmanager.com/whatsapp](https://app.smsmanager.com/whatsapp) — to je číselné ID (ne samotné telefonní číslo), které identifikuje vašeho WhatsApp odesílatele.
+- Pro šablonové zprávy: **předschválená šablona** v Meta Business Manageru s přesným názvem šablony a kódem jazyka.
+
+---
+
+## Odeslání WhatsApp šablonové zprávy
+
+<Steps>
+  <Step title="Zaregistrujte své WhatsApp číslo a získejte Phone Number ID">
+    Přihlaste se na [app.smsmanager.com/whatsapp](https://app.smsmanager.com/whatsapp) a dokončete proces připojení WhatsApp Business účtu. Po připojení zkopírujte **Phone Number ID** zobrazené na dashboardu — je to dlouhý číselný řetězec jako `514578330250514`. Použijete jej jako hodnotu `sender` ve všech vašich WhatsApp API voláních.
+  </Step>
+  <Step title="Vytvořte a schvalte šablonu přes Meta/SmsManager">
+    Vytvořte svou šablonu zprávy uvnitř Meta Business Manageru nebo přes dashboard SmsManager. Šablony musí být před odesíláním schváleny Metou. Schválení obvykle trvá od několika minut po několik hodin. Poznamenejte si přesný **název šablony** (malá písmena, podtržítka) a **kód jazyka** (například `en`, `cs`, `de`) — obojí budete potřebovat v API požadavku.
+  </Step>
+  <Step title="Odešlete šablonovou zprávu">
+    Použijte klíč `whatsapp_template` uvnitř pole `flow`. Nastavte `sender` na vaše Phone Number ID, `template_name` na název schválené šablony a `language` na kód jazyka šablony. Pokud šablona obsahuje proměnné značky (číslované jako `{1}`, `{2}` atd.), předejte jejich hodnoty v poli `params`.
+
+    ```json Tělo požadavku
+    {
+      "to": [{"phone_number": "420777123456"}],
+      "flow": [
+        {
+          "whatsapp_template": {
+            "template_name": "order_update",
+            "sender": "514578330250514",
+            "language": "cs",
+            "params": ["Jan", "ORDER-123"]
+          }
+        }
+      ]
+    }
+    ```
+
+    ```bash cURL
+    curl -X POST https://api.smsmngr.com/v2/message \
+      -H "x-api-key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "to": [{"phone_number": "420777123456"}],
+        "flow": [
+          {
+            "whatsapp_template": {
+              "template_name": "order_update",
+              "sender": "514578330250514",
+              "language": "cs",
+              "params": ["Jan", "ORDER-123"]
+            }
+          }
+        ]
+      }'
+    ```
+  </Step>
+  <Step title="Přidejte SMS zálohu pro spolehlivost">
+    Přidejte krok `sms` do pole `flow`. Pokud WhatsApp zprávu nelze doručit (například příjemce nemá WhatsApp nebo číslo nemá souhlas), SmsManager automaticky přejde na SMS.
+
+    ```json Tělo požadavku
+    {
+      "body": "Ahoj Jane, vaše objednávka ORDER-123 byla odeslána!",
+      "to": [{"phone_number": "420777123456"}],
+      "flow": [
+        {
+          "whatsapp_template": {
+            "template_name": "order_update",
+            "sender": "514578330250514",
+            "language": "cs",
+            "params": ["Jan", "ORDER-123"]
+          }
+        },
+        {
+          "sms": {
+            "sender": "MujObchod",
+            "gateway": "high"
+          }
+        }
+      ]
+    }
+    ```
+
+    <Tip>
+      Při použití WhatsApp s SMS zálohou vždy nastavte kořenové `body` — stane se textem SMS zprávy, pokud flow dojde k SMS kroku.
+    </Tip>
+  </Step>
+</Steps>
+
+---
+
+## Odeslání WhatsApp textové zprávy
+
+<Warning>
+  WhatsApp textové zprávy lze odeslat pouze v rámci **24hodinového zákaznického okna** — tj. do 24 hodin od okamžiku, kdy vám příjemce naposledy poslal zprávu na vaše číslo. Odeslání mimo toto okno povede k odmítnutí zprávy. Pro proaktivní oslovování použijte šablonové zprávy.
+</Warning>
+
+Použijte `whatsapp_text` ve svém flow k odeslání volné zprávy během otevřeného konverzačního okna:
+
+```json Tělo požadavku
+{
+  "to": [{"phone_number": "420777123456"}],
+  "flow": [
+    {
+      "whatsapp_text": {
+        "sender": "514578330250514",
+        "body": "Ahoj! Vidím, že vaše objednávka byla zpožděna. Aplikovali jsme 10% slevu na vaši další nákup jako omluvu."
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Parametry šablony
+
+WhatsApp šablony mohou obsahovat proměnné značky na třech místech. Použijte odpovídající pole parametrů k jejich vyplnění v čase odeslání:
+
+| Pole | Vyplňuje značky v | Příklad |
+| --- | --- | --- |
+| `params` | Proměnné v těle zprávy (pozitičně: první hodnota mapuje na první proměnnou atd.) | `["Jan", "ORDER-123", "zítra"]` |
+| `params_header` | Hlavička šablony (pouze textové hlavičky) | `["ORDER-123"]` |
+| `params_buttons` | URL tlačítek s dynamickými částmi cesty | `["abc123"]` |
+
+```json Kompletní příklad parametrů
+{
+  "to": [{"phone_number": "420777123456"}],
+  "flow": [
+    {
+      "whatsapp_template": {
+        "template_name": "shipping_update",
+        "sender": "514578330250514",
+        "language": "cs",
+        "params_header": ["ORDER-123"],
+        "params": ["Jan", "zítra", "9–12"],
+        "params_buttons": ["ORDER-123"]
+      }
+    }
+  ]
+}
+```
+
+<Note>
+  Pořadí hodnot v každém poli `params` mapuje pozitičně na číslované značky ve vaší šabloně. Ujistěte se, že délka pole odpovídá počtu proměnných v šabloně, jinak bude požadavek odmítnut.
+</Note>
+
+---
+
+## Kompletní příklady
+
+<CodeGroup>
+
+```bash cURL — šablonová zpráva
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Ahoj Jane, vaše objednávka ORDER-123 byla odeslána!",
+    "to": [{"phone_number": "420777123456"}],
+    "tag": "transactional",
+    "callback": "https://yourapp.com/webhooks/whatsapp",
+    "flow": [
+      {
+        "whatsapp_template": {
+          "template_name": "order_update",
+          "sender": "514578330250514",
+          "language": "cs",
+          "params": ["Jan", "ORDER-123"]
+        }
+      },
+      {
+        "sms": {
+          "sender": "MujObchod",
+          "gateway": "high"
+        }
+      }
+    ]
+  }'
+```
+
+```python Python — šablonová zpráva
+import requests
+
+response = requests.post(
+    "https://api.smsmngr.com/v2/message",
+    headers={
+        "x-api-key": "YOUR_API_KEY",
+        "Content-Type": "application/json",
+    },
+    json={
+        "body": "Ahoj Jane, vaše objednávka ORDER-123 byla odeslána!",
+        "to": [{"phone_number": "420777123456"}],
+        "tag": "transactional",
+        "callback": "https://yourapp.com/webhooks/whatsapp",
+        "flow": [
+            {
+                "whatsapp_template": {
+                    "template_name": "order_update",
+                    "sender": "514578330250514",
+                    "language": "cs",
+                    "params": ["Jan", "ORDER-123"],
+                }
+            },
+            {
+                "sms": {
+                    "sender": "MujObchod",
+                    "gateway": "high",
+                }
+            },
+        ],
+    },
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Odeslat Viber" icon="message" href="/cs/guides/send-viber">
+    Přidejte Viber Business Messages s bohatým obsahem a SMS zálohou.
+  </Card>
+
+  <Card title="Webhooky" icon="webhook" href="/cs/guides/webhooks">
+    Přijímejte aktualizace stavu doručení WhatsApp a události příchozích zpráv.
+  </Card>
+
+  <Card title="Hromadné odesílání" icon="layer-group" href="/cs/guides/batch-sending">
+    Odesílejte WhatsApp zprávy více příjemcům v jednom API volání.
+  </Card>
+
+  <Card title="Odeslat SMS" icon="message-sms" href="/cs/guides/send-sms">
+    Nakonfigurujte možnosti SMS zálohy pro vaše WhatsApp zprávy.
+  </Card>
+</CardGroup>

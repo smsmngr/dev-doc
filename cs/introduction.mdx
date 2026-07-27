@@ -1,0 +1,55 @@
+SmsManager je cloudová messagingová platforma vytvořená pro vývojáře a firmy, které potřebují spolehlivou a programovatelnou komunikaci napříč několika kanály. S jediným API klíčem a přímočarým HTTP rozhraním můžete odesílat zprávy přes SMS, Viber a WhatsApp — jednotlivě nebo jako součást automatických záložních řetězců — bez nutnosti spravovat samostatné integrace s poskytovateli.
+
+## Co je SmsManager?
+
+SmsManager poskytuje jednotné API pro multikanálový messaging. Místo integrace s každým kanálem zvlášť odešlete jeden požadavek na SmsManager a platforma za vás zajistí směrování, doručení a záložní logiku.
+
+Klíčové možnosti zahrnují:
+
+- **Jednotlivé a hromadné odesílání** — odešlete jednomu příjemci nebo až 10 na požadavek; použijte hromadný endpoint `/messages` k odeslání až 10 požadavků (100 příjemců) v jednom HTTP volání
+- **Multikanálové toky** — definujte prioritně řazený seznam kanálů (např. Viber → SMS) pomocí vlastnosti `flow`; SmsManager automaticky přejde na další kanál, pokud doručení selže
+- **Doručovací webhooky** — přijímejte HTTP zpětná volání v reálném čase, kdykoliv je zpráva doručena, selže nebo vygeneruje příchozí odpověď
+- **Ověření telefonního čísla** — ověřujte telefonní čísla jednorázovými kódy (OTP) prostřednictvím vyhrazeného Verify API
+- **Plánování** — odesílejte zprávy k budoucímu datu/času pomocí pole `datetime` s volitelnými omezeními doručovacího okna
+
+## Přehled API
+
+SmsManager nabízí čtyři API, každé vytvořené pro jinou část vaší integrace.
+
+<CardGroup cols={2}>
+  <Card title="JSON API v2" href="/cs/api-reference/json-v2/overview">
+    Hlavní API pro odesílání zpráv. Podporuje SMS, Viber a WhatsApp (text i šablony). Základní URL: `https://api.smsmngr.com/v2`
+  </Card>
+
+  <Card title="REST API" href="/cs/api-reference/rest/overview">
+    Správa účtu a klíčů. Vytvářejte sub-klíče, nastavujte callback URL a získávejte informace o účtu. Základní URL: `https://rest-api.smsmngr.com/v1`
+  </Card>
+
+  <Card title="Verify API" href="/cs/api-reference/verify/overview">
+    Generujte a validujte jednorázové kódy pro ověření telefonních čísel a 2FA scénáře.
+  </Card>
+
+  <Card title="WhatsApp Partner API" href="/cs/api-reference/waba/overview">
+    Programově registrujte a spravujte WhatsApp Business účty pro vaši platformu nebo koncové zákazníky.
+  </Card>
+</CardGroup>
+
+## Jak to funguje
+
+Začátek se SmsManagerem trvá tři kroky:
+
+1. **Získejte svůj API klíč** — přihlaste se na [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud) a zkopírujte svůj klíč. Přes REST API si také můžete vytvořit omezené sub-klíče.
+2. **Odešlete zprávu** — proveďte POST požadavek na `https://api.smsmngr.com/v2/message` s telefonním číslem příjemce a textem zprávy. Přidejte pole `flow` pro povolení doručení přes Viber nebo WhatsApp.
+3. **Přijměte webhook** — volitelně předejte URL `callback` v těle požadavku. SmsManager pošle POST oznámení o doručení na tuto URL při změně stavu zprávy.
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Rychlý start" icon="rocket" href="/cs/quickstart">
+    Sledujte podrobného průvodce a odešlete první zprávu za méně než 5 minut.
+  </Card>
+
+  <Card title="Autentizace" icon="lock" href="/cs/authentication">
+    Zjistěte, jak získat a bezpečně používat svůj API klíč v každém požadavku.
+  </Card>
+</CardGroup>

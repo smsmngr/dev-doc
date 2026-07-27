@@ -1,0 +1,91 @@
+SmsManager vám nabízí dva doplňující se nástroje pro řízení toho, kdy vaše zprávy dojdou k příjemcům. Zprávu můžete naplánovat na konkrétní bod v budoucnu pomocí pole `datetime` a můžete omezit doručení na určité hodiny nebo dny v týdnu pomocí `delivery_time`. Obě pole jsou volitelná, pracují nezávisle a lze je kombinovat pro přesné řízení časování odeslání.
+
+## Naplánované odeslání (`datetime`)
+
+Pole `datetime` vám umožňuje zařadit zprávu ihned a nechat ji odeslat SmsManagerem v konkrétní budoucí čas. Poskytujete UTC timestamp ve formátu ISO 8601:
+
+```json
+{
+  "body": "Nezapomeňte: vaše schůzka s týmem začíná za 30 minut.",
+  "to": [{ "phone_number": "420777123456" }],
+  "datetime": "2025-06-15T09:30:00Z"
+}
+```
+
+SmsManager zprávu uloží a odešle ji v určený čas. API ihned odpoví s `message_id`, které můžete použít ke sledování nebo ke zrušení.
+
+**Důležité:** hodnota `datetime` musí být vždy v **UTC**. Pokud vaše aplikace pracuje v lokálním časovém pásmu, před sestavením požadavku převeďte do UTC. Například 10:00 pražského času (UTC\+2 v létě) je `08:00:00Z`.
+
+<Note>
+  Plánování je k dispozici na všech kanálech — SMS, Viber a WhatsApp. Pole `datetime` je v kořeni objektu zprávy, ne uvnitř `flow`.
+</Note>
+
+## Doručovací časová okna (`delivery_time`)
+
+Objekt `delivery_time` vám umožňuje definovat hodiny a dny, kdy smí SmsManager vaši zprávu odeslat. Pokud zpráva přijde mimo vaše povolené okno — buď proto, že byla odeslána pozdě, nebo proto, že `datetime` spadá mimo okno — SmsManager ji podrží a doručí ji, jakmile se další okno otevře.
+
+Objekt `delivery_time` přijímá následující pole:
+
+| Pole | Typ | Výchozí | Popis |
+| --- | --- | --- | --- |
+| `days` | array of strings | — | Dny v týdnu, pro které okno platí. Akceptované hodnoty: `monday`, `tuesday`, `wednesday`, `thursday`, `friday`, `saturday`, `sunday`. |
+| `start` | string | — | Čas otevření okna ve formátu `HH:MM` (24hodinový). |
+| `end` | string | — | Čas uzavření okna ve formátu `HH:MM` (24hodinový). |
+| `tz` | string | `UTC` | Název IANA časového pásma použitý k interpretaci `start` a `end`. |
+
+### Příklad: pracovní dny, 08:00–21:00 pražský čas
+
+```json
+{
+  "body": "Ahoj! Máme pro vás speciální nabídku.",
+  "to": [{ "phone_number": "420777123456" }],
+  "delivery_time": {
+    "days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    "start": "08:00",
+    "end": "21:00",
+    "tz": "Europe/Prague"
+  }
+}
+```
+
+Pokud tento požadavek odešlete v pátek ve 23:00 pražského času, SmsManager zprávu podrží a doručí ji v pondělí ráno v 08:00 — v nejbližší okamžik, kdy je doručovací okno otevřené.
+
+## Kombinování `datetime` a `delivery_time`
+
+Obě pole můžete použít společně pro naplánování zprávy na budoucí datum **a** zároveň zajistit, aby dorazila jen v pracovní dobu. To je užitečné, když generujete zprávy dopředu, ale chcete zabránit příjmu příjemci o víkendech nebo uprostřed noci.
+
+```json
+{
+  "body": "Vaše předplatné se obnoví za 3 dny. Spravovat zde: https://example.com/account",
+  "to": [{ "phone_number": "420777123456" }],
+  "datetime": "2025-06-20T06:00:00Z",
+  "delivery_time": {
+    "days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    "start": "08:00",
+    "end": "20:00",
+    "tz": "Europe/Prague"
+  }
+}
+```
+
+V tomto příkladu je zpráva naplánována na `2025-06-20T06:00:00Z` (08:00 pražského času, pátek). Protože tento čas spadá do doručovacího okna, odešle se okamžitě v naplánovaný čas. Kdyby datum připadlo na sobotu, SmsManager by zprávu držel do pondělí 08:00.
+
+## Časová pásma
+
+Pole `tz` přijímá jakýkoli platný název z [IANA Time Zone Database](https://www.iana.org/time-zones). Pokud `tz` vynecháte, SmsManager použije výchozí UTC. Běžně používané hodnoty:
+
+| Řetězec časového pásma | Region |
+| --- | --- |
+| `UTC` | Koordinovaný světový čas (výchozí) |
+| `Europe/Prague` | Česko, Slovensko |
+| `Europe/London` | Spojené království |
+| `Europe/Berlin` | Německo, Rakousko |
+| `Europe/Paris` | Francie, Belgie |
+| `America/New_York` | USA Východ |
+| `America/Chicago` | USA Střed |
+| `America/Los_Angeles` | USA Pacifik |
+| `Asia/Dubai` | Gulf Standard Time |
+
+<Tip>
+  Pro transakční zprávy — jednorázová hesla, přihlašovací kódy, platební upozornění a další časově citlivá oznámení — **nepoužívejte** `delivery_time`. Příjemce, který čeká na OTP držené šest hodin, je porušený uživatelský zážitek. `delivery_time` vyhraďte pro marketingové a informační zprávy, kde je krátké zpoždění přijatelné.
+</Tip>

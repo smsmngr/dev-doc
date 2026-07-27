@@ -1,0 +1,271 @@
+Webhooky umožňují SmsManageru ihned tlačit události na váš server, jakmile se něco stane — zpráva je doručena, doručení selže nebo příjemce odpoví. Místo opakovaného dotazování API na stav váš endpoint přijímá HTTP `POST` požadavek obsahující JSON payload popisující událost. Je to nejefektivnější způsob, jak vybudovat sledování zpráv v reálném čase, automatizovat opakování a zpracovávat příchozí zprávy.
+
+---
+
+## Typy webhooků
+
+SmsManager posílá tři typy webhook událostí:
+
+<CardGroup cols={1}>
+  <Card title="sentMessage" icon="paper-plane">
+    Spuštěno při každé změně stavu doručení odchozí zprávy. Můžete obdržet více událostí na zprávu, jak se pohybuje doručovací rourou — například nejprve `sent`, pak `delivered`. Hodnoty stavu zahrnují: `sending`, `sent`, `delivered`, `undelivered`, `rejected`, `failed` a `seen` (pouze Viber/WhatsApp).
+  </Card>
+
+  <Card title="incomingReplyMessage" icon="reply">
+    Spuštěno, když příjemce přímo odpoví na zprávu, kterou jste poslali. Payload spojuje odpověď s původní odchozí zprávou přes `message_id`.
+  </Card>
+
+  <Card title="incomingMessage" icon="inbox">
+    Spuštěno pro nevyžádané příchozí zprávy — zprávy, které dorazí na vaše číslo, ale nejsou přímou odpovědí na žádnou konkrétní odchozí zprávu.
+  </Card>
+</CardGroup>
+
+---
+
+## Nastavení webhook URL
+
+Doručování webhook můžete nakonfigurovat dvěma způsoby:
+
+**1. Callback na zprávu** — nastavte pole `callback` v těle požadavku zprávy. SmsManager posílá všechny události doručení pro danou zprávu na URL, kterou uvedete.
+
+```json Callback na zprávu
+{
+  "body": "Vaše objednávka byla odeslána!",
+  "to": [{"phone_number": "420777123456"}],
+  "callback": "https://yourapp.com/webhooks/sms"
+}
+```
+
+**2. Výchozí pro celý účet** — nastavte `default_callback_url` na svém API klíči přes SmsManager REST API. Všechny zprávy odeslané tímto API klíčem budou používat tuto URL, pokud není přepsána polem `callback` na jednotlivých požadavcích.
+
+```bash Nastavit výchozí callback URL
+curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "default_callback_url": "https://yourapp.com/webhooks/sms"
+  }'
+```
+
+<Tip>
+  Během vývoje použijte výchozí callback URL, abyste zachytili události ze všech testovacích zpráv bez nutnosti nastavovat `callback` v každém požadavku.
+</Tip>
+
+---
+
+## Formát webhook payloadu
+
+SmsManager posílá na vaši callback URL **pole** objektů událostí. Více událostí doručení může být v jednom POST volaní spojeno. Zde je kompletní příklad payloadu `sentMessage` pro doručenou SMS:
+
+```json sentMessage payload
+[
+  {
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+    "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+    "gateway": "sms",
+    "timestamp": 1700000000,
+    "payload": { "order_id": "ORD-123" },
+    "type": "outgoing",
+    "to": {
+      "phone_number": "420777123456"
+    },
+    "result": "delivered",
+    "result_info": "[0] Delivered",
+    "sms": {
+      "gateway": "high",
+      "sender": "MujSender",
+      "country": 230,
+      "operator": 1,
+      "price_czk": 0.95,
+      "price_eur": 0.04,
+      "count": 1
+    }
+  }
+]
+```
+
+Objekt specifický pro kanál (`sms`, `viber`, `whatsapp_template` nebo `whatsapp_body`) se liší podle hodnoty `gateway`:
+
+| Hodnota `gateway` | Klíč objektu kanálu | Významná pole |
+| --- | --- | --- |
+| `sms` | `sms` | `sender`, `country` (MCC), `operator` (MNC), `price_czk`, `price_eur`, `count` (segmenty) |
+| `viber` | `viber` | `sender`, `country`, `operator`, `price_czk`, `price_eur` |
+| `whatsapp_template` | `whatsapp_template` | `sender`, `country`, `operator`, `price_czk`, `price_eur` |
+| `whatsapp_text` | `whatsapp_body` | `sender`, `country`, `operator`, `price_czk`, `price_eur` |
+
+---
+
+## Pole `payload`
+
+Když do svého původního požadavku zprávy zahrnete objekt `payload`, SmsManager jej vrátí zpět v každé webhook události pro tuto zprávu. Použijte to k propojení událostí doručení s vašimi vlastními aplikačními daty — ID objednávek, ID uživatelů, názvy kampaní a tak dále — bez nutnosti dohledávat cokoli podle `message_id`.
+
+```json Požadavek zprávy s payload
+{
+  "body": "Vaše objednávka byla odeslána!",
+  "to": [{"phone_number": "420777123456"}],
+  "payload": {
+    "order_id": "ORD-123",
+    "user_id": "USR-7891"
+  }
+}
+```
+
+Ve webhook obdržíte stejný objekt `payload`:
+
+```json Webhook událost (výňatek)
+{
+  "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+  "result": "delivered",
+  "payload": {
+    "order_id": "ORD-123",
+    "user_id": "USR-7891"
+  }
+}
+```
+
+---
+
+## Sekvence stavu doručení
+
+Typické úspěšné doručení vyprodukuje dvě webhook události v posloupnosti:
+
+```text
+sending  →  sent  →  delivered
+```
+
+Pokud doručení selže, sekvence končí:
+
+```text
+sending  →  sent  →  undelivered
+```
+
+Nebo ihned:
+
+```text
+rejected   (validace nebo směrování selhalo — zpráva nikdy neopustila SmsManager)
+failed     (selhání na úrovni operatéra)
+```
+
+Pro Viber a WhatsApp můžete také obdržet událost `seen`, když příjemce zprávu otevře.
+
+<Note>
+  Váš webhook handler musí být idempotentní — SmsManager může ve vzácných případech doručit stejnou událost vícekrát (síťové opakování). Použijte `message_id` \+ `result` jako klíč pro deduplikaci.
+</Note>
+
+---
+
+## Zpracování příchozích zpráv
+
+**incomingReplyMessage** — odpověď na jednu z vašich odchozích zpráv:
+
+```json incomingReplyMessage payload
+[
+  {
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+    "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+    "payload": { "order_id": "ORD-123" },
+    "gateway": "sms",
+    "timestamp": 1700000120,
+    "type": "incoming",
+    "sender": "420777123456",
+    "recipient": "420777654321",
+    "body": "Ano, potvrďte moji rezervaci prosím."
+  }
+]
+```
+
+**incomingMessage** — nevyžádaná příchozí zpráva, která není spojena s konkrétní odchozí:
+
+```json incomingMessage payload
+[
+  {
+    "gateway": "sms",
+    "timestamp": 1700000500,
+    "type": "incoming",
+    "sender": "420777999888",
+    "recipient": "420777654321",
+    "body": "STOP"
+  }
+]
+```
+
+---
+
+## Osvědčené postupy
+
+- **Ihned odpovězte HTTP 200.** SmsManager považuje jakoukoli ne-2xx odpověď za selhání a zopakuje. Vraťte `200 OK` co nejrychleji, pak zpracujte payload asynchronně (například do fronty).
+- **Zpracujte duplicitní webhooky.** Síťové problémy mohou způsobit doručení stejné události vícekrát. Použijte `message_id` \+ `result` jako složený klíč pro deduplikaci událostí před zpracováním.
+- **Logujte surové webhook payloady.** Uložte surové JSON tělo vedle svých zpracovaných dat, abyste mohli přehrát události při ladění bez závislosti na oknu opakování SmsManageru.
+- **Validujte `message_id` proti vašim záznamům.** Ignorujte události pro message ID, které neroz vyznáváte — to chrání proti podvrženým webhook požadavkům.
+- **Používejte HTTPS.** Vždy vystavujte svůj webhook endpoint přes HTTPS pro ochranu obsahu zprávy a doručovacích metadat při přenosu.
+
+---
+
+## Kódy `result_info`
+
+Pole `result_info` poskytuje čitelný popis výsledku doručení. Sleduje formát `[kód] Popis`, kde číselný kód je specifický pro operatéra a volitelný. Běžné příklady:
+
+| `result_info` | Význam |
+| --- | --- |
+| `[0] Delivered` | Úspěšně doručeno do telefonu |
+| `[1] Undelivered` | Nebylo možné doručit (telefon vypnutý, číslo mimo provoz) |
+| `[2] Rejected` | Zamítnuto operatérem nebo směrováním SmsManageru |
+| `[3] Failed` | Technické selhání při pokusu o doručení |
+| `Sent` | Přijato operatérem; finální stav zatím není znám |
+
+Používejte `result` (strojově čitelný enum) ve vaší aplikační logice a `result_info` pro logování a podporu.
+
+---
+
+## Co SmsManager POSTůje na váš endpoint
+
+```bash Co SmsManager posílá na vaši callback URL
+POST https://yourapp.com/webhooks/sms HTTP/1.1
+Content-Type: application/json
+User-Agent: SmsManager-Webhook/1.0
+
+[
+  {
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+    "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+    "gateway": "sms",
+    "timestamp": 1700000000,
+    "payload": { "order_id": "ORD-123" },
+    "type": "outgoing",
+    "to": { "phone_number": "420777123456" },
+    "result": "delivered",
+    "result_info": "[0] Delivered",
+    "sms": {
+      "gateway": "high",
+      "sender": "MujSender",
+      "country": 230,
+      "operator": 1,
+      "price_czk": 0.95,
+      "price_eur": 0.04,
+      "count": 1
+    }
+  }
+]
+```
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Odeslat SMS" icon="message-sms" href="/cs/guides/send-sms">
+    Zjistěte, jak nastavit pole callback na SMS zprávách.
+  </Card>
+
+  <Card title="Odeslat Viber" icon="message" href="/cs/guides/send-viber">
+    Porozumějte Viber-specifickým stavům doručení a události seen.
+  </Card>
+
+  <Card title="Hromadné odesílání" icon="layer-group" href="/cs/guides/batch-sending">
+    Propojujte dávkové události doručení pomocí message\_id přípon indexu.
+  </Card>
+
+  <Card title="Ověření telefonu" icon="shield-check" href="/cs/guides/phone-verification">
+    Použijte Verify API pro OTP toky s HMAC offline proofy.
+  </Card>
+</CardGroup>

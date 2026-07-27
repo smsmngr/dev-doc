@@ -1,0 +1,213 @@
+SmsManager podporuje čtyři messagingové kanály, každý s vlastními přednostmi a konfiguračními možnostmi. Můžete použít jeden kanál nebo je kombinovat v [toku zpráv](/cs/concepts/message-flow) pro maximalizaci míry doručení. Tato stránka pokrývá, co každý kanál umožňuje, jaká pole přijímá a jak jej nastavit.
+
+<Tabs>
+  <Tab title="SMS">
+    ## SMS kanál
+
+    SMS je univerzálně nejpodporovanější kanál — funguje na každém mobilním telefonu, nevyžaduje instalaci žádné aplikace a je k dispozici prakticky v každé zemi. Použijte SMS jako spolehlivý samostatný kanál nebo jako finální zálohu ve vícekanálovém flow.
+
+    ### Povinná pole
+
+    | Pole | Typ | Popis |
+    | --- | --- | --- |
+    | `body` | string | Text zprávy (max 1 000 znaků). |
+
+    ### Volitelná pole
+
+    | Pole | Typ | Výchozí | Popis |
+    | --- | --- | --- | --- |
+    | `sender` | string | — | Alfanumerické jméno odesílatele (max 11 znaků) nebo vyhrazené virtuální číslo bez úvodního `+`. Pro alfanumerické odesílatele může být vyžadována předregistrace. |
+    | `gateway` | string | `high` | Směrovací brána. Použijte `high` pro standardní doručení, `direct` při odesílání z vyhrazeného virtuálního čísla nebo `custom` pro nastavení SIM hostování. |
+    | `ttl` | integer | — | Doba života v minutách. Pokud nelze zprávu v tomto okně doručit, je vyřazena. |
+    | `type` | string | `utf` | Kódování znaků. `utf` zachovává Unicode znaky (emoji, cyrilice atd.). `sms` odstraňuje nebo převádí Unicode pro maximalizaci počtu znaků na SMS část. |
+
+    ### Unicode a délka zprávy
+
+    Standardní SMS části obsahují až 160 znaků GSM-7. Pokud použijete `type: utf` a zahrnete Unicode znaky, každá část se zmenší na 70 znaků. Mějte to na paměti u zpráv blízkých hranici částí — dlouhá zpráva, která je v pořádku jako prostý text, se může při přidání emoji rozdělit na více částí.
+
+    ### Průvodce bránami
+
+    - **`high`** — Výchozí sdílená brána, vhodná pro drtivou většinu SMS odeslání.
+    - **`direct`** — Použijte, pokud jste zakoupili vyhrazené virtuální číslo a chcete obousměrnou komunikaci. Nastavte `sender` na vaše virtuální číslo (bez `+`).
+    - **`custom`** — Použijte při používání hostování SIM karet. Kontaktujte podporu SmsManager pro konfiguraci této brány.
+
+    ### Příklad
+
+    ```json
+    {
+      "body": "Váš jednorázový kód je 8274. Platnost 10 minut.",
+      "to": [{ "phone_number": "420777123456" }],
+      "flow": [
+        {
+          "sms": {
+            "sender": "MojeFirma",
+            "gateway": "high",
+            "type": "sms",
+            "ttl": 10
+          }
+        }
+      ]
+    }
+    ```
+  </Tab>
+  <Tab title="Viber">
+    ## Viber kanál
+
+    Viber Business Messages vám umožňují odesílat bohatý obsah — delší text, tlačítko s výzvou k akci a značková registrovaná jména odesílatele — přímo v aplikaci Viber. Viber zprávy jsou obvykle levnější než SMS a podporují bohatší uživatelský zážitek, vyžadují však, aby měl příjemce nainstalovaný Viber.
+
+    ### Povinná pole
+
+    | Pole | Typ | Popis |
+    | --- | --- | --- |
+    | `body` | string | Text zprávy (max 1 000 znaků). |
+    | `sender` | string | Předregistrované jméno Viber Business odesílatele. Musí přesně odpovídat jménu registrovanému přes SmsManager. |
+
+    ### Volitelná pole
+
+    | Pole | Typ | Výchozí | Popis |
+    | --- | --- | --- | --- |
+    | `ttl` | integer | — | Doba života v minutách. Pokud zpráva není doručena před vypršením TTL, SmsManager přejde na další kanál ve flow. |
+    | `buttons` | array | — | Maximálně **jedno** tlačítko. Každý objekt tlačítka vyžaduje `title` (popisek tlačítka) a `url` (cílová URL). |
+
+    ### Požadavky na nastavení
+
+    Než budete moci odesílat Viber Business Messages, musíte registrovat Viber Business jméno odesílatele přes SmsManager. Jméno musí být schváleno Viberem a je obvykle vaší značkou nebo názvem společnosti. Pro zahájení registrace kontaktujte podporu SmsManager nebo navštivte dashboard účtu.
+
+    ### Příklad
+
+    ```json
+    {
+      "body": "Vaše objednávka #5821 je připravena k vyzvednutí! 🎉",
+      "to": [{ "phone_number": "420777123456" }],
+      "flow": [
+        {
+          "viber": {
+            "sender": "MujObchod",
+            "ttl": 120,
+            "body": "Vaše objednávka #5821 je připravena k vyzvednutí! 🎉",
+            "buttons": [
+              {
+                "title": "Zobrazit objednávku",
+                "url": "https://example.com/orders/5821"
+              }
+            ]
+          }
+        },
+        {
+          "sms": {
+            "sender": "MujObchod",
+            "body": "Vaše objednávka #5821 je připravena k vyzvednutí!"
+          }
+        }
+      ]
+    }
+    ```
+
+    <Note>
+      Viber Business Messages jsou doručovány pouze příjemcům, kteří mají nainstalovanou aplikaci Viber. Vždy zahrnujte SMS zálohu ve svém flow, abyste dosáhli i příjemců, kteří Viber nepoužívají.
+    </Note>
+  </Tab>
+  <Tab title="WhatsApp Text">
+    ## WhatsApp textový kanál
+
+    WhatsApp textové zprávy vám umožňují odesílat volný text přes WhatsApp — stejný druh zprávy, kterou by napsal člověk. Protože WhatsApp omezuje nevyžádané odchozí zprávy, můžete volný text odeslat pouze v rámci **24hodinového zákaznického okna**: okno se otevře, když vám příjemce jako první napsal zprávu nebo odpověděl na jednu z vašich WhatsApp šablonových zpráv.
+
+    ### Povinná pole
+
+    | Pole | Typ | Popis |
+    | --- | --- | --- |
+    | `body` | string | Text zprávy (max 1 000 znaků). Povoleno pouze v rámci 24hodinového zákaznického okna. |
+    | `sender` | string | Phone Number ID vašeho registrovaného WhatsApp čísla. |
+
+    ### Požadavky na nastavení
+
+    Před odesíláním WhatsApp zpráv musíte ke svému účtu SmsManager připojit WhatsApp Business telefonní číslo. Své **Phone Number ID** najdete v nastavení WhatsApp na [app.smsmanager.com/whatsapp](https://app.smsmanager.com/whatsapp).
+
+    ### Kdy použít WhatsApp text vs. WhatsApp šablonu
+
+    | Situace | Použijte |
+    | --- | --- |
+    | Příjemce vám napsal nebo odpověděl na šablonu v posledních 24 hodinách | `whatsapp_text` |
+    | Zahájení proaktivního kontaktu (příjemce vám nedávno nenapsal) | `whatsapp_template` |
+
+    ### Příklad
+
+    ```json
+    {
+      "to": [{ "phone_number": "420777123456" }],
+      "flow": [
+        {
+          "whatsapp_text": {
+            "sender": "514578330250514",
+            "body": "Děkujeme, že jste nás kontaktovali! Zde jsou požadované informace: https://example.com/faq"
+          }
+        }
+      ]
+    }
+    ```
+
+    <Warning>
+      Pokud se pokusíte odeslat `whatsapp_text` zprávu mimo 24hodinové zákaznické okno, kanál selže a SmsManager přejde na další kanál ve vašem flow. Pro proaktivní oslovování použijte `whatsapp_template`.
+    </Warning>
+  </Tab>
+  <Tab title="WhatsApp Šablona">
+    ## WhatsApp šablonový kanál
+
+    WhatsApp šablonové zprávy vám umožňují zahájit proaktivní kontakt s kterýmkoli příjemcem — i když vám nikdy nenapsal. Šablony jsou předschváleny Metou a obsahují pevný strukturální text s volitelnými proměnnými značkami. Protože jsou předem prověřeny, můžete je odeslání kdykoli, nejen v rámci zákaznického okna.
+
+    ### Povinná pole
+
+    | Pole | Typ | Popis |
+    | --- | --- | --- |
+    | `template_name` | string | Přesný název schválené šablony (max 100 znaků). |
+    | `sender` | string | Phone Number ID vašeho registrovaného WhatsApp čísla. |
+    | `language` | string | Kód jazyka verze šablony (např. `en`, `cs`, `de`). |
+
+    ### Volitelná pole
+
+    | Pole | Typ | Popis |
+    | --- | --- | --- |
+    | `params` | array of strings | Hodnoty proměnných značek v **těle** šablony (v pořadí). |
+    | `params_header` | array of strings | Hodnota proměnné značky v **hlavičce** šablony, je-li přítomna. |
+    | `params_buttons` | array of strings | Hodnoty proměnných značek v **tlačítkách** šablony (např. dynamické URL). |
+    | `ttl` | integer | Doba života v minutách. |
+
+    ### Požadavky na nastavení
+
+    1. **Připojte WhatsApp Business číslo** — navštivte [app.smsmanager.com/whatsapp](https://app.smsmanager.com/whatsapp) pro propojení svého čísla a získání Phone Number ID.
+    2. **Vytvořte a nechte schválit šablonu** — šablony musí být před použitím odeslány a schváleny Metou. Tento proces obvykle trvá od několika minut do několika hodin.
+
+    ### Příklad
+
+    ```json
+    {
+      "to": [{ "phone_number": "420777123456" }],
+      "flow": [
+        {
+          "whatsapp_template": {
+            "sender": "514578330250514",
+            "template_name": "order_confirmation",
+            "language": "cs",
+            "params": ["Jan", "ORD-9921"],
+            "params_header": ["ORD-9921"],
+            "params_buttons": ["https://example.com/track/ORD-9921"],
+            "ttl": 1440
+          }
+        },
+        {
+          "sms": {
+            "sender": "MujObchod",
+            "body": "Ahoj Jane, vaše objednávka ORD-9921 je potvrzena! Sledovat: https://example.com/track/ORD-9921"
+          }
+        }
+      ]
+    }
+    ```
+
+    V tomto příkladu může tělo šablony znít: _"Ahoj_ {`{{1}}`}_, vaše objednávka_ {`{{2}}`} _je potvrzena!"_ — `params` poskytuje hodnoty `["Jan", "ORD-9921"]` v pořadí.
+
+    <Note>
+      Pokud šablona nebyla ještě schválena nebo bylo schválení odvoláno, kanál `whatsapp_template` selže a SmsManager přejde na další kanál ve vašem flow.
+    </Note>
+  </Tab>
+</Tabs>

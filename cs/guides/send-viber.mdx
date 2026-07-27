@@ -1,0 +1,203 @@
+Viber Business Messages vám umožňují oslovit zákazníky bohatým obsahem — formátovaným textem, akčními tlačítky a obrázky — prostřednictvím aplikace Viber. Protože ne každý příjemce má Viber, multikanálové `flow` SmsManageru usnadňuje automatický přechod na SMS pro uživatele, kteří Viber zprávu včas nepřijmou.
+
+## Předpoklady
+
+- Registrované **jméno Viber Business odesílatele**. Pro registraci kontaktujte [podporu SmsManager](https://app.smsmanager.com) — Viber vyžaduje schválení před odesíláním komerčních zpráv.
+- Aktivní API klíč SmsManager.
+- Základní URL: `https://api.smsmngr.com/v2`
+- Hlavička autentizace: `x-api-key: YOUR_API_KEY`
+
+---
+
+<Steps>
+  <Step title="Odešlete zprávu pouze přes Viber">
+    Přidejte objekt `viber` uvnitř pole `flow`. Nastavte `sender` na vaše registrované Viber Business jméno a volitelně přepište `body` zprávy pro kanál Viber (výchozí je kořenové `body`, pokud je vynecháno).
+
+    ```json Tělo požadavku
+    {
+      "body": "Ahoj z Viberu!",
+      "to": [{"phone_number": "420777123456"}],
+      "flow": [
+        {
+          "viber": {
+            "sender": "MujSender",
+            "body": "Ahoj z Viberu!"
+          }
+        }
+      ]
+    }
+    ```
+
+    ```bash cURL
+    curl -X POST https://api.smsmngr.com/v2/message \
+      -H "x-api-key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "body": "Ahoj z Viberu!",
+        "to": [{"phone_number": "420777123456"}],
+        "flow": [
+          {
+            "viber": {
+              "sender": "MujSender",
+              "body": "Ahoj z Viberu!"
+            }
+          }
+        ]
+      }'
+    ```
+  </Step>
+  <Step title="Přidejte tlačítko">
+    Viber Business Messages podporují maximálně **jedno akční tlačítko** na zprávu. Poskytněte pole `buttons` uvnitř objektu `viber`. Každé tlačítko vyžaduje `title` (popisek tlačítka) a `url` (kam tlačítko převede uživatele).
+
+    ```json viber flow objekt
+    {
+      "viber": {
+        "sender": "MujSender",
+        "body": "Podívejte se na naši nejnovější nabídku — jen pro vás!",
+        "buttons": [
+          {
+            "title": "Zobrazit nabídku",
+            "url": "https://example.com/offer"
+          }
+        ],
+        "ttl": 60
+      }
+    }
+    ```
+
+    <Tip>
+      Popisek tlačítka udržujte krátký a akční — popisky jako "Zobrazit nabídku", "Sledovat objednávku" nebo "Potvrdit" výkonnější než obecné jako "Klikněte zde".
+    </Tip>
+  </Step>
+  <Step title="Přidejte SMS zálohu">
+    Umistěte krok `viber` jako první a krok `sms` jako druhý v poli `flow`. Pokud si příjemce Viber zprávu nepřečte v okně TTL, SmsManager automaticky doručí zprávu přes SMS.
+
+    ```json Tělo požadavku
+    {
+      "body": "Vaše objednávka #ORD-9921 byla odeslána! Sledujte na https://example.com/track",
+      "to": [{"phone_number": "420777123456"}],
+      "flow": [
+        {
+          "viber": {
+            "sender": "MujSender",
+            "body": "Vaše objednávka #ORD-9921 byla odeslána! Sledujte na https://example.com/track",
+            "buttons": [
+              {
+                "title": "Sledovat objednávku",
+                "url": "https://example.com/track/ORD-9921"
+              }
+            ],
+            "ttl": 60
+          }
+        },
+        {
+          "sms": {
+            "sender": "MujObchod",
+            "gateway": "high"
+          }
+        }
+      ]
+    }
+    ```
+
+    Když Viber TTL vyprší bez přečtení, SmsManager přejde na další krok ve `flow` a odešle SMS. Obdržíte samostatné webhook události pro každý pokus o kanál.
+  </Step>
+</Steps>
+
+---
+
+## TTL (doba života)
+
+Pole `ttl` uvnitř objektu `viber` nastavuje, jak dlouho (v minutách) SmsManager čeká, než příjemce přečte Viber zprávu, předtím než spustí další krok ve flow. Pokud není TTL nastaveno, zpráva zůstává nevyřízena, dokud ji platforma Viber nevyproší.
+
+- Pokud je `ttl` nastaveno a příjemce **přečte** Viber zprávu v okně, flow se tam zastaví — SMS se neodešle.
+- Pokud `ttl` vyprší a příjemce zprávu **nepřečet**, SmsManager pokračuje dalším krokem (například SMS záloha).
+
+```json
+"viber": {
+  "sender": "MujSender",
+  "body": "Vaše schůzka je zítra v 10:00.",
+  "ttl": 120
+}
+```
+
+<Note>
+  Viber doručovací reporty obsahují stav `seen` (viděno), když příjemce zprávu otevře. Použijte webhooky ke sledování, zda byla Viber zpráva viděna nebo zda byla spuštěna SMS záloha.
+</Note>
+
+---
+
+## Viber vs SMS
+
+| Funkce | Viber | SMS |
+| --- | --- | --- |
+| Bohatý obsah (tlačítka, obrázky) | ✅ | ❌ |
+| Potvrzení přečtení | ✅ | ❌ |
+| Vyžaduje Viber aplikaci | ✅ | ❌ |
+| Globální dosah (uživatelé bez Viberu) | ❌ | ✅ |
+| Limit znaků | ~1000 znaků | 160 GSM-7 / 70 UCS-2 na segment |
+| Cena | Obvykle nižší | Standardní SMS sazba |
+
+Použití `flow` SmsManageru vám dává to nejlepší z obou světů: bohatý Viber obsah pro uživatele s aplikací a zaručené SMS doručení pro ostatní.
+
+---
+
+## Kompletní cURL příklad
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Ahoj! Vaše exkluzivní sleva čeká. Použijte kód SAVE20 při pokladně.",
+    "to": [
+      {"phone_number": "420777123456"},
+      {"phone_number": "420777654321"}
+    ],
+    "tag": "promotional",
+    "callback": "https://yourapp.com/webhooks/viber",
+    "flow": [
+      {
+        "viber": {
+          "sender": "MujSender",
+          "body": "Ahoj! Vaše exkluzivní sleva čeká. Použijte kód SAVE20 při pokladně.",
+          "buttons": [
+            {
+              "title": "Nakupovat teď",
+              "url": "https://example.com/sale?code=SAVE20"
+            }
+          ],
+          "ttl": 120
+        }
+      },
+      {
+        "sms": {
+          "sender": "MujObchod",
+          "gateway": "high"
+        }
+      }
+    ]
+  }'
+```
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Odeslat WhatsApp" icon="whatsapp" href="/cs/guides/send-whatsapp">
+    Odesílejte WhatsApp šablonové a textové zprávy s SMS zálohou.
+  </Card>
+
+  <Card title="Webhooky" icon="webhook" href="/cs/guides/webhooks">
+    Sledujte stav doručení Viber a SMS záložní události přes webhooky.
+  </Card>
+
+  <Card title="Hromadné odesílání" icon="layer-group" href="/cs/guides/batch-sending">
+    Odesílejte Viber a SMS zprávy společně v jednom dávkovém API volání.
+  </Card>
+
+  <Card title="Odeslat SMS" icon="message-sms" href="/cs/guides/send-sms">
+    Zjistěte více o možnostech konfigurace pouze pro SMS.
+  </Card>
+</CardGroup>

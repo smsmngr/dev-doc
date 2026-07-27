@@ -1,0 +1,47 @@
+WhatsApp Business Partner API SmsManageru vám dává programový způsob, jak registrovat vaše klienty pro WhatsApp Business messaging, sledovat jejich pokrok při onboardingu a získávat telefonní čísla a šablony zpráv spojené s jejich účty — vše spravované pod vašimi partnerskými přihlašovacími údaji.
+
+## Pro koho je toto API?
+
+Pokud jste ISV, reseller nebo tvůrce platformy integrující WhatsApp messaging do produktu, který nabízíte vlastním zákazníkům, toto API je pro vás. Místo směrování každého klienta manuálním procesem registrace zahájíte registraci jejich jménem, přesměrujete je do SmsManagerem hostovaného toku, kde dokončí registraci WhatsApp Business Account (WABA), a poté použijete management endpointy k dohledaní detailů jejich účtu po dokončení onboardingu. Všechno běží pod vaším partnerským účtem — vaši klienti nikdy nepotřebují přímý přístup k SmsManageru.
+
+## Základní URL
+
+```text
+https://rest-api.smsmngr.com/v1
+```
+
+## Autentizace
+
+Všechny endpointy vyžadují váš API klíč v hlavičce požadavku `x-api-key`.
+
+```http
+x-api-key: <your-api-key>
+```
+
+## Onboardingový tok
+
+1. **POST /whatsapp/signup** — Odešlete detaily vašeho klienta SmsManageru. Obdržíte `redirect_url` a krátkodobý JWT `token`.
+2. **Přesměrujte klienta** — Přidejte token jako query parametr a pošlete prohlížeč klienta na `redirect_url?token=<JWT>`. SmsManager slouží hostovanou registrační UI.
+3. **Klient dokončí registraci** — Klient sleduje kroky registrace WhatsApp Business v hostovaném toku SmsManageru. Žádné kódování na jeho straně není nutné.
+4. **Přijme te callback** — SmsManager POSTuje oznámení o stavu onboardingu na `partner_callback_url`, které jste zadali v kroku 1. Poslouchejte na událost dokončení.
+5. **Získejte WABA ID** — Zavolejte `POST /whatsapp/accounts/list` pro získání `whatsapp_id` (WABA ID) nového účtu.
+6. **Spravujte telefonní čísla a šablony** — Použijte WABA ID s `POST /whatsapp/phone_numbers/list` a `POST /whatsapp/templates/list` k získání zdrojů potřebných k odesílání zpráv.
+
+## Souhrn endpointů
+
+| Metoda | Cesta | Popis |
+| --- | --- | --- |
+| `POST` | `/whatsapp/signup` | Zahájit WABA onboardingovou session pro klienta. |
+| `POST` | `/whatsapp/accounts/list` | Vypsat WABA účty spojené s vaším partnerským účtem. |
+| `POST` | `/whatsapp/phone_numbers/list` | Vypsat telefonní čísla registrovaná pod WABA. |
+| `POST` | `/whatsapp/templates/list` | Vypsat schválené šablony zpráv pro WABA. |
+
+<CardGroup cols={2}>
+  <Card title="Registrace" icon="user-plus" href="/cs/api-reference/waba/signup">
+    POST /whatsapp/signup — zahájit onboardingový tok klienta
+  </Card>
+
+  <Card title="Správa" icon="sliders" href="/cs/api-reference/waba/manage">
+    Správa účtů, telefonních čísel a šablon
+  </Card>
+</CardGroup>

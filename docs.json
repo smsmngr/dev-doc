@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "SmsManager",
-  "theme": "maple",
+  "theme": "luma",
   "colors": {
     "primary": "#ac1c4c"
   },
@@ -24,85 +24,27 @@
     }
   },
   "navigation": {
-    "tabs": [
+    "languages": [
       {
-        "tab": "Documentation",
+        "language": "en",
         "groups": [
           {
-            "group": "Get Started",
+            "group": "Getting started",
             "pages": [
-              "introduction",
-              "quickstart",
-              "authentication"
-            ]
-          },
-          {
-            "group": "Core Concepts",
-            "pages": [
-              "concepts/message-flow",
-              "concepts/channels",
-              "concepts/message-ids",
-              "concepts/scheduling"
-            ]
-          },
-          {
-            "group": "Guides",
-            "pages": [
-              "guides/send-sms",
-              "guides/send-viber",
-              "guides/send-whatsapp",
-              "guides/batch-sending",
-              "guides/phone-verification",
-              "guides/webhooks"
-            ]
-          },
-          {
-            "group": "Reference",
-            "pages": [
-              "reference/errors",
-              "reference/rate-limits",
-              "reference/phone-numbers"
+              "en/index",
+              "en/quickstart"
             ]
           }
         ]
       },
       {
-        "tab": "API Reference",
+        "language": "cs",
         "groups": [
           {
-            "group": "JSON API v2",
+            "group": "Comenzando",
             "pages": [
-              "api-reference/json-v2/overview",
-              "api-reference/json-v2/send-messages",
-              "api-reference/json-v2/send-simple-message",
-              "api-reference/json-v2/webhooks"
-            ]
-          },
-          {
-            "group": "REST API",
-            "pages": [
-              "api-reference/rest/overview",
-              "api-reference/rest/api-keys",
-              "api-reference/rest/credit",
-              "api-reference/rest/message-status",
-              "api-reference/rest/inbox"
-            ]
-          },
-          {
-            "group": "Verify API",
-            "pages": [
-              "api-reference/verify/overview",
-              "api-reference/verify/start-validation",
-              "api-reference/verify/verify-code",
-              "api-reference/verify/verify-proof"
-            ]
-          },
-          {
-            "group": "WhatsApp Partner API",
-            "pages": [
-              "api-reference/waba/overview",
-              "api-reference/waba/signup",
-              "api-reference/waba/manage"
+              "cs/index",
+              "cs/quickstart"
             ]
           }
         ]

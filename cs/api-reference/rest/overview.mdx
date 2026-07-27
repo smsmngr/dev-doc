@@ -1,0 +1,52 @@
+SmsManager REST API je samostatné API oddelené od JSON API v2 (odesílací API). Zatímco JSON API v2 zpracovává doručování odchozích zpráv, REST API pokrývá úkoly správy účtu: vytváření a aktualizace API klíčů, kontrolu kreditního zůstatku, dotazování stavu jednotlivých zpráv, listing odeslaných zpráv a čtení příchozích zpráv ve vaší schránce.
+
+## Základní URL
+
+Všechny požadavky REST API se provádějí na:
+
+```text
+https://rest-api.smsmngr.com/v1
+```
+
+## Autentizace
+
+Každý požadavek musí obsahovat váš API klíč v hlavičce požadavku `x-api-key`. Je to stejný API klíč, který používáte s JSON API v2.
+
+```http
+x-api-key: YOUR_API_KEY
+```
+
+Své API klíče můžete najít a spravovat v [SmsManager Dashboardu](https://app.smsmanager.com).
+
+## Endpointy
+
+| Metoda | Endpoint | Popis |
+| --- | --- | --- |
+| `GET` | `/apikey/me` | Získat informace o aktuálním API klíči |
+| `POST` | `/apikey/add` | Vytvořit nový sub-klíč |
+| `POST` | `/apikey/update` | Aktualizovat nastavení API klíče |
+| `GET` | `/credit` | Zkontrolovat kreditní zůstatek |
+| `GET` | `/message` | Získat stav jednotlivé zprávy |
+| `GET` | `/messages` | Vypsat zprávy podle data |
+| `GET` | `/requests` | Získat statistiku odesílání |
+| `GET` | `/inbox` | Číst příchozí zprávy |
+
+## Prozkoumejte endpointy
+
+<CardGroup cols={2}>
+  <Card title="API klíče" icon="key" href="/cs/api-reference/rest/api-keys">
+    Vytvářejte sub-klíče, zobrazujte detaily klíčů a konfigurujte callback URL.
+  </Card>
+
+  <Card title="Kredit" icon="coins" href="/cs/api-reference/rest/credit">
+    Zkontrolujte váš prepaid kreditní zůstatek v CZK a EUR.
+  </Card>
+
+  <Card title="Stav zprávy" icon="message" href="/cs/api-reference/rest/message-status">
+    Dotazujte stav doručení jednotlivých zpráv a získávejte denní statistiku odesílání.
+  </Card>
+
+  <Card title="Schránka" icon="inbox" href="/cs/api-reference/rest/inbox">
+    Čti příchozí zprávy přijaté na vašich virtuálních číslech.
+  </Card>
+</CardGroup>
