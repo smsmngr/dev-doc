@@ -1,0 +1,934 @@
+openapi: 3.1.0
+info:
+  title: JSON API
+  description: |
+    API for sending messages via SMS, Viber, WhatsApp and other communication channels.
+
+    ## JSON API v2
+
+    API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+
+    API versions (http-api and xml-api) are deprecated also and you should use this JSON API v2 instead.
+  version: v2
+  contact:
+    url: https://smsmanager.cz
+    email: cc@smsmanager.cz
+
+servers:
+  - url: 'https://api.smsmngr.com/v2'
+    description: Responds with your request data
+
+components:
+  schemas:
+    Message:
+      type: object
+      required:
+        - body
+        - to
+      properties:
+        body:
+          type: string
+          maxLength: 1000
+          description: The message body (if not defined in the flow).
+        to:
+          type: array
+          minItems: 1
+          maxItems: 10
+          description: List of recipients.
+          items:
+            type: object
+            properties:
+              phone_number:
+                type: string
+                description: Recipient's phone number. The international format (E.164, without leading `+` or `00`) is recommended but also another format is accepted (before accepting the request, we will convert it to the international format).
+                example: "420777123456"
+            required:
+              - phone_number
+        callback:
+          type: string
+          format: uri
+          description: Callback URL for receiving delivery notifications (Webhook, see [Webhooks](#tag/Webhooks)).
+        tag:
+          type: string
+          default: 'promotional'
+          description: 'Tag for the message. You can use it to group messages (e.g. by campaign id). There are also some special tags you can use: `priority` (for priority messages), `transactional` (for transactional messages).'
+        params:
+          type: object
+          description: 'By providing this object, you can pass special parameters to the message. Ask us how to use this parameter for shortening links or other features.'
+        datetime:
+          type: string
+          format: date-time
+          description: Scheduled time for sending the message. Always in UTC timezone.
+          example: "2025-01-11T10:00:00Z"
+        delivery_time:
+          type: object
+          properties:
+            days:
+              type: array
+              items:
+                type: string
+                enum:
+                  - monday
+                  - tuesday
+                  - wednesday
+                  - thursday
+                  - friday
+                  - saturday
+                  - sunday
+              description: Days of the week for the scheduled time.
+            start:
+              type: string
+              description: Start time for the scheduled time.
+              example: 08:00
+            end:
+              type: string
+              description: End time for the scheduled time.
+              example: 21:00
+            tz:
+              type: string
+              description: Timezone for the scheduled time.
+              example: Europe/Prague, Europe/London, Europe/Berlin, America/New_York
+              default: UTC
+        flow:
+          type: array
+          description: A list of communication channels for the message flow. If defined, must not be empty. You can use multiple channels, the order of channels is important (first channel is the first to be used, if the first channel is not available or recipient does not accept it, the second channel is used, etc.).
+          items:
+            type: object
+            additionalProperties: false
+            minProperties: 1
+            maxProperties: 1
+            properties:
+              sms:
+                type: object
+                properties:
+                  body:
+                    type: string
+                    maxLength: 1000
+                    description: This definition of message body here have higher priority than the one defined in the root object.
+                  sender:
+                    type: string
+                    description: Alphanumeric sender name (max. 11 characters, pre-registration may be required) or dedicated virtual number (without `+`).
+                    examples:
+                      - Mojefirma
+                      - 420777123456
+                  gateway:
+                    type: string
+                    enum:
+                      - high
+                      - direct
+                      - custom
+                    default: high
+                    description: Use `direct` if you use dedicated virtual number. Use `custom` if you use SIM hosting. 
+                  ttl:
+                    type: integer
+                    description: Time to live in minutes.
+                  type:
+                    type: string
+                    enum:
+                      - sms
+                      - utf
+                    default: utf
+                    description: Set `utf` if you want to keep unicode characters in the message. Set `sms` if you want to convert or remove unicode from message to keep maximal capacity in SMS.
+                required:
+                  - body
+              viber:
+                type: object
+                properties:
+                  body:
+                    type: string
+                    maxLength: 1000
+                    description: This definition of message body here have higher priority than the one defined in the root object.
+                  sender:
+                    type: string
+                    description: Use the name of the sender you have pre-registered for your Viber Business Message.
+                  buttons:
+                    type: array
+                    maxItems: 1
+                    items:
+                      type: object
+                      required:
+                        - title
+                        - url
+                      properties:
+                        title:
+                          type: string
+                        url:
+                          type: string
+                          format: uri
+                  ttl:
+                    type: integer
+                    description: Time to live in minutes.
+                required:
+                  - body
+                  - sender
+              whatsapp_text:
+                type: object
+                properties:
+                  body:
+                    type: string
+                    description: This definition of message body here have higher priority than the one defined in the root object. You can use custom body of message only when the recipient already reply to your template message or send you a message first.
+                    maxLength: 1000
+                  sender:
+                    type: string
+                    description: Phone Number ID of registered WhatsApp number. You can find it in your [WhatsApp settings](https://app.smsmanager.com/whatsapp).
+                    examples:
+                      - "514578330250514"
+                required:
+                  - body
+                  - sender
+              whatsapp_template:
+                type: object
+                properties:
+                  template_name:
+                    type: string
+                    description: The name of the template you have pre-registered and approved before use.
+                    maxLength: 100
+                  sender:
+                    type: string
+                    description: Phone Number ID of registered WhatsApp number. You can find it in your [WhatsApp settings](https://app.smsmanager.com/whatsapp).
+                    examples:
+                      - "514578330250514"
+                  params:
+                    type: array
+                    items:
+                      type: string
+                    description: If your template has parameters, you need to pass values for them here.
+                  params_header:
+                    type: array
+                    items:
+                      type: string
+                    description: If your template has header with parameter, you need to pass value for it here.
+                  params_buttons:
+                    type: array
+                    items:
+                      type: string
+                    description: If your template buttons have parameters, you need to pass values for them here.
+                  language:
+                    type: string
+                    examples:
+                      - en
+                      - cs
+                    description: The language of the template (you can have multiple languages for the same template).
+                  ttl:
+                    type: integer
+                    description: Time to live in minutes.
+                required:
+                  - template_name
+                  - language
+                  - sender
+        payload:
+          type: object
+          description: |
+            You can send the message payload, where you can define any parameters for the message. This object is returned in the delivery notification and replies.
+          example:
+            user_id: "123456"
+    
+    MessagesResponse:
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: Unique request identifier.
+        accepted:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                description: 'Index of the original request from the body array.'
+              message_id:
+                type: string
+                description: Unique message identifier for each request in the body array.
+        rejected:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                description: 'Index of the original request from the body array.'
+      
+    MessageResponse:
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: Unique request identifier.
+        accepted:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                description: 'Index of the original recipient from the `to` array.'
+              message_id:
+                type: string
+                description: Unique message identifier for accepted message.
+        rejected:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                description: 'Index of the original recipient from the `to` array.'
+    MessageSimpleResponse:
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: Unique request identifier.
+          example: "bc36f3d1-d284-463a-921b-a3560c154649"
+        message_id:
+          type: string
+          description: Unique message identifier.
+          example: "bc36f3d1-d284-463a-921b-a3560c154649"
+        accepted:
+          type: boolean
+          description: True if the message was accepted, false if rejected.
+          example: true
+  securitySchemes:
+    x-api-key:
+      type: apiKey
+      in: header
+      name: x-api-key
+    apikey:
+      type: apiKey
+      in: query
+      name: apikey
+
+
+paths:
+  /message:
+    post:
+      security:
+        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+      tags:
+        - sending
+      summary: Send a message
+      description: |
+        Use this endpoint to send a message to one or more recipients (up to 10 recipients). If you want to use channels other than SMS (Viber, WhatsApp, etc.), you need to use the `flow` property.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Message'
+            examples:
+              Simple message:
+                value:
+                  body: "Test message"
+                  to:
+                    - phone_number: "420777123456"
+              Message with flow:
+                value:
+                  body: "Test message"
+                  to:
+                    - phone_number: "420777123456"
+                  flow:
+                    - sms:
+                        sender: "SmsManager"
+                        gateway: "high"
+                        ttl: 10
+              Scheduled message:
+                value:
+                  body: "Meeting reminder"
+                  to:
+                    - phone_number: "420777123456"
+                  datetime: "2025-01-11T10:00:00Z"
+              Message with callback and payload:
+                value:
+                  body: "Order shipped"
+                  to:
+                    - phone_number: "420777123456"
+                  callback: "https://example.com/delivery"
+                  payload:
+                    order_id: "ORD-1001"
+              Unicode SMS with custom TTL:
+                value:
+                  body: "Привет, Ваш код: 1234"
+                  to:
+                    - phone_number: "420777123456"
+                  tag: "transactional"
+                  flow:
+                    - sms:
+                        sender: "SmsManager"
+                        type: "utf"
+                        ttl: 5
+      responses:
+        '200':
+          description: Messages sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Message:
+                    type: string
+                    description: Error message.
+                    example: User is not authorized to access this resource with an explicit deny
+
+  /messages:
+    post:
+      security:
+        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+      tags:
+        - sending
+      summary: Send multiple messages
+      description: |
+        Use this endpoint to send batch of identical messages to more recipients (you can set up to 10 recipients per request and up to 10 requests per one API call). That means, that you can send up to 100 recipients per single HTTP API call. If you want to use channels other than SMS (Viber, WhatsApp, etc.), you need to use the `flow` property. Using this endpoint, you will receive `message_id` for each of requests (not for each recipient). For get message_id for each recipient, you need to append `-<recipient_index>` to the `message_id`. More information about message_id you can find in [documentation](#sending/paths/~1messages/post/response&c=200).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items:
+                $ref: '#/components/schemas/Message'
+            examples:
+              Two requests with multiple recipients:
+                value:
+                  - body: "Hello John"
+                    to:
+                      - phone_number: "420777123456"
+                      - phone_number: "420777654321"
+                  - body: "Hello Jane"
+                    to:
+                      - phone_number: "420777115577"
+                      - phone_number: "420777223344"
+              Mixed channels:
+                value:
+                  - body: "Promo SMS"
+                    to:
+                      - phone_number: "420777111111"
+                    flow:
+                      - sms:
+                          sender: "PromoSMS"
+                          gateway: "high"
+                  - body: "Promo Viber"
+                    to:
+                      - phone_number: "420777222222"
+                    flow:
+                      - viber:
+                          sender: "PromoViber"
+                          ttl: 2
+              Scheduled batch:
+                value:
+                  - body: "Scheduled greetings"
+                    to:
+                      - phone_number: "420777333333"
+                    datetime: "2025-01-11T10:00:00Z"
+                  - body: "Another scheduled"
+                    to:
+                      - phone_number: "420777444444"
+                    datetime: "2025-01-11T10:05:00Z"
+              WhatsApp templates:
+                value:
+                  - to:
+                      - phone_number: "420777555555"
+                    flow:
+                      - whatsapp_template:
+                          template_name: "order_update"
+                          sender: "447700900123"
+                          params:
+                            - "John"
+                            - "12345"
+                  - to:
+                      - phone_number: "420777666666"
+                    flow:
+                      - whatsapp_template:
+                          template_name: "order_update"
+                          sender: "447700900123"
+                          params:
+                            - "Jane"
+                            - "54321"
+              Messages with payload and callback:
+                value:
+                  - body: "Your package is on the way"
+                    to:
+                      - phone_number: "420777777777"
+                    callback: "https://example.com/delivery"
+                    payload:
+                      order_id: "ORD-42"
+                  - body: "We received your inquiry"
+                    to:
+                      - phone_number: "420777888888"
+                    payload:
+                      ticket_id: "TCK-99"
+      responses:
+        '200':
+          description: Messages sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagesResponse'
+              examples:
+                Accepted two requests with multiple recipients:
+                  description: Two requests with multiple recipients. Be careful, when you use `/messages` endpoint, then you will receive `message_id` for each of requests (not for each recipient). For get message_id for each recipient, you need to append `-<recipient_index>` to the `message_id`. For example, if you have two recipients for the first request, the first recipient will have `message_id` `pppppppp-qqqq-rrrr-ssss-tttttttttttt-0` and the second recipient will have `message_id` `pppppppp-qqqq-rrrr-ssss-tttttttttttt-1`.
+                  value:
+                    request_id: "66666666-6666-6666-6666-666666666666"
+                    accepted:
+                      - key: "0"
+                        message_id: "pppppppp-qqqq-rrrr-ssss-tttttttttttt"
+                      - key: "1"
+                        message_id: "uuuuuuuu-vvvv-wwww-xxxx-yyyyyyyyyyyy"
+                    rejected: []
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Message:
+                    type: string
+                    description: Error message.
+                    example: User is not authorized to access this resource with an explicit deny
+
+  /simple/message:
+    get:
+      security:
+        - apikey: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+      tags:
+        - sending
+      summary: Send a simple message (GET request)
+      parameters:
+        - name: apikey
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: phone_number
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: message
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: sender
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Simple message sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageSimpleResponse'
+              examples:
+                Accepted message:
+                  value:
+                    request_id: "66666666-6666-6666-6666-666666666666"
+                    message_id: "pppppppp-qqqq-rrrr-ssss-tttttttttttt"
+                    accepted: true
+                Rejected invalid sender:
+                  value:
+                    request_id: "77777777-7777-7777-7777-777777777777"
+                    accepted: false
+                Rejected missing parameter:
+                  value:
+                    request_id: "88888888-8888-8888-8888-888888888888"
+                    accepted: false
+                Accepted message with accents:
+                  value:
+                    request_id: "99999999-9999-9999-9999-999999999999"
+                    message_id: "uuuuuuuu-vvvv-wwww-xxxx-yyyyyyyyyyyy"
+                    accepted: true
+                Accepted high priority:
+                  value:
+                    request_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+                    message_id: "zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz"
+                    accepted: true
+        '400':
+          description: Invalid request
+
+    post:
+      security:
+        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+      tags:
+        - sending
+      summary: Send a simple message (POST request)
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - phone_number
+                - message
+                - sender
+              properties:
+                phone_number:
+                  type: string
+                message:
+                  type: string
+                sender:
+                  type: string
+      responses:
+        '200':
+          description: Simple message sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageSimpleResponse'
+              examples:
+                Accepted message:
+                  value:
+                    request_id: "11111111-1111-1111-1111-111111111111"
+                    message_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+                    accepted: true
+                Rejected invalid number:
+                  value:
+                    request_id: "22222222-2222-2222-2222-222222222222"
+                    accepted: false
+                Rejected insufficient credit:
+                  value:
+                    request_id: "33333333-3333-3333-3333-333333333333"
+                    accepted: false
+                Accepted promo message:
+                  value:
+                    request_id: "44444444-4444-4444-4444-444444444444"
+                    message_id: "ffffffff-gggg-hhhh-iiii-jjjjjjjjjjjj"
+                    accepted: true
+                Accepted transactional message:
+                  value:
+                    request_id: "55555555-5555-5555-5555-555555555555"
+                    message_id: "kkkkkkkk-llll-mmmm-nnnn-oooooooooooo"
+                    accepted: true
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request_id:
+                    type: string
+                    description: Unique request identifier.
+                    example: "bc36f3d1-d284-463a-921b-a3560c154649"
+                  accepted:
+                    type: boolean
+                    description: True if the message was accepted, false if rejected.
+                    example: false
+        '415':
+          description: 'Wrong Content-Type'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Only Content-Type:application/x-www-form-urlencoded is supported
+                    example: 'Unsupported Media Type '
+
+x-webhooks:
+  sentMessage:
+    post:
+      tags:
+        - Webhooks
+      summary: Sent message webhook
+      description: |
+        This webhook sends you information about sent messages. You can use this webhook to save information about sent messages, such as message_id, gateway, timestamp, payload, etc.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  request_id:
+                    type: string
+                    example: "bc36f3d1-d284-463a-921b-a3560c154649"
+                  message_id:
+                    type: string
+                    description: Unique message identifier. (if you use `/messages` endpoint, then you will receive `message_id` with `-<recipient_index>` appended to the `message_id`).
+                    example: "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"
+                  gateway:
+                    description: Used `flow` for the message.
+                    type: string
+                    enum:
+                      - sms
+                      - viber
+                      - whatsapp_text
+                      - whatsapp_template
+                    example: sms
+                  timestamp:
+                    type: integer
+                    example: 1700000000
+                  payload:
+                    type: object
+                    example:
+                      campaign_id: "winter-sale"
+                  type:
+                    type: string
+                    default: outgoing
+                  to:
+                    type: object
+                    properties:
+                      phone_number:
+                        type: string
+                        example: "420777123456"
+                  result:
+                    description: Result of the message sending. First, you will receive `sent` status, then another statuses will follow. If the message is rejected, that means that the message was not even sent (typical reason is insufficient credit or invalid phone number).
+                    type: string
+                    enum:
+                      - delivered
+                      - undelivered
+                      - rejected
+                      - failed
+                      - sending
+                      - sent
+                      - seen
+                  result_info:
+                    type: string
+                    description: Additional result code for the message in format "[code] Description". Code is optional, description is also optional. Result info can also contain only code inside square brackets or only description without code.
+                    examples:
+                      - "[307] Insufficient credit"
+                      - "[131042] There was an error related to your payment method"
+                      - "Unauthorized error"
+                      - "[368]"
+                  sms:
+                    type: object
+                    properties:
+                      gateway:
+                        description: Used specific gateway settings for the message.
+                        type: string
+                      sender:
+                        description: Used sender for the message.
+                        type: string
+                      country:
+                        description: Used country for the message (official `MCC` code).
+                        type: integer
+                      operator:
+                        description: Used operator for the message (official `MNC` code or `0` for unknown/general operator).
+                        type: integer
+                      price_czk:
+                        description: Price of the message in CZK.
+                        type: number
+                      price_eur:
+                        description: Price of the message in EUR.
+                        type: number
+                      count:
+                        description: Count of the parts (how many billed messages were sent).
+                        type: integer
+                  whatsapp_template:
+                    type: object
+                    properties:
+                      sender:
+                        description: Used sender for the message.
+                        type: string
+                      country:
+                        description: Used country for the message (official `MCC` code).
+                        type: integer
+                      operator:
+                        description: Used operator for the message (official `MNC` code or `0` for unknown/general operator).
+                        type: integer
+                      price_czk:
+                        description: Price of the message in CZK.
+                        type: number
+                      price_eur:
+                        description: Price of the message in EUR.
+                        type: number
+                      count:
+                        description: Count of the parts (how many billed messages were sent).
+                        type: integer
+                  viber:
+                    type: object
+                    properties:
+                      sender:
+                        description: Used sender for the message.
+                        type: string
+                      country:
+                        description: Used country for the message (official `MCC` code).
+                        type: integer
+                      operator:
+                        description: Used operator for the message (official `MNC` code or `0` for unknown/general operator).
+                        type: integer
+                      price_czk:
+                        description: Price of the message in CZK.
+                        type: number
+                      price_eur:
+                        description: Price of the message in EUR.
+                        type: number
+                      count:
+                        description: Count of the parts (how many billed messages were sent).
+                        type: integer
+                  whatsapp_body:
+                    type: object
+                    properties:
+                      sender:
+                        description: Used sender for the message.
+                        type: string
+                      country:
+                        description: Used country for the message (official `MCC` code).
+                        type: integer
+                      operator:
+                        description: Used operator for the message (official `MNC` code or `0` for unknown/general operator).
+                        type: integer
+                      price_czk:
+                        description: Price of the message in CZK.
+                        type: number
+                      price_eur:
+                        description: Price of the message in EUR.
+                        type: number
+                      count:
+                        description: Count of the parts (how many billed messages were sent).
+                        type: integer
+            examples:
+              Message delivered:
+                value:
+                  - request_id: "bc36f3d1-d284-463a-921b-a3560c154649"
+                    message_id: "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"
+                    gateway: sms
+                    timestamp: 1700000000
+                    payload:
+                      campaign_id: "winter-sale"
+                    type: outgoing
+                    to:
+                      phone_number: "420777123456"
+                    result: delivered
+                    result_info: "[0] Delivered"
+  incomingReplyMessage:
+    post:
+      tags:
+        - Webhooks
+      summary: Incoming reply message webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  request_id:
+                    type: string
+                    description: Unique request identifier used for sent message to the recipient.
+                    example: "bc36f3d1-d284-463a-921b-a3560c154649"
+                  message_id:
+                    description: Unique message identifier used for sent message to the recipient.
+                    type: string
+                    example: "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"
+                  payload:
+                    type: object
+                    example:
+                      campaign_id: "winter-sale"
+                  gateway:
+                    description: Used `flow` for the message. Note, that for `whatsapp_body` instead of `whatsapp_template` you will receive only `whatsapp` (incoming messages are not split into `whatsapp_body` or `whatsapp_template`).
+                    type: string
+                    enum:
+                      - sms
+                      - viber
+                      - whatsapp
+                  timestamp:
+                    description: Timestamp of the message in Unix timestamp format. This is the timestamp of the message has been sent by the sender (if that infomration is not available, then you will receive timestamp of the message has been received by our system).
+                    type: integer
+                    example: 1700000000
+                  type:
+                    description: Type of the message.
+                    type: string
+                    default: incoming
+                  sender:
+                    description: Sender of the message. In some countries, the alphameric sender is not fully supported.
+                    type: string
+                    example: "420777123456"
+                  recipient:
+                    description: Recipient of the message.
+                    type: string
+                    example: "420777654321"
+                  body:
+                    description: Body of the message.
+                    type: string
+                    example: "Thank you!"
+            examples:
+              Incoming reply message:
+                value:
+                  - request_id: "bc36f3d1-d284-463a-921b-a3560c154649"
+                    message_id: "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"
+                    payload:
+                      campaign_id: "winter-sale"
+                    gateway: sms
+                    timestamp: 1700000000
+                    type: incoming
+                    sender: "420777123456"
+                    recipient: "420777654321"
+                    body: "Thank you!"
+  incomingMessage:
+    post:
+      tags:
+        - Webhooks
+      summary: Incoming message webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  gateway:
+                    description: Used `flow` for the message.
+                    type: string
+                    enum:
+                      - sms
+                      - viber
+                      - whatsapp
+                  timestamp:
+                    description: Timestamp of the message in Unix timestamp format. This is the timestamp of the message has been sent by the sender (if that information is not available, then you will receive timestamp of the message has been received by our system).
+                    type: integer
+                    example: 1700000000
+                  type:
+                    description: Type of the message.
+                    type: string
+                    default: incoming
+                  sender:
+                    description: Sender of the message. In some countries, the alphameric sender is not fully supported.
+                    type: string
+                    example: "420777123456"
+                  recipient:
+                    description: Recipient of the message.
+                    type: string
+                    example: "420777654321"
+                  body:
+                    type: string
+            examples:
+              Incoming message:
+                value:
+                  - gateway: whatsapp
+                    timestamp: 1700000000
+                    type: incoming
+                    sender: "420777123456"
+                    recipient: "420777654321"
+                    body: "Hello, I have a question."
+
+tags:
+  - name: sending
+    x-displayName: Sending messages
+    description: |
+      For sending messages use one of the following endpoints.
+      - `/message` for sending a message up to 10 recipients
+      - `/messages` for sending multiple messages (up to 10 messages at once)
+      - `/simple/message` for sending a simple message (GET and POST)
+

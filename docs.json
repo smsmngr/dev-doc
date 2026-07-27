@@ -72,7 +72,7 @@
             ]
           },
           {
-            "tab": "API reference",
+            "tab": "Návody",
             "groups": [
               {
                 "group": "JSON API v2",
@@ -109,6 +109,31 @@
                   "cs/api-reference/waba/signup",
                   "cs/api-reference/waba/manage"
                 ]
+              }
+            ]
+          },
+          {
+            "tab": "API reference",
+            "groups": [
+              {
+                "group": "JSON API v2",
+                "openapi": "/openapi/cs/json/jsonapi_v2.yaml"
+              },
+              {
+                "group": "JSON API v1",
+                "openapi": "/openapi/cs/json/jsonapi_v1.yaml"
+              },
+              {
+                "group": "REST API",
+                "openapi": "/openapi/cs/rest/restapi_v1.yaml"
+              },
+              {
+                "group": "Verify API",
+                "openapi": "/openapi/cs/verify/verifyapi_v1.yaml"
+              },
+              {
+                "group": "WhatsApp Partner API",
+                "openapi": "/openapi/cs/waba_rest/waba_restapi_v1.yaml"
               }
             ]
           }
@@ -160,7 +185,7 @@
             ]
           },
           {
-            "tab": "API reference",
+            "tab": "Guides",
             "groups": [
               {
                 "group": "JSON API v2",
@@ -198,6 +223,31 @@
                   "en/api-reference/waba/signup",
                   "en/api-reference/waba/manage"
                 ]
+              }
+            ]
+          },
+          {
+            "tab": "API reference",
+            "groups": [
+              {
+                "group": "JSON API v2",
+                "openapi": "/openapi/en/json/jsonapi_v2.yaml"
+              },
+              {
+                "group": "JSON API v1",
+                "openapi": "/openapi/en/json/jsonapi_v1.yaml"
+              },
+              {
+                "group": "REST API",
+                "openapi": "/openapi/en/rest/restapi_v1.yaml"
+              },
+              {
+                "group": "Verify API",
+                "openapi": "/openapi/en/verify/verifyapi_v1.yaml"
+              },
+              {
+                "group": "WhatsApp Partner API",
+                "openapi": "/openapi/en/waba_rest/waba_restapi_v1.yaml"
               }
             ]
           }

@@ -1,0 +1,552 @@
+openapi: 3.1.0
+info:
+  title: SMS Validation API
+  description: |
+    Backend API for phone number validation via SMS and other channels. This API allows you to validate phone numbers
+    by sending SMS verification codes and verifying them. 
+  
+    
+    ## Rate Limiting
+    The API implements multi-level rate limiting per account, country, and phone number.
+    
+    ## Offline Proof Verification
+    If your tenant has a `verificationSecret` configured, the API returns an HMAC proof in the 
+    validation response. This proof can be verified offline without calling the API (see `/v1/verify-proof` endpoint).
+
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@smsmanager.com
+servers:
+  - url: https://verify-api.smsmanager.com
+    description: Production server
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /v1/verify-proof:
+    post:
+      summary: Verify HMAC proof
+      description: |
+        Verifies an HMAC proof for phone validation without storing any state.
+        This endpoint is useful for backend verification when you have all the validation data
+        but want SMS Manager to verify the HMAC calculation.
+
+        This endpoint not requires authentication - proof itself is the authentication.
+
+        All of these data are returned by the `/v1/validations` endpoint.
+        
+        **Note**: This only works for accounts with a `verificationSecret` configured.
+      operationId: verifyProof
+      tags:
+        - Validation
+      security: []  # No authentication required - proof itself is the authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phoneNumber
+                - token
+                - code
+                - timestamp
+                - proof
+              properties:
+                phoneNumber:
+                  type: string
+                  description: The normalized phone number
+                  example: "1234567890"
+                token:
+                  type: string
+                  description: The validation token
+                  example: "61591bd88d8f..."
+                code:
+                  type: string
+                  description: The 6-digit verification code
+                  example: "123456"
+                timestamp:
+                  type: string
+                  format: date-time
+                  description: The timestamp when validation started
+                  example: "2024-01-15T10:30:00Z"
+                proof:
+                  type: string
+                  description: The HMAC proof to verify
+                  example: "a1b2c3d4e5f6..."
+      responses:
+        '200':
+          description: Proof verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    description: Whether the proof is valid
+                  expired:
+                    type: boolean
+                    description: Whether the validation has expired (24 hours)
+              examples:
+                valid:
+                  summary: Valid proof
+                  value:
+                    valid: true
+                invalid:
+                  summary: Invalid proof
+                  value:
+                    valid: false
+                expired:
+                  summary: Expired validation
+                  value:
+                    valid: false
+                    expired: true
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingFields:
+                  summary: Missing required fields
+                  value:
+                    message: "Missing required fields: phoneNumber, token, code, timestamp, proof"
+                noSecret:
+                  summary: Tenant has no verification secret
+                  value:
+                    valid: false
+                    error: "Tenant does not have verification enabled"
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/validations:
+    post:
+      summary: Start phone validation
+      description: |
+        Initiates a new phone number validation by sending an message with a verification code.
+        Returns a validation token that must be used for subsequent verification.
+      operationId: startValidation
+      tags:
+        - Validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidationRequest'
+            examples:
+              basic:
+                summary: Basic validation request
+                value:
+                  phoneNumber: "1234567890"
+              withPayload:
+                summary: With custom payload
+                value:
+                  phoneNumber: "1234567890"
+                  payload:
+                    userId: "user123"
+                    source: "checkout"
+      responses:
+        '200':
+          description: Validation started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResponse'
+              examples:
+                withoutProof:
+                  summary: Response without proof (no verificationSecret)
+                  value:
+                    token: "61591bd88d8fbe7736bca535809d1216dd71cb0b5cbf2b07e5a08adfbeb5d35b"
+                    status: "pending"
+                    expiresAt: "2024-01-01T00:10:00.000Z"
+                    timestamp: "2024-01-01T00:00:00.000Z"
+                withProof:
+                  summary: Response with HMAC proof (verificationSecret configured)
+                  value:
+                    token: "61591bd88d8fbe7736bca535809d1216dd71cb0b5cbf2b07e5a08adfbeb5d35b"
+                    status: "pending"
+                    expiresAt: "2024-01-01T00:10:00.000Z"
+                    timestamp: "2024-01-01T00:00:00.000Z"
+                    proof: "a2c4e6f8b0d2e4f6a8c0e2f4b6d8f0a2c4e6f8b0d2e4f6a8c0e2f4b6d8f0a2"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/validations/{token}/verify:
+    post:
+      summary: Verify code
+      description: |
+        Verifies the code entered by the user. On successful verification, returns all data needed
+        for backend verification including the phone number, token, code, timestamp, and HMAC proof 
+        (if account has verificationSecret configured).
+        
+        The number of attempts is limited based on account configuration (default: 6).
+      operationId: verifyCode
+      tags:
+        - Validation
+      parameters:
+        - $ref: '#/components/parameters/ValidationToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+            example:
+              code: "123456"
+      responses:
+        '200':
+          description: Code verified successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationResponse'
+              example:
+                verified: true
+                phoneNumber: "1234567890"
+                token: "61591bd88d8fbe7736bca535809d1216dd71cb0b5cbf2b07e5a08adfbeb5d35b"
+                code: "123456"
+                timestamp: "2024-01-15T10:30:00Z"
+                proof: "86dd8444ed76402c93ce62497cb29a0d7af7215261b8497cb355e617b13f4ef2"
+                verifiedAt: "2024-01-15T10:31:15Z"
+        '400':
+          description: Invalid code or validation expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidCode:
+                  summary: Invalid code with attempts remaining
+                  value:
+                    message: "Invalid code"
+                    attemptsRemaining: 3
+                expired:
+                  summary: Validation expired
+                  value:
+                    message: "Validation expired"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Validation session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "Too many attempts"
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/validations/{token}:
+    patch:
+      summary: Verify proof (optional)
+      description: |
+        Optional endpoint to verify a proof hash from a previous successful validation.
+        This can be used to confirm that a validation was completed successfully.
+      operationId: verifyProof
+      tags:
+        - Validation
+      parameters:
+        - $ref: '#/components/parameters/ValidationToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProofVerificationRequest'
+      responses:
+        '200':
+          description: Proof verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    description: Whether the proof is valid
+                  phoneNumber:
+                    type: string
+                    description: The validated phone number
+                  verifiedAt:
+                    type: string
+                    format: date-time
+                    description: When the validation was completed
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Validation session or proof not found
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Your tenant's API key
+
+  parameters:
+    ValidationToken:
+      name: token
+      in: path
+      required: true
+      description: The validation token returned from the start validation endpoint
+      schema:
+        type: string
+        example: "val_7af7215261b8497cb355e617b13f4ef2"
+
+  schemas:
+    ValidationRequest:
+      type: object
+      required:
+        - phoneNumber
+      properties:
+        phoneNumber:
+          type: string
+          description: The phone number to validate (digits only, including country code)
+          pattern: '^[1-9]\d{6,14}$'
+          example: "1234567890"
+        turnstileToken:
+          type: string
+          description: Turnstile verification token (required if tenant has requireTurnstile enabled)
+          example: "0.abcdefghijklmnopqrstuvwxyz"
+        payload:
+          type: object
+          description: Optional custom payload to attach to the validation
+          additionalProperties:
+            type: string
+          example:
+            userId: "user123"
+            source: "checkout"
+
+    ValidationResponse:
+      type: object
+      required:
+        - token
+        - status
+        - expiresAt
+        - timestamp
+      properties:
+        token:
+          type: string
+          description: Unique validation token to use for verification
+          example: "val_7af7215261b8497cb355e617b13f4ef2"
+        status:
+          $ref: '#/components/schemas/ValidationStatus'
+        expiresAt:
+          type: string
+          format: date-time
+          description: When this validation expires (typically 10 minutes)
+          example: "2024-01-01T00:10:00.000Z"
+        timestamp:
+          type: string
+          format: date-time
+          description: When this validation was started (used for HMAC verification)
+          example: "2024-01-01T00:00:00.000Z"
+        proof:
+          type: string
+          description: HMAC proof for offline verification (only if tenant has verificationSecret)
+          example: "a2c4e6f8b0d2e4f6a8c0e2f4b6d8f0a2c4e6f8b0d2e4f6a8c0e2f4b6d8f0a2"
+
+    VerificationRequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          description: The 6-digit verification code from SMS
+          pattern: '^[0-9]{6}$'
+          example: "123456"
+
+    VerificationResponse:
+      type: object
+      required:
+        - verified
+      properties:
+        verified:
+          type: boolean
+          description: Whether the verification was successful
+          example: true
+        phoneNumber:
+          type: string
+          description: The verified phone number (only present if verified is true)
+          example: "1234567890"
+        token:
+          type: string
+          description: The validation token (only present if verified is true)
+          example: "550e8400-e29b-41d4-a716-446655440000_abc123"
+        code:
+          type: string
+          description: The verification code that was verified (only present if verified is true)
+          example: "123456"
+        timestamp:
+          type: string
+          format: date-time
+          description: When the validation was started (only present if verified is true)
+          example: "2024-01-15T10:30:00Z"
+        proof:
+          type: string
+          description: HMAC proof for this verification (only present if verified is true and tenant has verificationSecret)
+          example: "86dd8444ed76402c93ce62497cb29a0d7af7215261b8497cb355e617b13f4ef2"
+        verifiedAt:
+          type: string
+          format: date-time
+          description: When the verification was completed (only present if verified is true)
+          example: "2024-01-15T10:31:15Z"
+
+    ProofVerificationRequest:
+      type: object
+      required:
+        - proof
+      properties:
+        proof:
+          type: string
+          description: The proof hash to verify
+          example: "86dd8444ed76402c93ce62497cb29a0d7af7215261b8497cb355e617b13f4ef2"
+
+    ValidationStatus:
+      type: string
+      description: Current status of the validation
+      enum:
+        - pending
+        - code_sent
+        - verified
+        - failed
+        - expired
+      example: "pending"
+
+    TenantPublicConfig:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Tenant display name
+          example: "Example Company"
+        enabled:
+          type: boolean
+          description: Whether the tenant is enabled
+          example: true
+        requireTurnstile:
+          type: boolean
+          description: Whether Turnstile verification is required
+          example: false
+        allowedOrigins:
+          type: array
+          items:
+            type: string
+          description: List of allowed origins for CORS
+          example: ["https://example.com", "https://app.example.com"]
+
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Invalid code"
+        error:
+          type: string
+          description: Error code for programmatic handling
+          example: "INVALID_CODE"
+        attemptsRemaining:
+          type: integer
+          description: Number of verification attempts remaining (only for verification errors)
+          example: 3
+          minimum: 0
+
+  responses:
+    BadRequest:
+      description: Bad request - Invalid input data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidPhone:
+              summary: Invalid phone number
+              value:
+                message: "Invalid phone number"
+                error: "INVALID_PHONE"
+            missingField:
+              summary: Missing required field
+              value:
+                message: "Missing required field: phoneNumber"
+                error: "MISSING_FIELD"
+
+    Unauthorized:
+      description: Unauthorized - Invalid or missing API key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            missingKey:
+              summary: Missing API key
+              value:
+                message: "Missing X-API-Key header"
+                error: "MISSING_API_KEY"
+            invalidKey:
+              summary: Invalid API key
+              value:
+                message: "Invalid or disabled API key"
+                error: "INVALID_API_KEY"
+
+    RateLimited:
+      description: Too many requests - Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            tenantLimit:
+              summary: Tenant rate limit
+              value:
+                message: "Tenant rate limit exceeded"
+                error: "TENANT_RATE_LIMIT"
+            phoneLimit:
+              summary: Phone number rate limit
+              value:
+                message: "Too many attempts for this phone number"
+                error: "PHONE_RATE_LIMIT"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            message: "Internal server error"
+            error: "INTERNAL_ERROR"
+
+tags:
+  - name: Validation
+    description: Phone number validation operations
+  - name: Tenant
+    description: Tenant configuration endpoints
+  - name: System
+    description: System health and status endpoints
