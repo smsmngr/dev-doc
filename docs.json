@@ -3,7 +3,17 @@
   "name": "SmsManager",
   "theme": "luma",
   "colors": {
-    "primary": "#ac1c4c"
+    "primary": "#a81943",
+    "light": "#da2157",
+    "dark": "#76122f"
+  },
+  "fonts": {
+    "heading": {
+      "family": "GothamRounded",
+      "weight": 700,
+      "source": "/fonts/GothamRounded.woff2",
+      "format": "woff2"
+    }
   },
   "favicon": "https://media.brand.dev/2f15212a-f2c6-4af0-9244-b9677cd91943.png",
   "logo": {
