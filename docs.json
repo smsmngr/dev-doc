@@ -107,6 +107,33 @@
           }
         ]
       }
+    ],
+    "languages": [
+      {
+        "language": "cs",
+        "default": true,
+        "groups": [
+          {
+            "group": "Začínáme",
+            "pages": [
+              "cs/index",
+              "cs/quickstart"
+            ]
+          }
+        ]
+      },
+      {
+        "language": "en",
+        "groups": [
+          {
+            "group": "Getting started",
+            "pages": [
+              "en/index",
+              "en/quickstart"
+            ]
+          }
+        ]
+      }
     ]
   },
   "footer": {
