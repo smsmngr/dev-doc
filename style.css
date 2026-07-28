@@ -80,10 +80,17 @@ body {
   border-color: rgba(255, 255, 255, 0.55) !important;
 }
 
-/* Taller header — more vertical padding on the navbar content row. */
+/* Taller header — more vertical padding on the navbar content row (→ 4.5rem). */
 #navbar > div:last-child {
-  padding-top: 0.85rem !important;
-  padding-bottom: 0.85rem !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+}
+
+/* The left sidebar and ToC are fixed at the old navbar height; push them down
+   to match the taller header so it no longer overlaps them. */
+#sidebar-content,
+#table-of-contents-layout {
+  top: 4.5rem !important;
 }
 
 /* Append a "DEVELOPERS SITE" label right after the logo. The logo is an <img>
