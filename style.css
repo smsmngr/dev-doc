@@ -14,9 +14,17 @@ body {
    A dark top bar sets the standalone developers.smsmanager.com portal
    apart from the marketing site. Applied in both light and dark mode. */
 #navbar {
-  background-color: #0f1115 !important;
   color: #e5e7eb !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* The visible header background is an absolutely-positioned inner layer
+   (bg-background-light). Darken it plus its border sibling. */
+#navbar > div[class*="bg-background-light"] {
+  background-color: #0f1115 !important;
+}
+
+#navbar > div[class*="border-b"] {
+  border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 /* Links and tabs in the dark header: light, semibold, white on hover. */
