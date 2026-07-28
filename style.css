@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────
-   Match the look & feel of smsmanager.cz
+   SmsManager Developers — look & feel
    (auto-loaded by Mintlify on every page)
    ───────────────────────────────────────────────────────────── */
 
@@ -10,24 +10,42 @@ body {
     "Noto Sans", "Liberation Sans", Arial, sans-serif !important;
 }
 
-/* Top-navbar "Dashboard" CTA: smsmanager.cz buttons use a 0.4rem radius,
-   not a full pill. */
-#topbar-cta-button,
-#topbar-cta-button > * {
-  border-radius: 0.4rem !important;
+/* ── Dark developer-portal header ──────────────────────────────
+   A dark top bar sets the standalone developers.smsmanager.com portal
+   apart from the marketing site. Applied in both light and dark mode. */
+#navbar {
+  background-color: #0f1115 !important;
+  color: #e5e7eb !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
-/* Top-navbar links: semibold with the site's base text colour in light mode,
-   turning brand-crimson on hover. */
-.navbar-link {
+/* Links and tabs in the dark header: light, semibold, white on hover. */
+#navbar a,
+#navbar .navbar-link {
+  color: #d1d5db !important;
+}
+
+#navbar .navbar-link {
   font-weight: 600;
   font-size: 0.9375rem;
 }
 
-html:not(.dark) .navbar-link {
-  color: #1c1e21;
+#navbar a:hover,
+#navbar .navbar-link:hover {
+  color: #ffffff !important;
 }
 
-.navbar-link:hover {
-  color: #a81943 !important;
+/* Search box: visible on the dark bar. */
+#search-bar-entry,
+#search-bar-entry-mobile {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: #9ca3af !important;
+}
+
+/* "Dashboard" CTA: keep the crimson pill un-pilled (0.4rem, like smsmanager.cz
+   buttons) and its text white on the dark bar. */
+#topbar-cta-button,
+#topbar-cta-button > * {
+  border-radius: 0.4rem !important;
+  color: #ffffff !important;
 }

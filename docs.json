@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "name": "SmsManager",
+  "name": "SmsManager Developers",
   "theme": "luma",
   "colors": {
     "primary": "#a81943",
