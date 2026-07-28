@@ -40,43 +40,14 @@
         "default": true,
         "tabs": [
           {
-            "tab": "Dokumentace",
+            "tab": "Začínáme",
             "groups": [
               {
                 "group": "Začínáme",
                 "pages": [
                   "cs/index",
-                  "cs/introduction",
                   "cs/quickstart",
-                  "cs/authentication"
-                ]
-              },
-              {
-                "group": "Základní pojmy",
-                "pages": [
-                  "cs/concepts/message-flow",
-                  "cs/concepts/channels",
-                  "cs/concepts/message-ids",
-                  "cs/concepts/scheduling"
-                ]
-              },
-              {
-                "group": "Návody",
-                "pages": [
-                  "cs/guides/send-sms",
-                  "cs/guides/send-viber",
-                  "cs/guides/send-whatsapp",
-                  "cs/guides/batch-sending",
-                  "cs/guides/phone-verification",
-                  "cs/guides/webhooks"
-                ]
-              },
-              {
-                "group": "Reference",
-                "pages": [
-                  "cs/reference/errors",
-                  "cs/reference/rate-limits",
-                  "cs/reference/phone-numbers"
+                  "cs/tutorials/whatsapp-business-registration"
                 ]
               }
             ]
@@ -85,39 +56,26 @@
             "tab": "Návody",
             "groups": [
               {
-                "group": "JSON API v2",
+                "group": "Odesílání zpráv",
                 "pages": [
-                  "cs/api-reference/json-v2/overview",
-                  "cs/api-reference/json-v2/send-simple-message",
-                  "cs/api-reference/json-v2/send-messages",
-                  "cs/api-reference/json-v2/webhooks"
+                  "cs/guides/send-sms",
+                  "cs/guides/send-viber",
+                  "cs/guides/send-whatsapp",
+                  "cs/guides/whatsapp-sms-fallback",
+                  "cs/guides/batch-sending"
                 ]
               },
               {
-                "group": "REST API",
+                "group": "Příjem a ověření",
                 "pages": [
-                  "cs/api-reference/rest/overview",
-                  "cs/api-reference/rest/api-keys",
-                  "cs/api-reference/rest/credit",
-                  "cs/api-reference/rest/message-status",
-                  "cs/api-reference/rest/inbox"
+                  "cs/guides/phone-verification",
+                  "cs/guides/webhooks"
                 ]
               },
               {
-                "group": "Verify API",
+                "group": "Přístup a klíče",
                 "pages": [
-                  "cs/api-reference/verify/overview",
-                  "cs/api-reference/verify/start-validation",
-                  "cs/api-reference/verify/verify-code",
-                  "cs/api-reference/verify/verify-proof"
-                ]
-              },
-              {
-                "group": "WhatsApp Partner API",
-                "pages": [
-                  "cs/api-reference/waba/overview",
-                  "cs/api-reference/waba/signup",
-                  "cs/api-reference/waba/manage"
+                  "cs/authentication"
                 ]
               }
             ]
@@ -127,6 +85,9 @@
             "groups": [
               {
                 "group": "JSON API v2",
+                "pages": [
+                  "cs/api-reference/json-v2/overview"
+                ],
                 "openapi": "/openapi/cs/json/jsonapi_v2.yaml"
               },
               {
@@ -135,15 +96,49 @@
               },
               {
                 "group": "REST API",
+                "pages": [
+                  "cs/api-reference/rest/overview"
+                ],
                 "openapi": "/openapi/cs/rest/restapi_v1.yaml"
               },
               {
                 "group": "Verify API",
+                "pages": [
+                  "cs/api-reference/verify/overview"
+                ],
                 "openapi": "/openapi/cs/verify/verifyapi_v1.yaml"
               },
               {
                 "group": "WhatsApp Partner API",
+                "pages": [
+                  "cs/api-reference/waba/overview"
+                ],
                 "openapi": "/openapi/cs/waba_rest/waba_restapi_v1.yaml"
+              },
+              {
+                "group": "Referenční tabulky",
+                "pages": [
+                  "cs/reference/errors",
+                  "cs/reference/rate-limits",
+                  "cs/reference/phone-numbers",
+                  "cs/api-reference/json-v2/webhooks"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "Koncepty",
+            "groups": [
+              {
+                "group": "Základní pojmy",
+                "pages": [
+                  "cs/introduction",
+                  "cs/concepts/message-flow",
+                  "cs/concepts/channels",
+                  "cs/concepts/message-ids",
+                  "cs/concepts/scheduling",
+                  "cs/concepts/whatsapp-message-types"
+                ]
               }
             ]
           }
@@ -153,43 +148,13 @@
         "language": "en",
         "tabs": [
           {
-            "tab": "Documentation",
+            "tab": "Get started",
             "groups": [
               {
-                "group": "Get Started",
+                "group": "Get started",
                 "pages": [
                   "en/index",
-                  "en/introduction",
-                  "en/quickstart",
-                  "en/authentication"
-                ]
-              },
-              {
-                "group": "Core Concepts",
-                "pages": [
-                  "en/concepts/message-flow",
-                  "en/concepts/channels",
-                  "en/concepts/message-ids",
-                  "en/concepts/scheduling"
-                ]
-              },
-              {
-                "group": "Guides",
-                "pages": [
-                  "en/guides/send-sms",
-                  "en/guides/send-viber",
-                  "en/guides/send-whatsapp",
-                  "en/guides/batch-sending",
-                  "en/guides/phone-verification",
-                  "en/guides/webhooks"
-                ]
-              },
-              {
-                "group": "Reference",
-                "pages": [
-                  "en/reference/errors",
-                  "en/reference/rate-limits",
-                  "en/reference/phone-numbers"
+                  "en/quickstart"
                 ]
               }
             ]
@@ -198,40 +163,25 @@
             "tab": "Guides",
             "groups": [
               {
-                "group": "JSON API v2",
+                "group": "Sending messages",
                 "pages": [
-                  "en/api-reference/json-v2/overview",
-                  "en/api-reference/json-v2/post-message",
-                  "en/api-reference/json-v2/send-simple-message",
-                  "en/api-reference/json-v2/send-messages",
-                  "en/api-reference/json-v2/webhooks"
+                  "en/guides/send-sms",
+                  "en/guides/send-viber",
+                  "en/guides/send-whatsapp",
+                  "en/guides/batch-sending"
                 ]
               },
               {
-                "group": "REST API",
+                "group": "Receiving & verification",
                 "pages": [
-                  "en/api-reference/rest/overview",
-                  "en/api-reference/rest/api-keys",
-                  "en/api-reference/rest/credit",
-                  "en/api-reference/rest/message-status",
-                  "en/api-reference/rest/inbox"
+                  "en/guides/phone-verification",
+                  "en/guides/webhooks"
                 ]
               },
               {
-                "group": "Verify API",
+                "group": "Access & keys",
                 "pages": [
-                  "en/api-reference/verify/overview",
-                  "en/api-reference/verify/start-validation",
-                  "en/api-reference/verify/verify-code",
-                  "en/api-reference/verify/verify-proof"
-                ]
-              },
-              {
-                "group": "WhatsApp Partner API",
-                "pages": [
-                  "en/api-reference/waba/overview",
-                  "en/api-reference/waba/signup",
-                  "en/api-reference/waba/manage"
+                  "en/authentication"
                 ]
               }
             ]
@@ -241,6 +191,9 @@
             "groups": [
               {
                 "group": "JSON API v2",
+                "pages": [
+                  "en/api-reference/json-v2/overview"
+                ],
                 "openapi": "/openapi/en/json/jsonapi_v2.yaml"
               },
               {
@@ -249,15 +202,48 @@
               },
               {
                 "group": "REST API",
+                "pages": [
+                  "en/api-reference/rest/overview"
+                ],
                 "openapi": "/openapi/en/rest/restapi_v1.yaml"
               },
               {
                 "group": "Verify API",
+                "pages": [
+                  "en/api-reference/verify/overview"
+                ],
                 "openapi": "/openapi/en/verify/verifyapi_v1.yaml"
               },
               {
                 "group": "WhatsApp Partner API",
+                "pages": [
+                  "en/api-reference/waba/overview"
+                ],
                 "openapi": "/openapi/en/waba_rest/waba_restapi_v1.yaml"
+              },
+              {
+                "group": "Reference tables",
+                "pages": [
+                  "en/reference/errors",
+                  "en/reference/rate-limits",
+                  "en/reference/phone-numbers",
+                  "en/api-reference/json-v2/webhooks"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "Concepts",
+            "groups": [
+              {
+                "group": "Core concepts",
+                "pages": [
+                  "en/introduction",
+                  "en/concepts/message-flow",
+                  "en/concepts/channels",
+                  "en/concepts/message-ids",
+                  "en/concepts/scheduling"
+                ]
               }
             ]
           }
@@ -269,5 +255,99 @@
     "socials": {
       "x": "https://x.com/smsmanager"
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/cs/api-reference/json-v2/send-messages",
+      "destination": "/cs/api-reference/json-v2/overview"
+    },
+    {
+      "source": "/cs/api-reference/json-v2/send-simple-message",
+      "destination": "/cs/api-reference/json-v2/overview"
+    },
+    {
+      "source": "/cs/api-reference/rest/api-keys",
+      "destination": "/cs/api-reference/rest/overview"
+    },
+    {
+      "source": "/cs/api-reference/rest/credit",
+      "destination": "/cs/api-reference/rest/overview"
+    },
+    {
+      "source": "/cs/api-reference/rest/inbox",
+      "destination": "/cs/api-reference/rest/overview"
+    },
+    {
+      "source": "/cs/api-reference/rest/message-status",
+      "destination": "/cs/api-reference/rest/overview"
+    },
+    {
+      "source": "/cs/api-reference/verify/start-validation",
+      "destination": "/cs/api-reference/verify/overview"
+    },
+    {
+      "source": "/cs/api-reference/verify/verify-code",
+      "destination": "/cs/api-reference/verify/overview"
+    },
+    {
+      "source": "/cs/api-reference/verify/verify-proof",
+      "destination": "/cs/api-reference/verify/overview"
+    },
+    {
+      "source": "/cs/api-reference/waba/signup",
+      "destination": "/cs/api-reference/waba/overview"
+    },
+    {
+      "source": "/cs/api-reference/waba/manage",
+      "destination": "/cs/api-reference/waba/overview"
+    },
+    {
+      "source": "/en/api-reference/json-v2/send-messages",
+      "destination": "/en/api-reference/json-v2/overview"
+    },
+    {
+      "source": "/en/api-reference/json-v2/send-simple-message",
+      "destination": "/en/api-reference/json-v2/overview"
+    },
+    {
+      "source": "/en/api-reference/rest/api-keys",
+      "destination": "/en/api-reference/rest/overview"
+    },
+    {
+      "source": "/en/api-reference/rest/credit",
+      "destination": "/en/api-reference/rest/overview"
+    },
+    {
+      "source": "/en/api-reference/rest/inbox",
+      "destination": "/en/api-reference/rest/overview"
+    },
+    {
+      "source": "/en/api-reference/rest/message-status",
+      "destination": "/en/api-reference/rest/overview"
+    },
+    {
+      "source": "/en/api-reference/verify/start-validation",
+      "destination": "/en/api-reference/verify/overview"
+    },
+    {
+      "source": "/en/api-reference/verify/verify-code",
+      "destination": "/en/api-reference/verify/overview"
+    },
+    {
+      "source": "/en/api-reference/verify/verify-proof",
+      "destination": "/en/api-reference/verify/overview"
+    },
+    {
+      "source": "/en/api-reference/waba/signup",
+      "destination": "/en/api-reference/waba/overview"
+    },
+    {
+      "source": "/en/api-reference/waba/manage",
+      "destination": "/en/api-reference/waba/overview"
+    },
+    {
+      "source": "/en/api-reference/json-v2/post-message",
+      "destination": "/en/api-reference/json-v2/overview"
+    }
+  ]
 }

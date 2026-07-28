@@ -1,0 +1,155 @@
+---
+title: "Registrace WhatsApp Business účtu pro vašeho klienta"
+sidebarTitle: "První registrace klienta"
+description: "Krok za krokem projděte první registrací klienta přes WhatsApp Partner API a získáte jeho WABA ID."
+---
+
+V tomto tutoriálu jako partner (ISV nebo reseller) poprvé projdete celým procesem onboardingu jednoho svého klienta do WhatsApp Business messagingu — od zavolání prvního endpointu až po získání jeho **WABA ID**. Nepotřebujete žádné předchozí zkušenosti s WhatsApp Partner API; postačí vám nástroj pro odesílání HTTP požadavků (např. `curl`) a jednoduchý webový server, který přijme callback.
+
+Až tutoriál dokončíte, budete mít klienta plně onboardovaného a v ruce jeho WABA ID, které je vstupem pro všechny další operace.
+
+<Note>
+  Celé API běží pod vaším partnerským účtem. Váš klient nikdy nepotřebuje vlastní přístup do SmsManageru — vy zahájíte registraci a on pouze dokončí hostovaný tok v prohlížeči.
+</Note>
+
+## Než začnete
+
+Připravte si tři věci:
+
+- **Partnerský API klíč** ze SmsManageru. Přidáváte jej do každého požadavku v hlavičce `x-api-key`.
+- **Veřejně dostupnou callback URL** na vašem serveru, která umí přijmout `POST` požadavek. Sem vám SmsManager pošle oznámení, jakmile bude klientovo WABA připraveno.
+- **Interní identifikátor klienta** (např. `client-789`) z vašeho systému, abyste později přijaté oznámení spojili se správným záznamem.
+
+Základní URL Partner API je vždy:
+
+```text
+https://rest-api.smsmngr.com/v1
+```
+
+## Postup
+
+<Steps>
+
+<Step title="Zahajte registrační session">
+
+Zavolejte `POST /whatsapp/signup` a předejte údaje o svém klientovi. V tomto tutoriálu necháte SmsManager přiřadit telefonní číslo automaticky (`phone_number: "automatic"`), takže stačí uvést zemi klienta.
+
+```bash cURL
+curl -X POST https://rest-api.smsmngr.com/v1/whatsapp/signup \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "partner_name": "Acme Corp",
+    "partner_logo": "https://acme.com/logo.png",
+    "partner_callback_url": "https://acme.com/webhooks/waba",
+    "partner_client_id": "client-789",
+    "partner_finish_url": "https://acme.com/dashboard",
+    "phone_number": "automatic",
+    "wa_name": "Acme Support",
+    "wa_email": "support@acme.com",
+    "wa_website": "https://acme.com",
+    "country": "CZ"
+  }'
+```
+
+V odpovědi dostanete krátkodobý JWT `token` a `redirect_url` — základní adresu hostované registrační stránky:
+
+```json Odpověď
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "redirect_url": "https://waba.smsmanager.com/registration/"
+}
+```
+
+<Tip>
+  Hodnotu `partner_client_id`, kterou zde pošlete (`client-789`), vám SmsManager vrátí v callbacku i ve výpisu účtů. Použijte proto stabilní identifikátor ze svého systému.
+</Tip>
+
+</Step>
+
+<Step title="Sestavte přesměrovací URL">
+
+Vezměte `redirect_url` z odpovědi a připojte k ní `token` jako query parametr pojmenovaný `token`:
+
+```text
+https://waba.smsmanager.com/registration/?token=<JWT_TOKEN>
+```
+
+<Warning>
+  S tokenem zacházejte jako s tajemstvím. Sestavte přesměrovací URL na svém serveru — nikdy token nevypisujte do klientského JavaScriptu ani jej nelogujte.
+</Warning>
+
+</Step>
+
+<Step title="Přesměrujte klienta do hostovaného toku">
+
+Pošlete prohlížeč klienta na sestavenou URL — serverovým přesměrováním (`302`), přes `window.location` nebo meta-refresh. Klient uvidí registrační rozhraní SmsManageru s vaším názvem (`partner_name`) a logem (`partner_logo`) a projde zbývající kroky registrace WhatsApp Business.
+
+Na jeho straně není potřeba žádné programování. Až tok dokončí nebo opustí, SmsManager ho přesměruje na vaši `partner_finish_url`.
+
+</Step>
+
+<Step title="Počkejte na callback o dokončení">
+
+Jakmile klient postupuje onboardingem, SmsManager posílá `POST` oznámení na vaši `partner_callback_url`. Každé oznámení obsahuje váš `partner_client_id`, takže poznáte, kterého klienta se týká.
+
+Na svém serveru naslouchejte na těchto oznámeních a čekejte na **událost dokončení** — ta znamená, že klientovo WABA je aktivní a připravené k použití. Teprve poté pokračujte dalším krokem.
+
+</Step>
+
+<Step title="Získejte WABA ID">
+
+Po dokončení onboardingu zavolejte `POST /whatsapp/accounts/list`. Tělo můžete nechat prázdné pro vrácení všech vašich účtů, nebo filtrovat podle konkrétního WABA.
+
+```bash cURL
+curl -X POST https://rest-api.smsmngr.com/v1/whatsapp/accounts/list \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{}'
+```
+
+V odpovědi najděte účet, jehož `client_id` odpovídá vašemu `partner_client_id`. Jeho pole `whatsapp_id` je hledané **WABA ID**:
+
+```json Odpověď
+{
+  "success": true,
+  "accounts": [
+    {
+      "client_id": "client-789",
+      "whatsapp_name": "Acme Support",
+      "whatsapp_id": "123456789",
+      "whatsapp_currency": "EUR",
+      "whatsapp_owner_name": "Acme Corp",
+      "whatsapp_owner_id": "987654321",
+      "country": "CZ"
+    }
+  ]
+}
+```
+
+Hotovo — hodnota `whatsapp_id` (`123456789`) je WABA ID vašeho klienta.
+
+</Step>
+
+</Steps>
+
+## Co jste zvládli
+
+Právě jste poprvé onboardovali klienta přes WhatsApp Partner API: zahájili jste registrační session, přesměrovali klienta do hostovaného toku, přijali callback o dokončení a získali jeho **WABA ID**. Toto ID je klíč ke všem dalším operacím nad klientovým účtem.
+
+## Co dál
+
+<CardGroup cols={2}>
+  <Card title="Přehled Partner API" icon="book" href="/cs/api-reference/waba/overview">
+    Kompletní reference endpointů, polí a callbacků.
+  </Card>
+
+  <Card title="Odeslat WhatsApp zprávu" icon="paper-plane" href="/cs/guides/send-whatsapp">
+    Použijte získané WABA ID a pošlete klientovi první zprávu.
+  </Card>
+
+  <Card title="Typy WhatsApp zpráv" icon="messages" href="/cs/concepts/whatsapp-message-types">
+    Pochopte rozdíl mezi zprávami `whatsapp_text` a `whatsapp_template`.
+  </Card>
+</CardGroup>
