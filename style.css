@@ -79,3 +79,28 @@ body {
 #navbar a[href^="mailto:"]:hover {
   border-color: rgba(255, 255, 255, 0.55) !important;
 }
+
+/* Taller header — more vertical padding on the navbar content row. */
+#navbar > div:last-child {
+  padding-top: 0.85rem !important;
+  padding-bottom: 0.85rem !important;
+}
+
+/* Append a "DEVELOPERS SITE" label right after the logo. The logo is an <img>
+   (no ::after), so target its wrapping link and lay it out as a flex row. */
+#navbar a:has(> .nav-logo) {
+  display: flex !important;
+  align-items: center !important;
+}
+
+#navbar a:has(> .nav-logo)::after {
+  content: "DEVELOPERS SITE";
+  margin-left: 0.7rem;
+  padding-left: 0.7rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.28);
+  color: #9ca3af;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  white-space: nowrap;
+}
