@@ -100,6 +100,12 @@ body {
   align-items: center !important;
 }
 
+/* Optical alignment: the logo's speech-bubble tail sits low, so nudge the
+   mark down slightly to line up with the label. */
+#navbar img.nav-logo {
+  margin-top: 4px !important;
+}
+
 #navbar a:has(> .nav-logo)::after {
   content: "DEVELOPERS SITE";
   margin-left: 0.7rem;
