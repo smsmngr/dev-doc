@@ -1,0 +1,77 @@
+---
+title: "Typy WhatsApp zpráv na SmsManageru"
+sidebarTitle: "Typy WhatsApp zpráv"
+description: "Vysvětlení dvou typů WhatsApp zpráv na SmsManageru a pravidel, která určují, kdy který z nich použít."
+---
+
+SmsManager rozlišuje dva druhy WhatsApp zpráv: **šablonové zprávy** (`whatsapp_template`) a **textové zprávy** (`whatsapp_text`). Nejde o dvě varianty téže věci — každá vychází z jiné části pravidel WhatsApp Business platformy a hodí se na jiný okamžik konverzace. Tato stránka vysvětluje, proč tyto dva typy existují, jaká pravidla je oddělují a jak podle nich zvolit ten správný. Praktické kroky odesílání najdete v průvodci [Odeslat WhatsApp](/cs/guides/send-whatsapp).
+
+## Proč vůbec dva typy
+
+WhatsApp není otevřený kanál jako SMS. Meta chrání uživatele před nevyžádanými zprávami tím, že rozlišuje, **kdo konverzaci zahájil**. Když firma osloví člověka, který o kontakt nepožádal, musí použít formát, který Meta předem prověřila — tedy šablonu. Jakmile ale člověk firmě sám napíše, dává tím najevo, že o komunikaci stojí, a firma s ním po omezenou dobu může mluvit volně.
+
+Z tohoto jediného principu — *kdo a kdy zahájil konverzaci* — vyplývá celé rozdělení na šablonové a textové zprávy. Není to technické omezení SmsManageru, ale pravidlo samotné WhatsApp platformy, které SmsManager zpřístupňuje přes jednotné multikanálové `flow`.
+
+<CardGroup cols={2}>
+  <Card title="Šablonové zprávy" icon="stamp">
+    Předschválené Metou. Lze odeslat **kdykoli** komukoli, kdo dal souhlas — i bez předchozí konverzace. Pro proaktivní oslovení.
+  </Card>
+  <Card title="Textové zprávy" icon="comments">
+    Volný text sestavený při odesílání. Lze odeslat **jen** v otevřeném 24hodinovém okně. Pro reakce a podporu.
+  </Card>
+</CardGroup>
+
+## Šablonové zprávy (`whatsapp_template`)
+
+Šablona je pevně strukturovaná zpráva, kterou předem zaregistrujete a necháte schválit Metou. Text je daný; měnit lze jen předem definované proměnné značky (jméno, číslo objednávky, odkaz na sledování). Protože Meta obsah prověřila ještě před odesláním, důvěřuje mu natolik, že umožňuje šablonu doručit **i příjemci, který s vámi nikdy nekomunikoval** — stačí, že souhlasil s příjmem zpráv od vaší firmy.
+
+Právě tato možnost proaktivního oslovení dělá ze šablon základní stavební kámen automatizovaných notifikací. Typické použití:
+
+- **Potvrzení a aktualizace objednávek** — zpráva odchází ve chvíli, kterou určuje váš systém, ne zákazník.
+- **Oznámení o dopravě a připomínky schůzek** — proaktivní, časovaná sdělení.
+- **Jednorázové kódy (OTP)** — musí dorazit okamžitě, bez ohledu na to, zda existuje otevřené okno.
+
+Cenou za tuto volnost je menší pružnost: text je předschválený, takže na spontánní, individuální odpověď se šablona nehodí. Schvalovací proces navíc zabere od několika minut po několik hodin, s čímž je třeba počítat při návrhu nové zprávy.
+
+## Textové zprávy (`whatsapp_text`)
+
+Textová zpráva je volný text, který sestavíte až v okamžiku odeslání — přesně ten druh sdělení, jaký by napsal člověk. Nepodléhá žádnému schvalování, a proto je ideální pro živou, nepředvídatelnou konverzaci. Jediné, co ji omezuje, je **24hodinové zákaznické okno**.
+
+Textové zprávy se hodí tam, kde reagujete na zákazníka:
+
+- **Podpora a zákaznický servis** — odpovědi na dotazy, řešení stížností.
+- **Interaktivní konverzace** — tam, kde by pevná šablona působila stroze nebo by nestačila.
+
+## 24hodinové zákaznické okno
+
+Zákaznické okno je časový úsek, po který vám WhatsApp dovolí posílat volný text. **Otevře se ve chvíli, kdy vám příjemce napíše** — buď vám pošle první zprávu, nebo odpoví na jednu z vašich šablonových zpráv. Od tohoto okamžiku běží 24 hodin, během nichž s ním můžete volně komunikovat. Každá nová zpráva od příjemce okno posouvá o dalších 24 hodin.
+
+Jakmile okno vyprší, volný text už odeslat nelze — jediným způsobem, jak konverzaci znovu zahájit, je šablona. Právě tady se oba typy potkávají: šablona okno **otevírá**, textová zpráva jej **využívá**.
+
+<Note>
+  Pokud odešlete `whatsapp_text` mimo otevřené okno, kanál selže a SmsManager přejde na další krok ve vašem [flow](/cs/concepts/channels) — typicky na SMS zálohu. Okno tedy nemusíte hlídat na milisekundu, ale při proaktivním oslovení se na volný text nikdy nespoléhejte.
+</Note>
+
+## Jak mezi nimi volit
+
+Rozhodovací kritérium je jediné a vždy stejné: **kdo konverzaci zahajuje**.
+
+| Situace | Typ | Proč |
+| --- | --- | --- |
+| Oslovujete příjemce jako první (potvrzení, notifikace, OTP) | `whatsapp_template` | Mimo okno je to jediná povolená možnost. |
+| Příjemce vám napsal nebo odpověděl v posledních 24 hodinách | `whatsapp_text` | Okno je otevřené, volný text je pružnější. |
+| Nevíte, zda je okno otevřené | `whatsapp_template` | Šablona projde vždy; volný text mimo okno selže. |
+
+V praxi se oba typy často doplňují: šablonou zahájíte kontakt (a tím otevřete okno), a jakmile zákazník odpoví, přejdete na volný text. Pro maximální doručitelnost pak k WhatsApp kroku přidáváte SMS zálohu, takže i příjemce bez WhatsApp dostane zprávu.
+
+<CardGroup cols={2}>
+  <Card title="Odeslat WhatsApp" icon="whatsapp" href="/cs/guides/send-whatsapp">
+    Praktický průvodce odesíláním obou typů WhatsApp zpráv přes API.
+  </Card>
+  <Card title="SMS záloha pro WhatsApp" icon="message-sms" href="/cs/guides/whatsapp-sms-fallback">
+    Jak nastavit automatický přechod na SMS, když WhatsApp selže.
+  </Card>
+  <Card title="Kanály" icon="layer-group" href="/cs/concepts/channels">
+    Přehled všech kanálů SmsManageru a jejich polí v jednom flow.
+  </Card>
+</CardGroup>

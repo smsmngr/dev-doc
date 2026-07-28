@@ -63,16 +63,6 @@ Requests that exceed either limit receive a `429` response with an error code of
 | `PATCH` | `/v1/validations/{token}` | Yes | Verify an HMAC proof against a stored session. |
 | `POST` | `/v1/verify-proof` | **No** | Verify an HMAC proof offline without storing state. |
 
-<CardGroup cols={3}>
-  <Card title="Start Validation" icon="play" href="/en/api-reference/verify/start-validation">
-    POST /v1/validations — initiate OTP delivery
-  </Card>
-
-  <Card title="Verify Code" icon="check" href="/en/api-reference/verify/verify-code">
-    POST /v1/validations/{token}/verify — check the user's code
-  </Card>
-
-  <Card title="Verify Proof" icon="shield-check" href="/en/api-reference/verify/verify-proof">
-    POST /v1/verify-proof — offline HMAC proof validation
-  </Card>
-</CardGroup>
+<Note>
+  Individual endpoints — with parameters, request bodies, and examples — are listed in this section's sidebar, generated directly from the OpenAPI specification.
+</Note>

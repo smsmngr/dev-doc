@@ -57,16 +57,6 @@ Požadavky překračující některý limit dostanou odpověď `429` s chybovým
 | `PATCH` | `/v1/validations/{token}` | Ano | Ověřit HMAC proof proti uložené session. |
 | `POST` | `/v1/verify-proof` | **Ne** | Ověřit HMAC proof offline bez ukládání stavu. |
 
-<CardGroup cols={3}>
-  <Card title="Zahájení validace" icon="play" href="/cs/api-reference/verify/start-validation">
-    POST /v1/validations — zahájit doručení OTP
-  </Card>
-
-  <Card title="Ověřit kód" icon="check" href="/cs/api-reference/verify/verify-code">
-    POST /v1/validations/{token}/verify — zkontrolovat kód uživatele
-  </Card>
-
-  <Card title="Ověřit proof" icon="shield-check" href="/cs/api-reference/verify/verify-proof">
-    POST /v1/verify-proof — offline HMAC proof validace
-  </Card>
-</CardGroup>
+<Note>
+  Jednotlivé endpointy — s parametry, těly požadavků a příklady — najdete v postranním panelu této sekce. Jsou generovány přímo z OpenAPI specifikace.
+</Note>
