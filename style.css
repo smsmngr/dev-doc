@@ -57,3 +57,25 @@ body {
   border-radius: 0.4rem !important;
   color: #ffffff !important;
 }
+
+/* Language selector: its label was dark and invisible on the dark bar. */
+#localization-select-trigger,
+#localization-select-trigger span {
+  color: #e5e7eb !important;
+}
+
+/* Theme toggle icon: brighten so it's visible on the dark bar. */
+#theme-preference-menu-trigger {
+  color: #d1d5db !important;
+}
+
+/* Support link: give it a visible outlined-button look on the dark bar. */
+#navbar a[href^="mailto:"] {
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  border-radius: 0.4rem !important;
+  padding: 0.25rem 0.7rem !important;
+}
+
+#navbar a[href^="mailto:"]:hover {
+  border-color: rgba(255, 255, 255, 0.55) !important;
+}
