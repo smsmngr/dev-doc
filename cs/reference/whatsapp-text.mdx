@@ -1,0 +1,170 @@
+---
+title: "Parametry WhatsApp textových zpráv"
+sidebarTitle: "WhatsApp text"
+description: "Referenční přehled objektu whatsapp_text — prostý text, náhled odkazu, media (obrázek, video, dokument, audio), tlačítka rychlé odpovědi a CTA tlačítko s odkazem."
+---
+
+Objekt `whatsapp_text` odesílá volný obsah přes WhatsApp v otevřeném **24hodinovém zákaznickém okně** — od prostého textu přes media až po interaktivní tlačítka. Na rozdíl od [šablon](/cs/reference/whatsapp-templates) není potřeba nic předregistrovat, obsah ale lze doručit jen tehdy, když vám příjemce v posledních 24 hodinách napsal. Pravidla okna vysvětluje koncept [Typy WhatsApp zpráv](/cs/concepts/whatsapp-message-types); tato stránka je referenčním přehledem všech polí.
+
+## Základní pole
+
+| Pole | Typ | Popis |
+| --- | --- | --- |
+| `sender` | string | **Phone Number ID** vašeho WhatsApp odesílatele (číselné ID, ne telefonní číslo). Povinné. |
+| `body` | string | Text zprávy. Zároveň slouží jako popisek (caption) u media a jako text u interaktivních zpráv. Pokud není uveden, použije se `body` z kořene požadavku. |
+| `preview` | boolean | U prostého textu zapíná náhled odkazu (`preview_url`). Výchozí `false`. |
+
+```json Prostý text s náhledem odkazu
+{
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "whatsapp_text": {
+        "sender": "514578330250514",
+        "body": "Nová verze je venku: https://example.com/blog",
+        "preview": true
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Media
+
+Media lze odeslat dvěma způsoby.
+
+**1. Zkráceně přes `body`** — pokud je `body` odkaz (začíná `http`) s rozpoznanou příponou, SmsManager z něj sám sestaví media zprávu:
+
+| Přípona v `body` | Typ |
+| --- | --- |
+| `.png`, `.jpeg` | Obrázek |
+| `.mp4`, `.3gp` | Video |
+| `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`, `.txt` | Dokument |
+| `.mp3`, `.acc`, `.m4a`, `.ogg`, `.amr` | Audio |
+
+**2. Explicitním objektem** — předáte objekt `image`, `video`, `document` nebo `audio` s polem `link`. U obrázku, videa a dokumentu se `body` použije jako popisek (caption), pokud objekt vlastní `caption` neobsahuje.
+
+```json Obrázek s popiskem
+{
+  "whatsapp_text": {
+    "sender": "514578330250514",
+    "body": "Náhled produktu",
+    "image": { "link": "https://example.com/produkt.jpg" }
+  }
+}
+```
+
+```json Dokument s vlastním názvem souboru
+{
+  "whatsapp_text": {
+    "sender": "514578330250514",
+    "document": { "link": "https://example.com/faktura.pdf", "filename": "faktura.pdf" }
+  }
+}
+```
+
+---
+
+## Tlačítka rychlé odpovědi (`buttons`)
+
+Pole `buttons` vytvoří interaktivní zprávu s tlačítky rychlé odpovědi — **maximálně 3** (další se ořežou). `body` se zobrazí jako text zprávy.
+
+| Pole tlačítka | Typ | Popis |
+| --- | --- | --- |
+| `title` | string | Popisek tlačítka. |
+| `id` | string | Volitelné. Identifikátor vrácený ve webhooku po klepnutí. Výchozí `reply_<index>`. |
+
+Volitelně přidejte `footer` (text pod zprávou) a `header` (viz [Hlavička](#hlavička-interaktivních-zpráv) níže).
+
+```json
+{
+  "whatsapp_text": {
+    "sender": "514578330250514",
+    "body": "Chcete pokračovat v objednávce?",
+    "footer": "Odpovězte prosím do 24 hodin",
+    "buttons": [
+      { "id": "yes", "title": "Ano, pokračovat" },
+      { "id": "no", "title": "Zrušit" }
+    ]
+  }
+}
+```
+
+---
+
+## CTA tlačítko s odkazem (`url`)
+
+Pole `url` (spolu s `title`) vytvoří interaktivní zprávu s jedním tlačítkem, které otevře odkaz. `body` je text zprávy; volitelně lze přidat `footer` a `header`.
+
+| Pole | Typ | Popis |
+| --- | --- | --- |
+| `url` | string | Cílová URL tlačítka. |
+| `title` | string | Popisek tlačítka. |
+
+```json
+{
+  "whatsapp_text": {
+    "sender": "514578330250514",
+    "body": "Vaše objednávka byla odeslána.",
+    "url": "https://example.com/track/ORD-123",
+    "title": "Sledovat zásilku"
+  }
+}
+```
+
+---
+
+## Hlavička interaktivních zpráv
+
+U zpráv s `buttons` nebo `url` můžete přidat pole `header` (řetězec). Typ hlavičky se určí podle tvaru hodnoty — odkaz s příponou obrázku/videa/dokumentu se zobrazí jako příslušné media, jinak jako text:
+
+```json Obrázková hlavička
+{ "header": "https://example.com/banner.png" }
+```
+
+```json Textová hlavička
+{ "header": "Potvrzení objednávky" }
+```
+
+---
+
+## Raw průchozí zápis (`raw`)
+
+Pro pokročilé případy, které toto rozhraní nepokrývá, můžete předat objekt `raw` s klíčem `interactive`, jehož obsah se odešle na WhatsApp API beze změny.
+
+```json
+{
+  "whatsapp_text": {
+    "sender": "514578330250514",
+    "raw": { "interactive": { "type": "list", "body": { "text": "…" }, "action": { "…": "…" } } }
+  }
+}
+```
+
+<Note>
+  Pole se vyhodnocují v pořadí: media v `body` → objekty `document`/`audio`/`image`/`video` → `buttons` → `url` → `raw` → prostý text. Uplatní se první, které v požadavku najdeme, proto v jedné zprávě kombinujte jen jeden typ obsahu.
+</Note>
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Odeslat WhatsApp" icon="whatsapp" href="/cs/guides/send-whatsapp">
+    Praktický průvodce odesíláním šablon i volného textu.
+  </Card>
+
+  <Card title="WhatsApp šablony" icon="stamp" href="/cs/reference/whatsapp-templates">
+    Reference parametrů proaktivních šablonových zpráv.
+  </Card>
+
+  <Card title="Typy WhatsApp zpráv" icon="comments" href="/cs/concepts/whatsapp-message-types">
+    Kdy použít šablonu a kdy volný text v 24hodinovém okně.
+  </Card>
+
+  <Card title="Webhooky" icon="webhook" href="/cs/guides/webhooks">
+    Příjem odpovědí a klepnutí na tlačítka.
+  </Card>
+</CardGroup>

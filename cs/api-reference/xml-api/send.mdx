@@ -1,0 +1,78 @@
+---
+title: "XML API — odeslání SMS"
+sidebarTitle: "Odeslání SMS"
+description: "Odeslání SMS přes XML požadavek. Vhodné pro systémy, které pracují s XML nebo umí jen jednoduchý POST."
+---
+
+XML API odešle jednu i více SMS pomocí **POST** požadavku s XML dokumentem. Hodí
+se pro systémy postavené na XML nebo tam, kde potřebujete v jednom požadavku
+poslat více zpráv najednou.
+
+<Note>
+  XML API je **trvale podporované** — jeho podporu neukončujeme. Pro nové
+  integrace doporučujeme [JSON API v2](/cs/api-reference/json-v2/overview), které
+  přidává další kanály (Viber/WhatsApp), záložní `flow` a strukturované odpovědi.
+</Note>
+
+## Endpoint
+
+```text
+POST https://xml-api-lts.smsmanager.cz
+Content-Type: application/x-www-form-urlencoded
+```
+
+XML dokument pošlete jako hodnotu POST parametru **`XMLDATA`**. API klíč předejte
+buď HTTP hlavičkou **`x-api-key`** (doporučeno) nebo jako obsah XML dokumentu.
+
+## Tělo požadavku (XML)
+
+```xml
+<RequestDocument>
+  <RequestList>
+    <Request Sender="MujEshop">
+      <Message Type="Text">Ahoj od SmsManageru</Message>
+      <NumbersList>
+        <Number>+420777123456</Number>
+      </NumbersList>
+    </Request>
+  </RequestList>
+</RequestDocument>
+```
+
+| Prvek / atribut | Popis |
+| --- | --- |
+| `Request` | Jedna zpráva. Opakovatelný — v jednom požadavku lze poslat více `Request`. |
+| `Request@Sender` | *(volitelné)* Odesílatel (1–11 znaků nebo číslo). |
+| `Message` | Text zprávy. `Message@Type="Text"`. |
+| `NumbersList` → `Number` | Příjemci; opakovatelné. Mezinárodní formát, úvodní `+` je povolen. |
+
+## Odpověď (XML)
+
+**Úspěch:**
+
+```xml
+<Result>
+  <ResultHeader>
+    <Interface Version="1.0" />
+  </ResultHeader>
+  <Response Type="OK" ID="0" />
+  <ResponseRequestList>
+    <ResponseRequest>
+      <RequestID>550e8400-e29b-41d4-a716-446655440000</RequestID>
+      <ResponseNumbersList>
+        <Number>420777123456</Number>
+      </ResponseNumbersList>
+    </ResponseRequest>
+  </ResponseRequestList>
+</Result>
+```
+
+`RequestID` je identifikátor odeslané zprávy. Chyba je indikována prvkem
+`<Response Type="ERROR" ID="<kód>" />`.
+
+## Příklad
+
+```bash cURL
+curl -X POST https://xml-api-lts.smsmanager.cz \
+  --data-urlencode 'XMLDATA=<RequestDocument><RequestList><Request Type="high"><Message Type="Text">Ahoj od SmsManageru</Message><NumbersList><Number>+420777123456</Number></NumbersList></Request></RequestList></RequestDocument>'
+```

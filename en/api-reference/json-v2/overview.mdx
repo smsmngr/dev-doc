@@ -4,7 +4,7 @@ sidebarTitle: "Overview"
 description: "Overview of SmsManager's JSON API v2 for sending SMS, Viber, and WhatsApp messages. Base URL, authentication, and endpoint summary."
 ---
 
-JSON API v2 is SmsManager's primary API for sending messages across SMS, Viber, and WhatsApp. Every request is authenticated with your API key, and most endpoints accept a JSON body that lets you target up to 10 recipients, define multi-channel flows, schedule delivery, and receive delivery callbacks. If you are migrating from an older integration, note that JSON API v1, the HTTP API, and the XML API are all deprecated — you should use v2 for all new work.
+JSON API v2 is SmsManager's primary API for sending messages across SMS, Viber, and WhatsApp. Every request is authenticated with your API key, and most endpoints accept a JSON body that lets you target up to 10 recipients, define multi-channel flows, schedule delivery, and receive delivery callbacks. For new work we recommend JSON API v2; the simpler [HTTP API](/en/api-reference/http-api/send) and [XML API](/en/api-reference/xml-api/send) remain permanently supported (handy for services that can only do GET/POST without a custom header).
 
 ## Base URL
 
@@ -24,7 +24,7 @@ x-api-key: YOUR_API_KEY
 
 The `GET /simple/message` endpoint is the only exception — it accepts the key as an `apikey` query parameter instead of a header.
 
-You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud). Keep your key private; anyone who holds it can send messages on your behalf.
+You can find your API key in your [account settings](https://app.smsmanager.com/app/developers/apikeys). Keep your key private; anyone who holds it can send messages on your behalf.
 
 For a broader explanation of authentication across SmsManager APIs, see the [Authentication guide](/en/authentication).
 
@@ -58,7 +58,7 @@ The following fields are shared across `POST /message` and `POST /messages`. Eac
 | `payload` | object | No | Arbitrary key-value data that SmsManager echoes back in every webhook event for this message. |
 
 <Note>
-  **JSON API v1 is deprecated.** All new integrations should target JSON API v2 (`https://api.smsmngr.com/v2`). The HTTP API and XML API are also deprecated.
+  **Use JSON API v2** (`https://api.smsmngr.com/v2`) for new integrations. The simpler [HTTP API](/en/api-reference/http-api/send) and [XML API](/en/api-reference/xml-api/send) remain permanently supported.
 </Note>
 
 ## Explore the endpoints

@@ -38,7 +38,7 @@ SmsManager nabízí čtyři API, každé vytvořené pro jinou část vaší int
 
 Začátek se SmsManagerem trvá tři kroky:
 
-1. **Získejte svůj API klíč** — přihlaste se na [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud) a zkopírujte svůj klíč. Přes REST API si také můžete vytvořit omezené sub-klíče.
+1. **Získejte svůj API klíč** — přihlaste se na [app.smsmanager.com/app/developers/apikeys](https://app.smsmanager.com/app/developers/apikeys) a zkopírujte svůj klíč. Přes REST API si také můžete vytvořit omezené sub-klíče.
 2. **Odešlete zprávu** — proveďte POST požadavek na `https://api.smsmngr.com/v2/message` s telefonním číslem příjemce a textem zprávy. Přidejte pole `flow` pro povolení doručení přes Viber nebo WhatsApp.
 3. **Přijměte webhook** — volitelně předejte URL `callback` v těle požadavku. SmsManager pošle POST oznámení o doručení na tuto URL při změně stavu zprávy.
 

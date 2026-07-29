@@ -1,0 +1,131 @@
+---
+title: "Příjem a zpracování požadavku"
+sidebarTitle: "Příjem požadavku"
+description: "Jak SmsManager přijímá požadavky na api.smsmngr.com. Proč HTTP 200 OK s message_id znamená jen přijetí ke zpracování, a která validace probíhá až následně."
+---
+
+Odeslání zprávy přes SmsManager probíhá ve **dvou oddělených fázích**. Nejprve endpoint na adrese `api.smsmngr.com` požadavek synchronně **přijme** a odpoví. Teprve poté SmsManager každou zprávu asynchronně **zpracuje** a předá k doručení (odešle ji do sítě operátora). Pochopení tohoto rozdělení je klíčové pro správné napojení: odpověď na volání API totiž **neznamená**, že zpráva byla přijata k odeslání.
+
+---
+
+## Fáze 1 — Přijetí požadavku (synchronní)
+
+Když pošlete `POST` na `api.smsmngr.com`, endpoint provede jen **rychlou vstupní kontrolu** a okamžitě odpoví. Ověřuje pouze to, co lze vyhodnotit ihned bez zpracování jednotlivých zpráv:
+
+- **Autentizace** — že je API klíč v hlavičce `x-api-key` platný.
+- **Content-Type** — že požadavek má správnou hlavičku `Content-Type: application/json`.
+- **Endpoint** — že voláte existující adresu a metodu (`POST /message`, `POST /messages`, …).
+- **Velikost požadavku** — že se vejdete do limitů: max. **10 příjemců** u endpointu `/message`, resp. max. **10 objektů zpráv** (každý s max. 10 příjemci) u endpointu `/messages`.
+
+Pokud tato kontrola projde, endpoint vrátí **`200 OK`** spolu s `request_id` a s hodnotou `message_id` pro každou přijatou zprávu.
+
+<Warning>
+  **`200 OK` s `message_id` znamená pouze, že byl požadavek přijat ke zpracování — nikoli že zpráva byla přijata k odeslání.** Že zprávu skutečně předáme k doručení, se dozvíte až z webhooku (doručenky) ve fázi 2, nikoli z této HTTP odpovědi.
+</Warning>
+
+`message_id` v tuto chvíli slouží jako identifikátor, přes který budete zprávu dále sledovat — spárujete s ním doručenky přicházející na vaši callback URL.
+
+---
+
+## Fáze 2 — Zpracování zprávy (asynchronní)
+
+Až po přijetí požadavku SmsManager každou zprávu jednotlivě zpracuje. Teprve zde probíhá **podrobná validace a příprava k doručení**, například:
+
+- **Formát telefonního čísla** — zda je číslo příjemce platné a v podporovaném tvaru.
+- **Cena zprávy** — výpočet ceny podle destinace, kanálu a počtu segmentů.
+- **Dostatečný kredit** — zda má účet dost prostředků na odeslání dané zprávy.
+- **Blacklist / opt-out** — zda příjemce není na blacklistu nebo se neodhlásil z odběru.
+- **Další pravidla směrování** — kontroly specifické pro odesílatele, bránu a destinaci.
+
+Zpráva, která touto fází projde, je předána k doručení a dál sledujete její stav běžnou [sekvencí doručenek](/cs/guides/webhooks) (`sending` → `sent` → `delivered`).
+
+---
+
+## Stav `rejected`
+
+Pokud zpráva neprojde některou kontrolou ve fázi 2 (neplatné číslo, nedostatečný kredit, příjemce na blacklistu apod.), je označena jako **`rejected`** (takovou zprávu se SmsManager ani nepokoušel odesílat). Protože k tomu dojde **až po** HTTP odpovědi `200 OK`, nedozvíte se to z návratové hodnoty API volání, ale **z webhooku**: na vaši callback URL dorazí událost se stavem `rejected` a s bližší informací o příčině v poli `result_info`.
+
+```json Webhook událost (výňatek)
+{
+  "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+  "result": "rejected",
+  "result_info": "[2] Rejected"
+}
+```
+
+<Note>
+  Aby vám tyto informace dorazily, nastavte pole `callback` na požadavku (nebo výchozí callback URL na API klíči). Bez nastavené callback URL se o zamítnutí zprávy ve fázi 2 nedozvíte. Podrobnosti najdete v návodu [Webhooky](/cs/guides/webhooks).
+</Note>
+
+---
+
+## Správné vyhodnocení odpovědi `200 OK`
+
+Samotný stavový kód `200 OK` **nestačí** k ověření, že byli přijati všichni příjemci. Do fronty ke zpracování se vkládá až 10 požadavků na jedno volání a každý z nich se vyhodnocuje samostatně. Odpověď proto obsahuje dvě pole indexovaná podle původního pořadí (u `/message` odpovídá index pořadí v poli `to`, u `/messages` pořadí objektů zpráv):
+
+| Pole | Význam |
+| --- | --- |
+| `accepted` | Požadavky přijaté ke zpracování. U endpointu `/message` obsahuje `message_id` pro každého přijatého příjemce. |
+| `rejected` | Požadavky, které nebyly přijaty ke zpracování a je **nutné je zopakovat**. |
+
+**Vždy zkontrolujte, že počet položek v `accepted` odpovídá počtu příjemců** (`to`), resp. počtu objektů zpráv (`messages`). Pokud je `rejected` neprázdné, tyto konkrétní požadavky zopakujte.
+
+<Warning>
+  Neplatí, že součet `accepted` a `rejected` se musí rovnat počtu příjemců. Můžete obdržet i dvě prázdná pole nebo část příjemců v `accepted` a přitom prázdné `rejected`. Rozhodujte se proto vždy podle počtu položek v `accepted`, ne odečítáním `rejected`.
+</Warning>
+
+U endpointů `simple/message` je situace jednodušší — pracují vždy jen s jedním příjemcem, takže pole `accepted` má hodnotu `true`, nebo `false`.
+
+<Note>
+  Přijetí ke zpracování (`accepted`) je stále jen fáze 1. I přijatý požadavek může skončit jako `rejected` ve fázi 2 — to se ale dozvíte z webhooku, ne z odpovědi API. Nezaměňujte `rejected` v odpovědi API (nepřijato ke zpracování, zopakujte) se stavem `rejected` v doručence (zpracováno a zamítnuto, neopakujte bezhlavě).
+</Note>
+
+## Odpovědi `40x` a `50x`
+
+Ne každé volání skončí `200 OK`. Chybové kódy vyžadují odlišnou reakci:
+
+| Stav | Význam | Jak reagovat |
+| --- | --- | --- |
+| `400 Bad Request` | Chyba samotného požadavku — např. více než 10 příjemců na `/message` nebo více než 10 objektů na `/messages`, neplatný JSON, chybný obsah. | Neopakujte beze změny; nejdřív opravte požadavek. |
+| `401` / `403` | Chyba autentizace nebo oprávnění (neplatný API klíč). | Opravte API klíč. |
+| `500` / `503` | Dočasná chyba na straně serveru. | Požadavek většinou nemusíte měnit — počkejte několik minut a zopakujte. |
+
+<Tip>
+  Doporučujeme neposílat jednotlivé HTTP požadavky větší než **128 KB** (přes 100 000 znaků, což na běžné použití bohatě stačí).
+</Tip>
+
+---
+
+## Praktický důsledek pro vaši integraci
+
+- **Nespoléhejte na `200 OK` jako potvrzení odeslání.** Berte ho jen jako „požadavek byl přijat ke zpracování".
+- **Sledujte doručenky.** Skutečný osud zprávy (`delivered`, `undelivered`, `rejected`, `failed`) se dozvíte pouze z webhooků na vaší callback URL nebo při volání REST API a metody na zjištění stavu zprávy.
+- **Zpracujte stav `rejected`.** Naslouchejte na callback URL a pole `result_info` použijte pro logování a diagnostiku (např. odlišení nedostatku kreditu od neplatného čísla).
+
+<Tip>
+  Endpoint na `api.smsmngr.com` **synchronně** kontroluje jen API klíč, `Content-Type`, adresu endpointu a velikost požadavku.
+
+  Cena, formát čísla, kredit i blacklist/opt-out se řeší **asynchronně** ve fázi 2 a jejich výsledek vám oznámí webhook.
+</Tip>
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Životní cyklus zprávy" icon="timeline" href="/cs/concepts/message-flow">
+    Jak flow prochází kanály a kdy přejde na zálohu.
+  </Card>
+
+  <Card title="Webhooky" icon="webhook" href="/cs/guides/webhooks">
+    Formát doručenky, sekvence stavů a pole `result_info`.
+  </Card>
+
+  <Card title="message_id a request_id" icon="fingerprint" href="/cs/concepts/message-ids">
+    Jak spárovat odpověď API s doručenkami z webhooku.
+  </Card>
+
+  <Card title="Testování napojení" icon="flask" href="/cs/guides/testing">
+    Otestujte celý tok bez odesílání skutečných zpráv.
+  </Card>
+</CardGroup>

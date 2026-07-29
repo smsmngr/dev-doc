@@ -1,4 +1,4 @@
-SmsManager podporuje čtyři messagingové kanály, každý s vlastními přednostmi a konfiguračními možnostmi. Můžete použít jeden kanál nebo je kombinovat v [toku zpráv](/cs/concepts/message-flow) pro maximalizaci míry doručení. Tato stránka pokrývá, co každý kanál umožňuje, jaká pole přijímá a jak jej nastavit.
+SmsManager podporuje pět messagingových kanálů, každý s vlastními přednostmi a konfiguračními možnostmi. Můžete použít jeden kanál nebo je kombinovat v [toku zpráv](/cs/concepts/message-flow) pro maximalizaci míry doručení. Tato stránka pokrývá, co každý kanál umožňuje, jaká pole přijímá a jak jej nastavit.
 
 <Tabs>
   <Tab title="SMS">
@@ -208,6 +208,59 @@ SmsManager podporuje čtyři messagingové kanály, každý s vlastními předno
 
     <Note>
       Pokud šablona nebyla ještě schválena nebo bylo schválení odvoláno, kanál `whatsapp_template` selže a SmsManager přejde na další kanál ve vašem flow.
+    </Note>
+  </Tab>
+  <Tab title="RCS">
+    ## RCS kanál
+
+    RCS (Rich Communication Services) je nástupce SMS s bohatým obsahem přímo v nativní aplikaci pro zprávy na Androidu. Umožňuje odesílat text, návrhy odpovědí a akční tlačítka, samostatnou rich card i produktový carousel. RCS zprávy se doručí jen příjemcům s aktivním RCS, proto je vhodné za RCS krok vždy zařadit SMS zálohu.
+
+    ### Povinná pole
+
+    | Pole | Typ | Popis |
+    | --- | --- | --- |
+    | `sender` | string | ID vašeho RCS agenta (odesílatele). |
+
+    ### Volitelná pole
+
+    | Pole | Typ | Popis |
+    | --- | --- | --- |
+    | `body` | string | Text zprávy. |
+    | `ttl` | integer | Doba života v minutách. Po jejím uplynutí se přejde na další kanál ve flow. |
+    | `buttons` | array | Návrhy odpovědí a akční tlačítka (`reply` / `url`). |
+    | `card` | object | Samostatná rich card s media, nadpisem, popisem a tlačítky. |
+    | `carousel` | array | Vodorovně listovatelná řada karet. |
+
+    Úplný přehled polí a příklady najdete v referenci [Parametry RCS zpráv](/cs/reference/rcs).
+
+    ### Příklad
+
+    ```json
+    {
+      "body": "Vaše objednávka #5821 je připravena k vyzvednutí!",
+      "to": [{ "phone_number": "420777123456" }],
+      "flow": [
+        {
+          "rcs": {
+            "sender": "muj_rcs_agent",
+            "body": "Vaše objednávka #5821 je připravena k vyzvednutí!",
+            "buttons": [
+              { "type": "url", "text": "Zobrazit objednávku", "postback": "ORDER", "url": "https://example.com/orders/5821" }
+            ]
+          }
+        },
+        {
+          "sms": {
+            "sender": "MujObchod",
+            "body": "Vaše objednávka #5821 je připravena k vyzvednutí!"
+          }
+        }
+      ]
+    }
+    ```
+
+    <Note>
+      RCS zprávy jsou doručovány pouze příjemcům s aktivním RCS. Vždy zahrnujte SMS zálohu ve svém flow, abyste dosáhli i ostatních příjemců.
     </Note>
   </Tab>
 </Tabs>

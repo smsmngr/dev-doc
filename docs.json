@@ -24,7 +24,7 @@
     "links": [
       {
         "label": "Support",
-        "href": "mailto:cc@smsmanager.cz"
+        "href": "mailto:cc@smsmanager.com"
       }
     ],
     "primary": {
@@ -73,6 +73,12 @@
                 ]
               },
               {
+                "group": "Testování",
+                "pages": [
+                  "cs/guides/testing"
+                ]
+              },
+              {
                 "group": "Přístup a klíče",
                 "pages": [
                   "cs/authentication"
@@ -89,10 +95,6 @@
                   "cs/api-reference/json-v2/overview"
                 ],
                 "openapi": "/openapi/cs/json/jsonapi_v2.yaml"
-              },
-              {
-                "group": "JSON API v1",
-                "openapi": "/openapi/cs/json/jsonapi_v1.yaml"
               },
               {
                 "group": "REST API",
@@ -116,11 +118,26 @@
                 "openapi": "/openapi/cs/waba_rest/waba_restapi_v1.yaml"
               },
               {
+                "group": "HTTP API",
+                "pages": [
+                  "cs/api-reference/http-api/send"
+                ]
+              },
+              {
+                "group": "XML API",
+                "pages": [
+                  "cs/api-reference/xml-api/send"
+                ]
+              },
+              {
                 "group": "Referenční tabulky",
                 "pages": [
                   "cs/reference/errors",
                   "cs/reference/rate-limits",
                   "cs/reference/phone-numbers",
+                  "cs/reference/whatsapp-templates",
+                  "cs/reference/whatsapp-text",
+                  "cs/reference/rcs",
                   "cs/api-reference/json-v2/webhooks"
                 ]
               }
@@ -134,6 +151,8 @@
                 "pages": [
                   "cs/introduction",
                   "cs/concepts/message-flow",
+                  "cs/concepts/request-acceptance",
+                  "cs/concepts/sending-queues",
                   "cs/concepts/channels",
                   "cs/concepts/message-ids",
                   "cs/concepts/scheduling",
@@ -197,10 +216,6 @@
                 "openapi": "/openapi/en/json/jsonapi_v2.yaml"
               },
               {
-                "group": "JSON API v1",
-                "openapi": "/openapi/en/json/jsonapi_v1.yaml"
-              },
-              {
                 "group": "REST API",
                 "pages": [
                   "en/api-reference/rest/overview"
@@ -220,6 +235,18 @@
                   "en/api-reference/waba/overview"
                 ],
                 "openapi": "/openapi/en/waba_rest/waba_restapi_v1.yaml"
+              },
+              {
+                "group": "HTTP API",
+                "pages": [
+                  "en/api-reference/http-api/send"
+                ]
+              },
+              {
+                "group": "XML API",
+                "pages": [
+                  "en/api-reference/xml-api/send"
+                ]
               },
               {
                 "group": "Reference tables",

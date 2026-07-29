@@ -1,0 +1,81 @@
+---
+title: "XML API — send an SMS"
+sidebarTitle: "Send an SMS"
+description: "Send one or more SMS with an XML request. Suited to XML-based systems or a single POST that sends many messages at once."
+---
+
+The XML API sends one or more SMS with a single **POST** request carrying an XML
+document. It suits XML-based systems, or cases where you want to send several
+messages in one request.
+
+<Note>
+  The XML API is **permanently supported** — we will not discontinue it. For new
+  integrations we recommend [JSON API v2](/en/api-reference/json-v2/overview),
+  which adds more channels (Viber/WhatsApp), fallback `flow`, and structured
+  responses.
+</Note>
+
+## Endpoint
+
+```text
+POST https://xml-api-lts.smsmanager.cz
+Content-Type: application/x-www-form-urlencoded
+```
+
+Send the XML document as the value of the POST parameter **`XMLDATA`**. Pass the
+API key as the **`apikey`** parameter.
+
+## Request body (XML)
+
+```xml
+<RequestDocument>
+  <RequestList>
+    <Request Type="high">
+      <Message Type="Text">Hello from SmsManager</Message>
+      <NumbersList>
+        <Number>+420777123456</Number>
+      </NumbersList>
+    </Request>
+  </RequestList>
+</RequestDocument>
+```
+
+| Element / attribute | Description |
+| --- | --- |
+| `Request` | One message. Repeatable — send several `Request` elements in one call. |
+| `Request@Type` | Delivery type: `high`, `lowcost`, `direct`. |
+| `Request@Sender` | *(optional)* Sender (1–11 characters or a number). |
+| `Message` | Message text. `Message@Type="Text"`. |
+| `NumbersList` → `Number` | Recipients; repeatable. International format, a leading `+` is accepted. |
+
+## Response (XML)
+
+**Success:**
+
+```xml
+<Result>
+  <ResultHeader>
+    <Interface Version="1.0" />
+  </ResultHeader>
+  <Response Type="OK" ID="0" />
+  <ResponseRequestList>
+    <ResponseRequest>
+      <RequestID>550e8400-e29b-41d4-a716-446655440000</RequestID>
+      <ResponseNumbersList>
+        <Number>420777123456</Number>
+      </ResponseNumbersList>
+    </ResponseRequest>
+  </ResponseRequestList>
+</Result>
+```
+
+`RequestID` identifies the sent message. An error is indicated by
+`<Response Type="ERROR" ID="<code>" />`.
+
+## Example
+
+```bash cURL
+curl -X POST https://xml-api-lts.smsmanager.cz \
+  --data-urlencode "apikey=YOUR_API_KEY" \
+  --data-urlencode 'XMLDATA=<RequestDocument><RequestList><Request Type="high"><Message Type="Text">Hello from SmsManager</Message><NumbersList><Number>+420777123456</Number></NumbersList></Request></RequestList></RequestDocument>'
+```

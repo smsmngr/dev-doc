@@ -1,55 +1,87 @@
-# Mintlify Starter Kit
+# SmsManager Developer Docs
 
-Use the starter kit to get your docs deployed and ready to customize.
+Source of the **SmsManager developer documentation** — the docs published at
+**[developers.smsmanager.com](https://developers.smsmanager.com)** and built with
+[Mintlify](https://mintlify.com). The docs are **bilingual**: **Czech (primary)**
+and **English**.
 
-Click the green **Use this template** button at the top of this repo to copy the Mintlify starter kit. The starter kit contains examples with
+If you just want to *read* the docs, go to the live site. This repo is for
+**editing** them.
 
-- Guide pages
-- Navigation
-- Customizations
-- API reference pages
-- Use of popular components
+## What's documented
 
-**[Follow the full quickstart guide](https://starter.mintlify.com/quickstart)**
+The SmsManager messaging platform (SMS, Viber, WhatsApp) and its four APIs:
 
-## AI-assisted writing
+- **JSON API v2** — the main send API (`https://api.smsmngr.com/v2`)
+- **REST API** — account, API keys, credit, message status, inbox
+- **Verify API** — one-time-code phone verification
+- **WhatsApp Partner API** — programmatic WABA onboarding
 
-Set up your AI coding tool to work with Mintlify:
+Plus getting-started tutorials, how-to guides, and core-concept explanations.
+
+## Repository structure
+
+```
+docs.json              # site config + navigation (languages, tabs, groups, OpenAPI refs)
+index.mdx              # root landing
+style.css              # custom CSS (auto-loaded): dark developer-portal header, etc.
+fonts/                 # self-hosted GothamRounded heading font
+cs/                    # 🇨🇿 Czech pages (primary language) — served at the root URL
+en/                    # 🇬🇧 English pages — served under /en
+  ├─ index, introduction, quickstart, authentication
+  ├─ concepts/         # channels, message-flow, message-ids, scheduling, …
+  ├─ guides/           # send-sms, send-whatsapp, whatsapp-sms-fallback, webhooks, …
+  ├─ reference/        # errors, rate-limits, phone-numbers
+  └─ api-reference/    # per-API overview pages
+openapi/{cs,en}/       # OpenAPI specs that power the auto-generated API reference
+  ├─ json/  rest/  verify/  waba_rest/
+```
+
+### How content is organized
+
+Navigation follows the [Diátaxis](https://diataxis.fr) model — one tab per
+content type, per language:
+
+| Czech (default) | English | Type |
+|---|---|---|
+| **Začínáme** | **Get started** | Tutorials |
+| **Návody** | **Guides** | How-to |
+| **API reference** | **API reference** | Reference (generated from `openapi/`) |
+| **Koncepty** | **Concepts** | Explanation |
+
+Every content page is exactly one type. Reference is generated from the OpenAPI
+specs — don't hand-write endpoint docs; edit the spec in `openapi/`.
+
+## Local preview
+
+Install the [Mintlify CLI](https://www.npmjs.com/package/mint) and run it where
+`docs.json` lives (the repo root):
 
 ```bash
-npx skills add https://mintlify.com/docs
-```
-
-This command installs Mintlify's documentation skill for your configured AI tools like Claude Code, Cursor, Windsurf, and others. The skill includes component reference, writing standards, and workflow guidance.
-
-See the [AI tools guides](/ai-tools) for tool-specific setup.
-
-## Development
-
-Install the [Mintlify CLI](https://www.npmjs.com/package/mint) to preview your documentation changes locally. To install, use the following command:
-
-```
 npm i -g mint
+mint dev            # → http://localhost:3000
 ```
 
-Run the following command at the root of your documentation, where your `docs.json` is located:
+## Editing
 
-```
-mint dev
-```
+- **Pages** are MDX under `cs/` and `en/`. Edit the matching file in **both**
+  languages (Czech is the source of truth; keep English in sync).
+- **Navigation** (which pages appear, in what order/tab/group) lives in
+  `docs.json` under `navigation.languages[]`.
+- **API reference** comes from `openapi/<lang>/…` — change the spec, not a page.
+- **Look & feel**: brand color and heading font are in `docs.json`; further
+  tweaks (e.g. the dark header) are in `style.css`.
+- Use the demo number `+420777123456` and the literal `YOUR_API_KEY` placeholder
+  in examples — never commit a real key.
 
-View your local preview at `http://localhost:3000`.
+## Publishing
 
-## Publishing changes
+Pushing to the **`main`** branch auto-deploys to production via the Mintlify
+GitHub App (installed on the `smsmngr` organization). Open a PR for review, or
+push to `main` to ship.
 
-Install our GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app) to propagate changes from your repo to your deployment. Changes are deployed to production automatically after pushing to the default branch.
+## Related
 
-## Need help?
-
-### Troubleshooting
-
-- If your dev environment isn't running: Run `mint update` to ensure you have the most recent version of the CLI.
-- If a page loads as a 404: Make sure you are running in a folder with a valid `docs.json`.
-
-### Resources
-- [Mintlify documentation](https://mintlify.com/docs)
+- **Live docs:** https://developers.smsmanager.com
+- **Code examples:** [`smsmngr/dev-examples`](https://github.com/smsmngr/dev-examples)
+- **API dashboard / keys:** https://app.smsmanager.com/app/developers/apikeys

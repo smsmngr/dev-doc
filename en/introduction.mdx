@@ -44,7 +44,7 @@ SmsManager exposes four APIs, each purpose-built for a different part of your in
 
 Getting started with SmsManager takes three steps:
 
-1. **Get your API key** — log in to [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud) and copy your key. You can also create scoped sub-keys through the REST API.
+1. **Get your API key** — log in to [app.smsmanager.com/app/developers/apikeys](https://app.smsmanager.com/app/developers/apikeys) and copy your key. You can also create scoped sub-keys through the REST API.
 2. **Send a message** — make a POST request to `https://api.smsmngr.com/v2/message` with your recipient's phone number and message body. Add a `flow` array to enable Viber or WhatsApp delivery.
 3. **Receive a webhook** — optionally pass a `callback` URL in your request body. SmsManager will POST a delivery notification to that URL when the message status changes.
 

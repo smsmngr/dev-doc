@@ -1,0 +1,116 @@
+---
+title: "Testování API napojení"
+sidebarTitle: "Testování napojení"
+description: "Otestujte integraci se SmsManagerem bez odesílání skutečných zpráv a bez zbytečných nákladů — pomocí testovacího čísla, testovací brány a mock (sandbox) endpointů."
+---
+
+Než pustíte integraci do provozu, je vhodné ji vyzkoušet — ověřit, že sestavujete platné požadavky, správně zpracováváte odpovědi a umíte přijmout doručenky (webhooky). SmsManager k tomu nabízí tři nezávislé nástroje, které můžete kombinovat. Žádný z nich neodešle skutečnou zprávu na telefon příjemce.
+
+| Nástroj | Jak zapnout | Kredit | Odešle SMS? | Doručenky (webhook)? | Kdy použít |
+| --- | --- | --- | --- | --- | --- |
+| Testovací číslo | `to.phone_number` = `420777777777` | Neodečítá se | Ne | Ne | Ověření, že požadavek projde a odpověď zpracujete správně |
+| Testovací brána | `gateway: "test"` ve flow objektu `sms` | 0,01 Kč / SMS | Ne | Ano | End-to-end test zpracování doručenek na vaší callback URL |
+| Mock endpointy | Doména `api-mock` / `rest-api-mock` | Neodečítá se | Ne | Ne | Vývoj a automatizované testy proti simulaci API |
+
+---
+
+## Testovací telefonní číslo
+
+Na speciální číslo `420777777777` se zpráva **nikdy neodešle** a **neodečte se za ni kredit**. Příjemce se vyhodnotí jako neplatný. API požadavek se přesto zpracuje jako běžně — dostanete zpět `request_id` a pro každého příjemce `message_id` — takže si ověříte, že vaše integrace sestaví platný požadavek, autentizuje se a správně načte odpověď.
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Testovací zpráva",
+    "to": [{"phone_number": "420777777777"}]
+  }'
+```
+
+<Note>
+  Testovací číslo negeneruje doručenky — zpráva se reálně nepředává k doručení, takže žádný webhook o stavu doručení nepřijde. Pokud chcete otestovat i příjem doručenek, použijte [testovací bránu](#testovací-brána) níže.
+</Note>
+
+---
+
+## Testovací brána
+
+Přidáním `gateway: "test"` do flow objektu `sms` označíte zprávu jako testovací. Takové zprávy stojí jen **0,01 Kč / SMS**, ve skutečnosti se **nedoručují na telefon**, ale SmsManager pro ně **vygeneruje doručenky** a pošle je jako webhook na vaši callback URL. Díky tomu otestujete celý tok od odeslání až po zpracování doručenky.
+
+```json Tělo požadavku
+{
+  "body": "Testovací zpráva s doručenkou",
+  "to": [{"phone_number": "420777123456"}],
+  "callback": "https://yourapp.com/webhooks/sms",
+  "flow": [
+    {
+      "sms": {
+        "sender": "MujApp",
+        "gateway": "test"
+      }
+    }
+  ]
+}
+```
+
+<Tip>
+  Nastavte pole `callback` na URL vašeho endpointu, abyste doručenky skutečně obdrželi. Podrobnosti o formátu payloadu a sekvenci stavů najdete v návodu [Webhooky](/cs/guides/webhooks).
+</Tip>
+
+---
+
+## Mock (sandbox) endpointy
+
+Pro vývoj a automatizované testy můžete místo produkčních domén volat **mock endpointy**. Ty jen simulují příjem požadavku a odpovídají podle OpenAPI specifikace — nic se neodešle a neodečte se kredit. Hodí se, když chcete ověřit sestavení požadavků a parsování odpovědí, aniž byste zasáhli produkci.
+
+Do adresy stačí doplnit `-mock` za název odpovídající produkční domény:
+
+| API | Produkční základní URL | Mock základní URL |
+| --- | --- | --- |
+| JSON API v2 | `https://api.smsmngr.com/v2` | `https://api-mock.smsmngr.com/v2` |
+| REST API | `https://rest-api.smsmngr.com/v1` | `https://rest-api-mock.smsmngr.com/v1` |
+
+```bash cURL
+curl -X POST https://api-mock.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Ahoj z mocku!",
+    "to": [{"phone_number": "420777123456"}]
+  }'
+```
+
+<Note>
+  Mock endpointy vracejí ukázkové odpovědi podle OpenAPI specifikace — nezrcadlí stav vašeho účtu ani reálné doručení. Pro test skutečných doručenek použijte [testovací bránu](#testovací-brána) proti produkční doméně.
+</Note>
+
+---
+
+## Doporučený postup testování
+
+<Steps>
+  <Step title="Ověřte sestavení požadavku">
+    Během vývoje volejte [mock endpointy](#mock-sandbox-endpointy) nebo produkci s [testovacím číslem](#testovací-telefonní-číslo) `420777777777`. Ověříte tak autentizaci, tvar požadavku i parsování odpovědi — zdarma a bez odeslání.
+  </Step>
+  <Step title="Otestujte doručenky">
+    Přepněte na [testovací bránu](#testovací-brána) `gateway: "test"` s nastaveným polem `callback`. Za 0,01 Kč / SMS ověříte, že váš endpoint doručenky přijme a správně zpracuje sekvenci stavů.
+  </Step>
+  <Step title="Přejděte do provozu">
+    Odeberte `gateway: "test"`, nasměrujte volání na produkční doménu a odešlete zprávu na své skutečné číslo pro finální kontrolu. Poté můžete integraci pustit naostro.
+  </Step>
+</Steps>
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Odeslat SMS" icon="message-sms" href="/cs/guides/send-sms">
+    Kompletní přehled polí SMS zprávy včetně hodnot pole `gateway`.
+  </Card>
+
+  <Card title="Webhooky" icon="webhook" href="/cs/guides/webhooks">
+    Formát doručenky, sekvence stavů a osvědčené postupy pro váš endpoint.
+  </Card>
+</CardGroup>
