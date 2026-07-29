@@ -1,0 +1,88 @@
+---
+title: "HTTP API — odeslání SMS"
+sidebarTitle: "Odeslání SMS"
+description: "Jednoduché odeslání SMS přes GET/POST. API klíč se předává jako parametr (ne hlavička) — ideální pro služby, které umí jen GET/POST bez vlastní hlavičky."
+---
+
+HTTP API je nejjednodušší způsob, jak odeslat SMS — stačí jeden **GET** nebo **POST** požadavek. API klíč se předává jako **parametr**, ne jako hlavička, takže rozhraní funguje i tam, kde platforma umožňuje jen GET/POST a neumí nastavit vlastní HTTP hlavičku.
+
+<Note>
+  HTTP API je **trvale podporované** — jeho podporu neukončujeme. Pro nové integrace, které potřebují více kanálů (Viber/WhatsApp), záložní `flow` nebo strukturovanou odpověď, doporučujeme [JSON API v2](/cs/api-reference/json-v2/overview).
+</Note>
+
+## Endpoint
+
+```text
+POST  https://http-api-lts.smsmanager.cz
+GET   https://http-api-lts.smsmanager.cz
+```
+
+U `POST` posílejte parametry jako `application/x-www-form-urlencoded`; u `GET` jako query string.
+
+## Parametry
+
+Pro zpěnou kompatibilitu se starší verzí API jsou přípustné také tyto aliasy jednotlivých parametrů (tzn. `body` nebo `message` jsou zaměnitelné. Nepoužívejte oboje.).
+
+| Parametr | Povinný | Popis |
+| --- | --- | --- |
+| `apikey` | Ano | Váš API klíč z [administrace](https://app.smsmanager.com/app/developers/apikeys). |
+| `to` nebo `number` | Ano | Telefonní číslo příjemce v mezinárodním formátu; úvodní `+` je povolen. Více příjemců oddělte středníkem: `420777111222;420777333444`. |
+| `body` nebo `message` | Ano | Text zprávy. |
+| `sender` | Ne | Odesílatel (jméno nebo číslo). |
+| `gateway` | Ne | Typ odesílání (např. `high`, `economy`, `low`, `direct`). |
+| `time` | Ne | Naplánované odeslání ve formátu `2025-01-01T23:59:59`. |
+| `type` | Ne | Nastavte `utf` pro zachování diakritiky. |
+
+## Autentizace
+
+API klíč předejte jako parametr **`apikey`** — v query stringu (GET) nebo v těle požadavku (POST). Žádná hlavička není potřeba, což je hlavní výhoda pro integrace bez možnosti upravit hlavičky.
+
+## Odpověď
+
+Odpověď je `text/plain`, jeden řádek na příjemce.
+
+**Úspěch** (HTTP 200):
+
+```text
+OK|932125742|420777111222
+```
+
+`OK` znamená přijato do fronty, následuje `message_id` a telefonní číslo.
+
+Pokud nastavíte `Accept` na hodnotu `application/json`, obdržíte zpět odpověď formátovanou jako JSON:
+
+```json
+{
+  "result": "OK",
+  "id": "932125742",
+  "phoneNumbers": ["420777111222"]
+}
+```
+
+**Chyba:**
+
+```text
+ERROR|102
+```
+
+## Příklady
+
+<CodeGroup>
+
+```bash GET
+curl "https://http-api-lts.smsmanager.cz?apikey=YOUR_API_KEY&number=%2B420777123456&message=Ahoj%20od%20SmsManageru&sender=MujSender"
+```
+
+```bash POST
+curl -X POST https://http-api-lts.smsmanager.cz \
+  --data-urlencode "apikey=YOUR_API_KEY" \
+  --data-urlencode "number=+420777123456" \
+  --data-urlencode "message=Ahoj od SmsManageru" \
+  --data-urlencode "sender=MujSender"
+```
+
+</CodeGroup>
+
+## Doručenky
+
+Základní doručovací webhook nastavíte parametrem `callback` s URL. Pokud potřebujete request formátovat přesně dle cílové platformy (metoda, hlavičky, tělo), použijte objektový `callback` v [JSON API v2](/cs/api-reference/json-v2/overview).

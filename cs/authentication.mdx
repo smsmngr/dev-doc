@@ -2,7 +2,7 @@ SmsManager používá autentizaci API klíčem pro všechny požadavky. Každé 
 
 ## Získání API klíče
 
-Přihlaste se ke svému účtu SmsManager a přejděte na stránku [API & Cloud](https://app.smsmanager.com/api-cloud). Váš hlavní API klíč je tam zobrazen. Zkopírujte jej a uložte na bezpečné místo — použijete jej v každém požadavku na API.
+Přihlaste se ke svému účtu SmsManager a přejděte na stránku [API & Cloud](https://app.smsmanager.com/app/developers/apikeys). Váš hlavní API klíč je tam zobrazen. Zkopírujte jej a uložte na bezpečné místo — použijete jej v každém požadavku na API.
 
 <Tip>
   Prostřednictvím REST API si můžete vytvořit další sub-klíče s izolovaným nebo sdíleným kreditem. Viz [Správa API klíčů](#sprava-api-klicu) níže pro podrobnosti.
@@ -60,7 +60,7 @@ Dodržujte tato doporučení pro ochranu vašich API klíčů a dat uživatelů:
 
 - **Nikdy nezakódujte API klíče do klientského kódu** — klíče v prohlížečovém JavaScriptu, mobilních aplikacích nebo veřejných repozitářích mohou být extrahovány a zneužity
 - **Používejte proměnné prostředí** — načítejte klíče z proměnných prostředí nebo správce tajemství (např. AWS Secrets Manager, HashiCorp Vault), nekomitujte je do zdrojové kontroly
-- **Rotujte klíče při kompromitaci** — pokud se domníváte, že klíč unikl, ihned vytvořte nový přes [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud) nebo REST API, aktualizujte integrace a starý klíč smažte
+- **Rotujte klíče při kompromitaci** — pokud se domníváte, že klíč unikl, ihned vytvořte nový přes [app.smsmanager.com/app/developers/apikeys](https://app.smsmanager.com/app/developers/apikeys) nebo REST API, aktualizujte integrace a starý klíč smažte
 - **Používejte sub-klíče pro každou integraci** — přiřaďte vyhrazený sub-klíč každé službě nebo prostředí (produkce, staging atd.), abyste mohli odvolat jediný klíč, aniž byste narušili vše ostatní
 
 ## Chyby autentizace

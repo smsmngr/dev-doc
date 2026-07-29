@@ -1,4 +1,4 @@
-JSON API v2 je hlavní API SmsManageru pro odesílání zpráv přes SMS, Viber a WhatsApp. Každý požadavek je autentizován vaším API klíčem a většina endpointů přijímá JSON tělo, které vám umožňuje cílit až 10 příjemců, definovat multikanálové toky, plánovat doručení a přijímat doručovací callbacky. Pokud migrujete ze starší integrace, všimněte si, že JSON API v1, HTTP API a XML API jsou zastaralé — pro všechnu novou práci byste měli používat v2.
+JSON API v2 je hlavní API SmsManageru pro odesílání zpráv přes SMS, Viber a WhatsApp. Každý požadavek je autentizován vaším API klíčem a většina endpointů přijímá JSON tělo, které vám umožňuje cílit až 10 příjemců, definovat multikanálové toky, plánovat doručení a přijímat doručovací callbacky. Pro novou práci doporučujeme JSON API v2; jednodušší [HTTP API](/cs/api-reference/http-api/send) a [XML API](/cs/api-reference/xml-api/send) zůstávají trvale podporované (hodí se pro služby, které umí jen GET/POST bez vlastní hlavičky).
 
 ## Základní URL
 
@@ -18,7 +18,7 @@ x-api-key: YOUR_API_KEY
 
 Endpoint `GET /simple/message` je jedinou výjimkou — přijímá klíč jako query parametr `apikey`.
 
-Svůj API klíč najdete v [nastavení účtu](https://app.smsmanager.com/api-cloud). Udržujte svůj klíč soukromý; kdokoli, kdo jej drží, může odesílat zprávy vaším jménem.
+Svůj API klíč najdete v [nastavení účtu](https://app.smsmanager.com/app/developers/apikeys). Udržujte svůj klíč soukromý; kdokoli, kdo jej drží, může odesílat zprávy vaším jménem.
 
 Pro širší vysvětlení autentizace napříč SmsManager API vizte [Průvodce autentizací](/cs/authentication).
 
@@ -52,7 +52,7 @@ Následující pole jsou sdílena mezi `POST /message` a `POST /messages`. Každ
 | `payload` | object | Ne | Libovolná klíč-hodnota data, která SmsManager vrací v každé webhook události pro tuto zprávu. |
 
 <Note>
-  **JSON API v1 je zastaralé.** Všechny nové integrace by měly cílit JSON API v2 (`https://api.smsmngr.com/v2`). Zastaralé jsou také HTTP API a XML API.
+  **Používejte JSON API v2** (`https://api.smsmngr.com/v2`) pro nové integrace. Jednodušší [HTTP API](/cs/api-reference/http-api/send) a [XML API](/cs/api-reference/xml-api/send) zůstávají trvale podporované.
 </Note>
 
 ## Prozkoumejte endpointy

@@ -6,7 +6,7 @@ info:
 
     ## JSON API v2
 
-    API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+    API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/app/developers/apikeys).
 
     API versions (http-api and xml-api) are deprecated also and you should use this JSON API v2 instead.
   version: v2
@@ -304,7 +304,7 @@ paths:
   /message:
     post:
       security:
-        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/app/developers/apikeys).
       tags:
         - sending
       summary: Send a message
@@ -380,7 +380,7 @@ paths:
   /messages:
     post:
       security:
-        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/app/developers/apikeys).
       tags:
         - sending
       summary: Send multiple messages
@@ -499,7 +499,7 @@ paths:
   /simple/message:
     get:
       security:
-        - apikey: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+        - apikey: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/app/developers/apikeys).
       tags:
         - sending
       summary: Send a simple message (GET request)
@@ -560,7 +560,7 @@ paths:
 
     post:
       security:
-        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/app/developers/apikeys).
       tags:
         - sending
       summary: Send a simple message (POST request)

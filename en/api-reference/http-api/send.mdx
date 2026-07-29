@@ -1,0 +1,86 @@
+---
+title: "HTTP API — send an SMS"
+sidebarTitle: "Send an SMS"
+description: "Send an SMS with a single GET/POST request. The API key is passed as a parameter (not a header) — ideal for services that can only do GET/POST without custom headers."
+---
+
+The HTTP API is the simplest way to send an SMS — a single **GET** or **POST**
+request. The API key is passed as a **parameter**, not a header, so it works even
+where a platform can only issue GET/POST requests and cannot set a custom HTTP
+header.
+
+<Note>
+  The HTTP API is **permanently supported** — we will not discontinue it. For new
+  integrations that need multiple channels (Viber/WhatsApp), fallback `flow`, or a
+  structured response, we recommend [JSON API v2](/en/api-reference/json-v2/overview).
+</Note>
+
+## Endpoint
+
+```text
+POST  https://http-api-lts.smsmanager.cz
+GET   https://http-api-lts.smsmanager.cz
+```
+
+For `POST`, send the parameters as `application/x-www-form-urlencoded`; for `GET`,
+as a query string.
+
+## Parameters
+
+| Parameter | Required | Description |
+| --- | --- | --- |
+| `apikey` | Yes | Your API key from the [dashboard](https://app.smsmanager.com/app/developers/apikeys). |
+| `number` | Yes | Recipient phone number in international format; a leading `+` is accepted. Separate multiple recipients with a semicolon: `420777111222;420777333444`. |
+| `message` | Yes | Message text. |
+| `sender` | No | Sender (name or number). |
+| `gateway` | No | Delivery type (e.g. `high`, `economy`, `low`, `direct`). |
+| `time` | No | Scheduled send, format `2025-01-01T23:59:59`. |
+| `type` | No | Set `utf` to preserve diacritics. |
+
+## Authentication
+
+Pass the API key as the **`apikey`** parameter — in the query string (GET) or the
+request body (POST). No header is required, which is the main advantage for
+integrations that can't set custom headers.
+
+## Response
+
+The response is `text/plain`, one line per recipient.
+
+**Success** (HTTP 200):
+
+```text
+OK|550e8400-e29b-41d4-a716-446655440000|420777111222
+```
+
+`OK` means accepted/queued, followed by the `message_id` and the phone number.
+
+**Error:**
+
+```text
+ERROR|102
+```
+
+## Examples
+
+<CodeGroup>
+
+```bash GET
+curl "https://http-api-lts.smsmanager.cz?apikey=YOUR_API_KEY&number=%2B420777123456&message=Hello%20from%20SmsManager&sender=MySender"
+```
+
+```bash POST
+curl -X POST https://http-api-lts.smsmanager.cz \
+  --data-urlencode "apikey=YOUR_API_KEY" \
+  --data-urlencode "number=+420777123456" \
+  --data-urlencode "message=Hello from SmsManager" \
+  --data-urlencode "sender=MySender"
+```
+
+</CodeGroup>
+
+## Delivery receipts
+
+Set a basic delivery webhook with the `callback` parameter (a URL). If you need
+the request shaped exactly for the target platform (method, headers, body), use
+the object-form `callback` in [JSON API v2](/en/api-reference/json-v2/overview).

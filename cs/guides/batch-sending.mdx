@@ -1,12 +1,11 @@
-Endpoint `/messages` vám umožňuje sbalit až **10 objektů zpráv**, každý s až **10 příjemci**, do jednoho API volání — to je až 100 doručení příjemcům na požadavek. Je to nejefektivnější způsob, jak spustit kampaň, odeslat dávku transakčních oznámení nebo kombinovat SMS a Viber odeslání v jednom kole.
+Endpoint `/messages` vám umožňuje sbalit až **10 objektů zpráv**, každý s až **10 příjemci**, do jednoho API volání — to je až 100 doručení příjemcům na požadavek. Je to nejefektivnější způsob pro zvýšení propustnosti odesílání.
 
 ---
 
 ## Kdy použít hromadné odesílání
 
-- **Kampaně** — odesílejte propagační obsah seznamu odběratelů v co nejmenším počtu API volání.
+- **Kampaně** — odesílejte marketingový obsah seznamu odběratelů v co nejmenším počtu API volání.
 - **Skupinová oznámení** — informujte tým, třídu nebo zákaznický segment jediným požadavkem.
-- **Odeslání smíšených kanálů** — odesílejte SMS jedným příjemcům a Viber jiným, vše v jednom volání.
 - **Personalizované zprávy** — dejte každému objektu zprávy vlastní `body` nebo `flow` pro přizpůsobení na příjemce, bez API volání na osobu.
 
 ---
@@ -33,6 +32,8 @@ Místo odeslání jednoho objektu zprávy na `POST /message` odešlete **pole** 
 ]
 ```
 
+<Info>Tento příklad odešle 3 zprávy (zpráva "Ahoj Alice!" bude doručena na 2 telefonní čísla, zpráva "Ahoj Bobe!" bude doručena na jedno telefonní číslo).</Info>
+
 ```bash cURL
 curl -X POST https://api.smsmngr.com/v2/messages \
   -H "x-api-key: YOUR_API_KEY" \
@@ -56,7 +57,7 @@ curl -X POST https://api.smsmngr.com/v2/messages \
 
 ## Formát odpovědi
 
-Odpověď obsahuje `request_id` na nejvyšší úrovni a dvě pole — `accepted` (zprávy zařazené k doručení) a `rejected` (zprávy, které selhaly při validaci). Každý přijatý záznam obsahuje `key` (index objektu zprávy v poli) a `message_id` pro sledování.
+Odpověď obsahuje `request_id` na nejvyšší úrovni a dvě pole — `accepted` (dva požadavky zařazené k doručení) a `rejected` (požadavky, které selhaly při validaci). Každý přijatý požadavek obsahuje `key` (index objektu zprávy v poli) a `message_id` pro sledování.
 
 ```json Odpověď
 {
@@ -81,22 +82,22 @@ Pokud objekty zpráv seleží při validaci (například chybný formát telefon
 
 ## Získání message ID pro jednotlivé příjemce
 
-Když objekt zprávy má více příjemců, každý příjemce dostane vlastní `message_id` odvozené z dávkového `message_id` pomocí přípony indexu od nuly: `-0`, `-1`, `-2` atd.
+Každý příjemce dostane vlastní `message_id` odvozené z dávkového `message_id` pomocí přípony indexu od nuly: `-0`, `-1`, `-2` atd.
 
-Například, pokud je přijaté `message_id` `e27ff0ac-87b5-4e1d-b644-5fc6029e2a11` a zpráva má dva příjemce:
+Například, u `message_id` `e27ff0ac-87b5-4e1d-b644-5fc6029e2a11` požadavku, který má dva příjemce:
 
 | Příjemce | message\_id |
 | --- | --- |
 | První (`420777123456`) | `e27ff0ac-87b5-4e1d-b644-5fc6029e2a11-0` |
 | Druhý (`420777654321`) | `e27ff0ac-87b5-4e1d-b644-5fc6029e2a11-1` |
 
-Doručovací webhooky obsahují tato ID s příponou, takže můžete korelovat každou událost doručení zpět na konkrétního příjemce.
+Doručovací webhooky obsahují tato ID s příponou, takže můžete propojit každou událost doručení zpět na konkrétního příjemce.
 
 ---
 
 ## Smíšené kanály v dávce
 
-Každý objekt zprávy v poli má vlastní nezávislé `flow`. To znamená, že můžete odeslat SMS jedné skupině a Viber zprávu (s SMS zálohou) jiné skupině ve stejném API volání.
+Každý objekt zprávy může mít poli má vlastní nezávislé `flow`. To znamená, že můžete odeslat SMS jedné skupině a Viber zprávu (s SMS zálohou) jiné skupině ve stejném API volání.
 
 ```json Dávka smíšených kanálů
 [
@@ -159,7 +160,7 @@ Každý objekt zprávy v poli má vlastní nezávislé `flow`. To znamená, že 
 | Celkem příjemců na volání `/messages` | 100 |
 
 <Tip>
-  Pokud potřebujete oslovit více než 100 příjemců, rozdělte seznam a odešlete více volání `/messages`. Není penalizání rate limitu za bezprostřední návaznost dávkových požadavků — stačí dodržovat propustnost vašeho účtu za sekundu.
+  Pokud potřebujete oslovit více než 100 příjemců, rozdělte seznam a odešlete více volání `/messages`.
 </Tip>
 
 ---

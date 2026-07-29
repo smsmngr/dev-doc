@@ -128,6 +128,51 @@ SmsManager přeskočí kanál a zkusí další, když nastane některá z násle
 
 - Protože SMS je nejuniverzálnějším dostupným kanálem, jen zřídka selže na úrovni kanálu. Selhání SMS označuje hlubší problém (neplatné číslo, nedostatečný kredit apod.), nikoli problém dostupnosti kanálu.
 
+## Kdy se přejde na další kanál — `ttl` a `ttl_condition`
+
+První objekt v poli `flow` je vždy ihned přijat a zařazen k odeslání. Ve stejném okamžiku vznikne pravidlo, které po uplynutí `ttl` zkontroluje výsledek odesílání — a podle něj se rozhodne, zda přejít na další kanál.
+
+Pole `ttl` se zadává v **minutách** (typ `float`), nejméně `0.5` (30 sekund), nejvíce `43200` (30 dní). Hodnoty do `15` včetně mohou mít jedno desetinné místo (`1.5` = 90 sekund); od `15` výše se zaokrouhluje nahoru na celé minuty (`16.1` = 17 minut).
+
+Co přesně znamená „doručeno" se ale liší kanál od kanálu — u SMS je `sent` často konečný účtovaný stav, kdežto u WhatsApp nebo Viberu `sent` ještě nezaručuje doručení. Proto lze podmínku splnění časového testu určit polem `ttl_condition`:
+
+| Kanál předchozího kroku | Výchozí `ttl_condition` |
+| --- | --- |
+| `sms` | `sent` |
+| `whatsapp_template`, `whatsapp_text`, `viber` | `delivered` |
+
+Hodnota `ttl_condition` určuje, které stavy se považují za „splněno" (a tedy se další kanál **neodešle**):
+
+| `ttl_condition` | Splněno stavy |
+| --- | --- |
+| `sent` | `sent`, `delivered`, `seen` |
+| `delivered` | `delivered`, `seen` |
+| `seen` | `seen` |
+
+```json WhatsApp šablona s SMS zálohou po 30 s
+"flow": [
+  {
+    "whatsapp_template": {
+      "template_name": "smspin",
+      "language": "cs",
+      "sender": "514578330250514",
+      "ttl": 0.5,
+      "ttl_condition": "delivered",
+      "params": ["123456"]
+    }
+  },
+  {
+    "sms": {
+      "body": "Váš kód je 123456",
+      "sender": "MojeFirma",
+      "gateway": "high"
+    }
+  }
+]
+```
+
+V tomto příkladu se v čase `T+30s` ověří, zda byla WhatsApp zpráva **doručena**. Pokud ano, SMS se už neodesílá; pokud ne, odejde SMS záloha.
+
 ## Priorita body a sender
 
 Pole `body` můžete definovat na kořenové úrovni požadavku i uvnitř jednotlivých objektů kanálů v `flow`. Pokud jsou přítomny obě hodnoty, **body na úrovni kanálu má prioritu** pro daný kanál. Pokud kanál nezadá své vlastní `body`, použije se kořenové `body`.

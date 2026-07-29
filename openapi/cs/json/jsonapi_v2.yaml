@@ -6,7 +6,7 @@ info:
 
     ## JSON API v2
 
-    API klíč je vyžadován pro všechny požadavky. Svůj API klíč naleznete v [nastavení účtu](https://app.smsmanager.com/api-cloud).
+    API klíč je vyžadován pro všechny požadavky. Svůj API klíč naleznete v [nastavení účtu](https://app.smsmanager.com/app/developers/apikeys).
 
     Verze API (http-api a xml-api) jsou také zastaralé a měli byste místo nich používat toto JSON API v2.
   version: v2

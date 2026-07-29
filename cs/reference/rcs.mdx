@@ -1,0 +1,170 @@
+---
+title: "Parametry RCS zpráv"
+sidebarTitle: "RCS"
+description: "Referenční přehled objektu rcs — prostý text, návrhy odpovědí a akční tlačítka, samostatná rich card a produktový carousel přes RCS Business Messaging."
+---
+
+RCS (Rich Communication Services) je nástupce SMS s bohatým obsahem přímo v nativní aplikaci pro zprávy na Androidu. Přes SmsManager odešlete RCS zprávu objektem `rcs` uvnitř pole `flow` — od prostého textu přes návrhy odpovědí a akční tlačítka až po rich card a carousel. Tato stránka je referenčním přehledem polí objektu `rcs`.
+
+## Základní pole
+
+| Pole | Typ | Popis |
+| --- | --- | --- |
+| `sender` | string | ID vašeho RCS agenta (odesílatele). Pokud není uvedeno, použije se odesílatel z kořene požadavku. |
+| `body` | string | Text zprávy. Pokud není uveden, použije se `body` z kořene požadavku. |
+| `ttl` | integer | Doba života v **minutách**. Po jejím uplynutí se přejde na další krok `flow`. |
+
+```json Prostý text
+{
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "rcs": {
+        "sender": "muj_rcs_agent",
+        "body": "Ahoj! Vaše objednávka je připravena k vyzvednutí."
+      }
+    }
+  ]
+}
+```
+
+<Note>
+  RCS zpráva se odešle jen příjemcům s aktivním RCS. Vždy zařaďte za RCS krok SMS zálohu ve [flow](/cs/concepts/message-flow), aby zpráva dorazila i ostatním.
+</Note>
+
+---
+
+## Tlačítka (`buttons`)
+
+Pole `buttons` přidá pod zprávu **návrhy odpovědí** (chipy). Každé tlačítko má `type` — buď `reply` (rychlá odpověď), nebo `url` (otevře odkaz).
+
+| Pole tlačítka | Platí pro | Popis |
+| --- | --- | --- |
+| `type` | oba | `reply` nebo `url`. |
+| `text` | oba | Popisek tlačítka. |
+| `postback` | oba | Data vrácená ve webhooku po klepnutí (`postbackData`). |
+| `url` | `url` | Cílová URL. |
+| `description` | `url` | Popis otevíraného odkazu. |
+| `webview` | `url` | Režim zobrazení webview (`webviewViewMode`). |
+
+```json
+{
+  "rcs": {
+    "sender": "muj_rcs_agent",
+    "body": "Jak vám můžeme pomoci?",
+    "buttons": [
+      { "type": "reply", "text": "Stav objednávky", "postback": "ORDER_STATUS" },
+      { "type": "url", "text": "Otevřít e-shop", "postback": "OPEN_SHOP", "url": "https://example.com" }
+    ]
+  }
+}
+```
+
+---
+
+## Samostatná rich card (`card`)
+
+Pole `card` odešle jednu kartu s obrázkem/videem, nadpisem, popisem a volitelnými tlačítky.
+
+| Pole | Typ | Popis |
+| --- | --- | --- |
+| `title` | string | Nadpis karty. |
+| `description` | string | Popis karty. |
+| `file` | string | URL media (obrázek/video). |
+| `thumbnail` | string | URL náhledu. |
+| `buttons` | array | Tlačítka karty (stejný tvar jako výše). |
+
+```json
+{
+  "rcs": {
+    "sender": "muj_rcs_agent",
+    "card": {
+      "title": "Letní sleva",
+      "description": "Sleva 20 % na celý sortiment do konce měsíce.",
+      "file": "https://example.com/promo.jpg",
+      "thumbnail": "https://example.com/promo-thumb.jpg",
+      "buttons": [
+        { "type": "url", "text": "Nakoupit", "postback": "SHOP", "url": "https://example.com/sale" }
+      ]
+    }
+  }
+}
+```
+
+---
+
+## Carousel (`carousel`)
+
+Pole `carousel` odešle vodorovně listovatelnou řadu karet. Každá položka přidává navíc pole `type` (typ media):
+
+| Pole | Typ | Popis |
+| --- | --- | --- |
+| `title` | string | Nadpis karty. |
+| `description` | string | Popis karty. |
+| `type` | string | Typ media karty. |
+| `file` | string | URL media. |
+| `thumbnail` | string | URL náhledu. |
+| `buttons` | array | Tlačítka karty. |
+
+```json
+{
+  "rcs": {
+    "sender": "muj_rcs_agent",
+    "carousel": [
+      {
+        "title": "Produkt A",
+        "description": "Skladem",
+        "type": "image",
+        "file": "https://example.com/a.jpg",
+        "thumbnail": "https://example.com/a-thumb.jpg",
+        "buttons": [{ "type": "url", "text": "Detail", "postback": "A", "url": "https://example.com/a" }]
+      },
+      {
+        "title": "Produkt B",
+        "description": "Novinka",
+        "type": "image",
+        "file": "https://example.com/b.jpg",
+        "thumbnail": "https://example.com/b-thumb.jpg"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Raw průchozí zápis (`raw`)
+
+Pro obsah, který toto rozhraní nepokrývá, předejte objekt `raw` — klíč `suggestions` pro vlastní návrhy nebo `richCard` pro vlastní kartu se odešle na RCS API beze změny.
+
+```json
+{
+  "rcs": {
+    "sender": "muj_rcs_agent",
+    "body": "…",
+    "raw": { "suggestions": [ { "reply": { "text": "Ano", "postbackData": "YES" } } ] }
+  }
+}
+```
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Kanály" icon="layer-group" href="/cs/concepts/channels">
+    Přehled všech kanálů SmsManageru a jejich polí ve flow.
+  </Card>
+
+  <Card title="Životní cyklus zprávy" icon="timeline" href="/cs/concepts/message-flow">
+    Jak zařadit RCS s SMS zálohou a jak funguje `ttl_condition`.
+  </Card>
+
+  <Card title="Webhooky" icon="webhook" href="/cs/guides/webhooks">
+    Příjem stavů doručení a klepnutí na tlačítka.
+  </Card>
+
+  <Card title="Odeslat SMS" icon="message-sms" href="/cs/guides/send-sms">
+    Nakonfigurujte SMS zálohu pro vaše RCS zprávy.
+  </Card>
+</CardGroup>

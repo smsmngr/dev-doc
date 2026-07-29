@@ -1,0 +1,340 @@
+---
+title: "Parametry WhatsApp šablon"
+sidebarTitle: "WhatsApp šablony"
+description: "Kompletní referenční přehled parametrů objektu whatsapp_template — proměnné v těle a hlavičce, media, všechny typy tlačítek, produktový carousel a časově omezené akce (LTO)."
+---
+
+WhatsApp šablonu odešlete objektem `whatsapp_template` uvnitř pole `flow`. Kromě povinných polí (`template_name`, `language`, `sender`) můžete do šablony za běhu doplňovat obsah — proměnné v textu, media v hlavičce, dynamická tlačítka, produkty i časově omezené akce. Tato stránka je úplným referenčním přehledem těchto parametrů. Praktický úvod najdete v návodu [Odeslat WhatsApp](/cs/guides/send-whatsapp), rozdíl mezi šablonou a volným textem vysvětluje koncept [Typy WhatsApp zpráv](/cs/concepts/whatsapp-message-types).
+
+## Povinná pole
+
+| Pole | Typ | Popis |
+| --- | --- | --- |
+| `template_name` | string | Název předregistrované a schválené šablony. |
+| `language` | string | Kód jazyka šablony, například `cs`, `en`, `de`. |
+| `sender` | string | **Phone Number ID** vašeho WhatsApp odesílatele (číselné ID, ne telefonní číslo), např. `514578330250514`. |
+| `ttl` | integer | Volitelné. Doba života v **minutách** — jak dlouho se WhatsApp pokouší o doručení, než se přejde na další krok `flow`. |
+
+```json Minimální šablona
+{
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "whatsapp_template": {
+        "template_name": "welcome_template",
+        "language": "cs",
+        "sender": "514578330250514"
+      }
+    }
+  ]
+}
+```
+
+<Note>
+  Pole pro parametry přijímají dvě pojmenování jako aliasy: `params` / `params_header` / `params_buttons` (doporučené, konzistentní s [JSON API v2](/cs/api-reference/json-v2/overview)) a starší `parameters_body` / `parameters_header` / `parameters_buttons`. V této referenci používáme tvar `params_*`.
+</Note>
+
+---
+
+## Proměnné v těle zprávy (`params`)
+
+Pole `params` vyplňuje proměnné v textu šablony. WhatsApp podporuje dva styly proměnných; podle toho, který jste zvolili při vytváření šablony, se liší zápis.
+
+### Očíslované proměnné
+
+Šablona s očíslovanými proměnnými `{{1}}`, `{{2}}`:
+
+```text
+Dobrý den {{1}}, potvrzujeme vaši rezervaci dne {{2}}.
+```
+
+Předejte **pole řetězců** — hodnoty se dosadí pozičně:
+
+```json
+{
+  "whatsapp_template": {
+    "template_name": "potvrzeni_rezervace",
+    "language": "cs",
+    "sender": "514578330250514",
+    "params": ["Tomáši", "12. 11. 2026"]
+  }
+}
+```
+
+### Pojmenované proměnné
+
+Šablona s pojmenovanými proměnnými `{{jmeno}}`, `{{den}}`:
+
+```text
+Dobrý den {{jmeno}}, potvrzujeme vaši rezervaci dne {{den}}.
+```
+
+Předejte **pole objektů** s jedním klíčem = názvem proměnné:
+
+```json
+{
+  "whatsapp_template": {
+    "template_name": "potvrzeni_rezervace",
+    "language": "cs",
+    "sender": "514578330250514",
+    "params": [
+      { "jmeno": "Tomáši" },
+      { "den": "12. 11. 2026" }
+    ]
+  }
+}
+```
+
+<Warning>
+  Počet i pořadí hodnot musí odpovídat proměnným v šabloně. Chybějící nebo přebývající hodnota vede k zamítnutí zprávy (`rejected`).
+</Warning>
+
+---
+
+## Hlavička (`params_header`)
+
+Pole `params_header` obsahuje vždy **jediný prvek** — WhatsApp šablona má nejvýše jednu hlavičku. Nejjednodušší zápis je řetězec; SmsManager podle jeho tvaru sám určí typ hlavičky:
+
+| Hodnota řetězce | Rozpoznaný typ |
+| --- | --- |
+| URL končící `.jpg`, `.jpeg`, `.png` | Obrázek |
+| URL končící `.mp4`, `.3gp` | Video |
+| URL končící `.pdf` | Dokument |
+| Jakýkoli jiný text | Textová hlavička |
+
+```json Obrázek v hlavičce (zkrácený zápis)
+{
+  "whatsapp_template": {
+    "template_name": "potvrzeni_rezervace",
+    "language": "cs",
+    "sender": "514578330250514",
+    "params_header": ["https://example.com/soubor.jpg"]
+  }
+}
+```
+
+<Note>
+  Podporované formáty a limity: obrázek `png`/`jpg` do 5 MB, video `mp4`/`3gp` (H.264 + AAC, se zvukovou stopou) do 16 MB, dokument `pdf` do 100 MB.
+</Note>
+
+### Explicitní zápis hlavičky
+
+Místo řetězce můžete předat objekt a typ hlavičky určit explicitně. To využijete pro media přes objekt s `link`, textovou proměnnou, polohu nebo produkt.
+
+```json Textová hlavička s proměnnou
+{ "params_header": [{ "text": { "objednavka": "ORD-123" } }] }
+```
+
+```json Obrázek / video / dokument
+{ "params_header": [{ "image": { "link": "https://example.com/soubor.jpg" } }] }
+{ "params_header": [{ "video": { "link": "https://example.com/soubor.mp4" } }] }
+{ "params_header": [{ "document": { "link": "https://example.com/faktura.pdf", "filename": "faktura.pdf" } }] }
+```
+
+```json Poloha
+{
+  "params_header": [
+    {
+      "location": {
+        "latitude": "50.1045378",
+        "longitude": "14.4501183",
+        "name": "SmsManager",
+        "address": "Komunardů 36, Praha 7"
+      }
+    }
+  ]
+}
+```
+
+```json Produkt (Single-Product Message)
+{
+  "params_header": [
+    {
+      "product": {
+        "product_retailer_id": "nqryix03ez",
+        "catalog_id": "194836987003835"
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Tlačítka (`params_buttons`)
+
+Pole `params_buttons` doplňuje parametry tlačítek. Hodnoty se přiřazují **pozičně** ke tlačítkům v šabloně, proto na pozici statického tlačítka (bez parametru) vložte `null`.
+
+<Note>
+  **Statická tlačítka** (pevná URL nebo telefonní číslo) při odesílání uvádět nemusíte. **Dynamická tlačítka** a tlačítka s vyžadovanými parametry musíte uvést vždy a ve správném pořadí.
+</Note>
+
+```json Jen druhé tlačítko je dynamické
+{
+  "whatsapp_template": {
+    "template_name": "...",
+    "language": "cs",
+    "sender": "514578330250514",
+    "params_buttons": [null, "kontaktujte-nas"]
+  }
+}
+```
+
+Typ tlačítka určíte tvarem hodnoty:
+
+| Hodnota | Typ tlačítka |
+| --- | --- |
+| `"kontaktujte-nas"` (řetězec) | Dynamické **URL** — doplní se za základní URL tlačítka |
+| `{ "url": "kontaktujte-nas" }` | Dynamické **URL** (explicitně) |
+| `{ "payload": "TAP_CONTACT" }` | **Rychlá odpověď** (postback s vlastním payloadem) |
+| `{ "code": "ABCD10" }` | **Kupón** ke zkopírování do schránky |
+| `{ "catalog": "nqryix03ez" }` | **Katalog** — zobrazí produkt z katalogu |
+| `{ "voice_call": { "ttl_minutes": 5 } }` | **WhatsApp volání** na váš profil |
+| `{ "mpm": { … } }` | **Multi-produkt (MPM)** |
+| `{ "flow": { … } }` nebo `{ "flow": null }` | **Flow** formulář pro sběr dat |
+
+<Warning>
+  Kupónové tlačítko používá klíč **`code`** (`{ "code": "ABCD10" }`), nikoli `coupon`.
+</Warning>
+
+### Multi-produkt (MPM)
+
+Klíčem objektu je `product_retailer_id` náhledového produktu, hodnotou je pole sekcí katalogu:
+
+```json
+{
+  "params_buttons": [
+    {
+      "mpm": {
+        "2lc20305pt": [
+          {
+            "title": "Název sekce",
+            "product_items": [
+              { "product_retailer_id": "2lc20305pt" },
+              { "product_retailer_id": "nseiw1x3ch" },
+              { "product_retailer_id": "n6k6x0y7oe" }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+### Flow tlačítko
+
+Flow tlačítko musí být v požadavku uvedeno, i když nepředáváte žádná data — v takovém případě použijte `null`. Pro předvyplnění formuláře předejte objekt s daty:
+
+```json Bez dat
+{ "params_buttons": [{ "flow": null }] }
+```
+
+```json S předvyplněnými daty
+{
+  "params_buttons": [
+    {
+      "flow": {
+        "first_name": "Tomáš",
+        "last_name": "Marný"
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Produktový carousel (`params_carousel`)
+
+Pole `params_carousel` odešle šablonu typu carousel — pole karet, každá s jedním produktem:
+
+```json
+{
+  "whatsapp_template": {
+    "template_name": "...",
+    "language": "cs",
+    "sender": "514578330250514",
+    "params_carousel": [
+      { "product": { "product_retailer_id": "vrpj01fvwp", "catalog_id": "194836987003835" } },
+      { "product": { "product_retailer_id": "va2l5ioeat", "catalog_id": "194836987003835" } }
+    ]
+  }
+}
+```
+
+---
+
+## Časově omezená akce (`params_lto`)
+
+Pole `params_lto` nastavuje konec platnosti nabídky u šablony typu *Limited Time Offer*. Hodnotou je **timestamp v milisekundách** (řetězec nebo číslo):
+
+```json
+{
+  "whatsapp_template": {
+    "template_name": "...",
+    "language": "cs",
+    "sender": "514578330250514",
+    "params_lto": ["1698562800000"]
+  }
+}
+```
+
+<Note>
+  Odpočet LTO se zobrazuje pouze v mobilní aplikaci WhatsApp, ne ve webovém klientovi ani na počítači.
+</Note>
+
+---
+
+## Kompletní příklad
+
+Šablona s pojmenovanou proměnnou v těle, obrázkem v hlavičce, dynamickým URL tlačítkem a SMS zálohou:
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Ahoj Jane, vaše objednávka ORD-123 byla odeslána!",
+    "to": [{ "phone_number": "420777123456" }],
+    "callback": "https://yourapp.com/webhooks/whatsapp",
+    "flow": [
+      {
+        "whatsapp_template": {
+          "template_name": "order_shipped",
+          "language": "cs",
+          "sender": "514578330250514",
+          "ttl": 60,
+          "params": [{ "jmeno": "Jan" }],
+          "params_header": ["https://example.com/track.png"],
+          "params_buttons": ["ORD-123"]
+        }
+      },
+      {
+        "sms": { "sender": "MujObchod", "gateway": "high" }
+      }
+    ]
+  }'
+```
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Odeslat WhatsApp" icon="whatsapp" href="/cs/guides/send-whatsapp">
+    Praktický průvodce odesíláním šablon i volného textu.
+  </Card>
+
+  <Card title="Typy WhatsApp zpráv" icon="comments" href="/cs/concepts/whatsapp-message-types">
+    Kdy použít šablonu a kdy volný text v 24hodinovém okně.
+  </Card>
+
+  <Card title="SMS záloha pro WhatsApp" icon="message-sms" href="/cs/guides/whatsapp-sms-fallback">
+    Automatický přechod na SMS, když WhatsApp selže.
+  </Card>
+
+  <Card title="Webhooky" icon="webhook" href="/cs/guides/webhooks">
+    Stavy doručení WhatsApp a formát doručenek.
+  </Card>
+</CardGroup>

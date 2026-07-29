@@ -1,4 +1,4 @@
-Webhooky umožňují SmsManageru ihned tlačit události na váš server, jakmile se něco stane — zpráva je doručena, doručení selže nebo příjemce odpoví. Místo opakovaného dotazování API na stav váš endpoint přijímá HTTP `POST` požadavek obsahující JSON payload popisující událost. Je to nejefektivnější způsob, jak vybudovat sledování zpráv v reálném čase, automatizovat opakování a zpracovávat příchozí zprávy.
+Webhooky umožňují SmsManageru ihned posílat události na váš server, jakmile se něco stane (zpráva je doručena, doručení selže nebo příjemce odpoví apod.). Místo opakovaného dotazování API na stav, stačí jen připravit endpoint na vaší straně, který přijímá HTTP `POST` požadavek obsahující JSON payload. Je to nejefektivnější způsob, jak vybudovat sledování zpráv v reálném čase, automatizovat opakování a zpracovávat příchozí zprávy.
 
 ---
 
@@ -8,15 +8,15 @@ SmsManager posílá tři typy webhook událostí:
 
 <CardGroup cols={1}>
   <Card title="sentMessage" icon="paper-plane">
-    Spuštěno při každé změně stavu doručení odchozí zprávy. Můžete obdržet více událostí na zprávu, jak se pohybuje doručovací rourou — například nejprve `sent`, pak `delivered`. Hodnoty stavu zahrnují: `sending`, `sent`, `delivered`, `undelivered`, `rejected`, `failed` a `seen` (pouze Viber/WhatsApp).
+    Zavoláno při každé změně stavu odchozí zprávy. Můžete obdržet více událostí na zprávu dle průběhu doručení — například nejprve `sent`, pak `delivered`. Hodnoty stavu zahrnují: `sending`, `sent`, `delivered`, `undelivered`, `rejected`, `failed` a `seen`.
   </Card>
 
   <Card title="incomingReplyMessage" icon="reply">
-    Spuštěno, když příjemce přímo odpoví na zprávu, kterou jste poslali. Payload spojuje odpověď s původní odchozí zprávou přes `message_id`.
+    Zavoláno, když příjemce přímo odpoví na zprávu, kterou jste poslali. Odpověď je spárována dle telefonního čísla a obsahuje referenci na původní odchozí zprávou přes `message_id`. V této notifikaci obdržíte také kompletní původní `payload`, který jste vyplnili při odeslání zprávy.
   </Card>
 
   <Card title="incomingMessage" icon="inbox">
-    Spuštěno pro nevyžádané příchozí zprávy — zprávy, které dorazí na vaše číslo, ale nejsou přímou odpovědí na žádnou konkrétní odchozí zprávu.
+    Spuštěno pro příchozí zprávy, které dorazí na vaše číslo, ale nejsou přímou odpovědí na žádnou konkrétní odchozí zprávu. Příchozí zprávy tímto způsobem dorazí pouze na vyhrazené telefonní čísla.
   </Card>
 </CardGroup>
 
@@ -36,7 +36,9 @@ Doručování webhook můžete nakonfigurovat dvěma způsoby:
 }
 ```
 
-**2. Výchozí pro celý účet** — nastavte `default_callback_url` na svém API klíči přes SmsManager REST API. Všechny zprávy odeslané tímto API klíčem budou používat tuto URL, pokud není přepsána polem `callback` na jednotlivých požadavcích.
+URL může obsahovat i např. HTTP BASIC AUTH ve formátu: `https://username:password@www.example.com/webcallback?foo=bar`
+
+**2. Výchozí pro API klíč** — nastavte `default_callback_url` na svém API klíči přes SmsManager REST API. Všechny zprávy odeslané tímto API klíčem budou používat tuto URL, pokud není přepsána polem `callback` na jednotlivých požadavcích.
 
 ```bash Nastavit výchozí callback URL
 curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
@@ -48,7 +50,7 @@ curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
 ```
 
 <Tip>
-  Během vývoje použijte výchozí callback URL, abyste zachytili události ze všech testovacích zpráv bez nutnosti nastavovat `callback` v každém požadavku.
+  Doporučujeme nastavit `callback` v každém požadavku.
 </Tip>
 
 ---
@@ -70,7 +72,6 @@ SmsManager posílá na vaši callback URL **pole** objektů událostí. Více ud
       "phone_number": "420777123456"
     },
     "result": "delivered",
-    "result_info": "[0] Delivered",
     "sms": {
       "gateway": "high",
       "sender": "MujSender",
@@ -152,6 +153,10 @@ Pro Viber a WhatsApp můžete také obdržet událost `seen`, když příjemce z
   Váš webhook handler musí být idempotentní — SmsManager může ve vzácných případech doručit stejnou událost vícekrát (síťové opakování). Použijte `message_id` \+ `result` jako klíč pro deduplikaci.
 </Note>
 
+<Note>
+    Pozor, jednotlivé události webhooku nejsou seřazeny (to znamená, že můžete obdržet nejdříve `delivered` a až následně `sent`) a to buď v jednom HTTP volání nebo ve dvou samostatných. Hodnota `timestamp` vám v tomto případě pomůže určit správné pořadí.
+</Note>
+
 ---
 
 ## Zpracování příchozích zpráv
@@ -174,7 +179,7 @@ Pro Viber a WhatsApp můžete také obdržet událost `seen`, když příjemce z
 ]
 ```
 
-**incomingMessage** — nevyžádaná příchozí zpráva, která není spojena s konkrétní odchozí:
+**incomingMessage** — příchozí zpráva, která není spojena s konkrétní odchozí:
 
 ```json incomingMessage payload
 [
@@ -193,21 +198,21 @@ Pro Viber a WhatsApp můžete také obdržet událost `seen`, když příjemce z
 
 ## Osvědčené postupy
 
-- **Ihned odpovězte HTTP 200.** SmsManager považuje jakoukoli ne-2xx odpověď za selhání a zopakuje. Vraťte `200 OK` co nejrychleji, pak zpracujte payload asynchronně (například do fronty).
+- **Ihned odpovězte HTTP 200.** SmsManager považuje jakoukoli ne-2xx odpověď za selhání a doručení opakuje. Vraťte `200 OK` co nejrychleji, pak zpracujte payload asynchronně (například do fronty).
 - **Zpracujte duplicitní webhooky.** Síťové problémy mohou způsobit doručení stejné události vícekrát. Použijte `message_id` \+ `result` jako složený klíč pro deduplikaci událostí před zpracováním.
 - **Logujte surové webhook payloady.** Uložte surové JSON tělo vedle svých zpracovaných dat, abyste mohli přehrát události při ladění bez závislosti na oknu opakování SmsManageru.
-- **Validujte `message_id` proti vašim záznamům.** Ignorujte události pro message ID, které neroz vyznáváte — to chrání proti podvrženým webhook požadavkům.
+- **Validujte `message_id` proti vašim záznamům.** Ignorujte události pro message ID, které neznáte to chrání proti podvrženým webhook požadavkům.
 - **Používejte HTTPS.** Vždy vystavujte svůj webhook endpoint přes HTTPS pro ochranu obsahu zprávy a doručovacích metadat při přenosu.
 
 ---
 
 ## Kódy `result_info`
 
-Pole `result_info` poskytuje čitelný popis výsledku doručení. Sleduje formát `[kód] Popis`, kde číselný kód je specifický pro operatéra a volitelný. Běžné příklady:
+Pole `result_info` může poskytovat další popis výsledku doručení nebo nedoručení. Sleduje formát `[kód] Popis`, kde číselný kód je specifický pro operatéra a volitelný. Běžné příklady:
 
 | `result_info` | Význam |
 | --- | --- |
-| `[0] Delivered` | Úspěšně doručeno do telefonu |
+| `Delivered` | Úspěšně doručeno do telefonu |
 | `[1] Undelivered` | Nebylo možné doručit (telefon vypnutý, číslo mimo provoz) |
 | `[2] Rejected` | Zamítnuto operatérem nebo směrováním SmsManageru |
 | `[3] Failed` | Technické selhání při pokusu o doručení |
@@ -217,12 +222,12 @@ Používejte `result` (strojově čitelný enum) ve vaší aplikační logice a 
 
 ---
 
-## Co SmsManager POSTůje na váš endpoint
+## Jak konkrétně vypadá SmsManager POST na váš endpoint
 
 ```bash Co SmsManager posílá na vaši callback URL
 POST https://yourapp.com/webhooks/sms HTTP/1.1
 Content-Type: application/json
-User-Agent: SmsManager-Webhook/1.0
+User-Agent: SmsManager (https://smsmanager.com)
 
 [
   {
@@ -234,7 +239,6 @@ User-Agent: SmsManager-Webhook/1.0
     "type": "outgoing",
     "to": { "phone_number": "420777123456" },
     "result": "delivered",
-    "result_info": "[0] Delivered",
     "sms": {
       "gateway": "high",
       "sender": "MujSender",

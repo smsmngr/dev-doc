@@ -1,4 +1,4 @@
-SmsManager JSON API v2 vám umožňuje odesílat SMS zprávy na jakékoli telefonní číslo po celém světě jediným HTTP požadavkem. Tento průvodce vás provede vším od minimálního jednoradkového po plně nakonfigurovanou zprávu s vlastním odesílatelem, podporou Unicode a doručovacími callbacky.
+SmsManager JSON API v2 vám umožňuje odesílat SMS zprávy na jakékoli telefonní číslo po celém světě jediným HTTP požadavkem. Tento průvodce vás provede vším od minimálního jednořádkového kódu po plně nakonfigurovanou zprávu s vlastním odesílatelem, podporou Unicode a definicí callback adresy.
 
 ## Předpoklady
 
@@ -50,17 +50,17 @@ SmsManager JSON API v2 vám umožňuje odesílat SMS zprávy na jakékoli telefo
     ```
 
     <Note>
-      Alfanumerická jména odesílatele mohou v některých zemích vyžadovat předregistraci (například Velká Británie, Indie a několik asijských trhů). Před odesíláním do těchto destinací kontaktujte podporu SmsManager pro registraci svého jména odesílatele.
+      Alfanumerická jména odesílatele mohou v některých zemích vyžadovat předregistraci (například v České republice). Před odesíláním do těchto destinací kontaktujte podporu SmsManager pro registraci svého jména odesílatele nebo využijte objednávku online v administraci SmsManager po přihlášení do svého účtu.
     </Note>
   </Step>
-  <Step title="Vyberte bránu">
-    Pole `gateway` uvnitř flow objektu `sms` ovládá, jak SmsManager směruje vaši zprávu:
+  <Step title="Definujte typ gateway">
+    Pole `gateway` uvnitř flow objektu `sms` říká, jak SmsManager směruje vaši zprávu. Ve výchozím nastavení není nutné toto uvádět a SmsManager hodnotu určí sám dle hodnoty "sender".
 
     | Brána | Popis |
     | --- | --- |
     | `high` | Výchozí. Nejlepší míra doručení přes agregátorskou síť. |
     | `direct` | Vyžadována při použití virtuálního čísla jako odesílatele. Směruje přes přímé spojení operatorů. |
-    | `custom` | Pro SIM hostování, kdy poskytujete vlastní SIM hardware. |
+    | `simhost` | Pro SIM hostování, kdy poskytujete vlastní SIM hardware. |
 
     ```json Tělo požadavku
     {
@@ -78,10 +78,10 @@ SmsManager JSON API v2 vám umožňuje odesílat SMS zprávy na jakékoli telefo
     ```
   </Step>
   <Step title="Zpracujte Unicode znaky">
-    Standardní SMS používá znakovou sadu GSM-7. Pokud vaše zpráva obsahuje znaky mimo tuto sadu — například cyrilici, arabštinu, čínštinu nebo emoji — nastavte `type: "utf"` uvnitř flow objektu `sms` pro přechod na kódování UCS-2.
+      Standardní SMS používá znakovou sadu GSM-7. Pokud vaše zpráva obsahuje znaky mimo tuto sadu (například diakritiku nebo emoji) bude automaticky odstraněna. Přidejte `type: "utf"` do flow objektu `sms` pro zachování diakritiky.
 
     <Warning>
-      UCS-2 zprávy mají sníženou kapacitu 70 znaků na segment (oproti 160 pro GSM-7). Dlouhé Unicode zprávy budou rozděleny do více segmentů a budou stát více.
+      Zprávy s diakritikou nebo emoji mají sníženou kapacitu 70 znaků na segment (oproti 160).
     </Warning>
 
     ```json Tělo požadavku
@@ -118,6 +118,24 @@ Pole `tag` klasifikuje vaši zprávu pro směrování a reporting. Zadává se n
   "body": "Váš přihlašovací kód je 291847",
   "to": [{"phone_number": "420777123456"}],
   "tag": "priority"
+}
+```
+
+Tagy umožňují souhrně sledovat statisky doručení, nedoručení apod. To můžete použít pro sledování konkrétní kampaně a nebo typu zprávy:
+
+```json
+{
+  "body": "Váš přihlašovací kód je 291847",
+  "to": [{"phone_number": "420777123456"}],
+  "tag": "priority,otp"
+}
+```
+
+```json
+{
+  "body": "Váš přihlašovací kód je 291847",
+  "to": [{"phone_number": "420777123456"}],
+  "tag": "sms-kampan-1234"
 }
 ```
 

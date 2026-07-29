@@ -1,0 +1,92 @@
+---
+title: "Fronty odesílání a priorita"
+sidebarTitle: "Fronty a priorita"
+description: "Jak SmsManager řadí zprávy do front podle pole tag — a proč pro časově kritické zprávy (OTP, ověření) volit prioritní odesílání."
+---
+
+SmsManager nezpracovává všechny zprávy stejně rychle. Podle pole `tag` zařadí zprávu do jedné ze tří front s odlišnou propustností a prioritou. Volba správné fronty rozhoduje o tom, zda ověřovací kód dorazí za sekundy, nebo počká, až se odbaví marketingová dávka před ním. Tato stránka vysvětluje, jak se fronty liší a kdy kterou použít. Jak `tag` nastavit v požadavku, ukazuje návod [Odeslat SMS](/cs/guides/send-sms).
+
+## Proč vůbec fronty
+
+Přes SmsManager odcházejí miliony zpráv a hromadné kampaně mohou dočasně vytížit sdílenou kapacitu. Kdyby se všechno odesílalo jednou frontou, mohl by ověřovací kód uvíznout za rozeslanou akční nabídkou. Fronty tomu brání: oddělují zprávy, u kterých na sekundách nezáleží, od těch, na které někdo právě čeká.
+
+<CardGroup cols={3}>
+  <Card title="promotional" icon="bullhorn">
+    Výchozí. Marketingové a hromadné zprávy. Sdílená propustnost, doručení v řádu minut.
+  </Card>
+  <Card title="transactional" icon="receipt">
+    Zprávy k existujícímu obchodnímu případu — potvrzení, expedice, servisní oznámení.
+  </Card>
+  <Card title="priority" icon="bolt">
+    Časově kritické servisní zprávy, na které uživatel čeká (OTP, ověření čísla). Vyhrazená konektivita.
+  </Card>
+</CardGroup>
+
+## `promotional` — marketingové a hromadné zprávy
+
+Výchozí fronta (použije se, když `tag` neuvedete). Určená pro zprávy, které přímo nesouvisí s probíhajícím obchodním případem — obecné i cílené nabídky, akce, hromadná sdělení. Propustnost je **sdílená**, takže při nárazovém vytížení může být odeslání pozdrženo.
+
+Volte ji vždy, když nezáleží na přesném čase doručení (stačí doručení v daný den) — a to i u zpráv obchodního charakteru.
+
+<Note>
+  Na vybraných destinacích (například SMS Česká republika nebo Francie) se marketingové zprávy odesílají jen v povoleném okně **8–20 hodin**. Zpráva přijatá po 20. hodině čeká do ranních 8 hodin. Toto okno platí i při použití [naplánování](/cs/concepts/scheduling) přes `datetime` nebo `delivery_time`.
+</Note>
+
+## `transactional` — servisní a informativní zprávy
+
+Zprávy bezprostředně související s existujícím obchodním případem, čistě informativního nebo servisního charakteru: notifikace o změně stavu objednávky, informace o expedici, oznámení o vyzvednutí zásilky, změny termínů. Sem patří i běžná osobní či týmová komunikace v reálném čase.
+
+## `priority` — časově kritické zprávy
+
+Pro prioritní zprávy máme vyhrazenou konektivitu a prioritní zpracování v síti GSM (zprávy s vysokou prioritou). Je určená **výhradně pro servisní zprávy, které nesnesou odklad** — typicky když uživatel čeká na SMS, bez které nemůže pokračovat:
+
+- SMS PIN a jednorázové kódy (OTP),
+- ověření telefonního čísla přímo v registračním nebo přihlašovacím procesu.
+
+Prioritní odesílání může být dražší než běžné zprávy.
+
+<Warning>
+  Prioritní frontu **nelze použít pro hromadné odesílání**. Má vysokou prioritu, ale nízkou propustnost — při hromadném nasazení se odesílání naopak výrazně zpomalí. Marketingové, reklamní ani promo zprávy do ní nepatří.
+</Warning>
+
+## Jak zvolit frontu
+
+| Situace | `tag` |
+| --- | --- |
+| Kampaň, akční nabídka, hromadné rozeslání | `promotional` |
+| Potvrzení objednávky, expedice, servisní oznámení | `transactional` |
+| OTP, SMS PIN, ověření čísla v registraci (jednotlivě) | `priority` |
+
+```json Prioritní OTP
+{
+  "body": "Váš přihlašovací kód je 291847",
+  "to": [{ "phone_number": "420777123456" }],
+  "tag": "priority"
+}
+```
+
+<Tip>
+  `tag` slouží zároveň k reportingu — můžete přidat vlastní štítky oddělené čárkou (např. `"priority,otp"`) a sledovat statistiky doručení podle kampaně nebo typu zprávy. Podrobnosti v návodu [Odeslat SMS](/cs/guides/send-sms).
+</Tip>
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Odeslat SMS" icon="message-sms" href="/cs/guides/send-sms">
+    Jak nastavit `tag` a další pole SMS zprávy.
+  </Card>
+
+  <Card title="Životní cyklus zprávy" icon="timeline" href="/cs/concepts/message-flow">
+    Jak flow prochází kanály a jak funguje `ttl_condition`.
+  </Card>
+
+  <Card title="Plánování odeslání" icon="clock" href="/cs/concepts/scheduling">
+    Naplánování přes `datetime` a doručovací okna `delivery_time`.
+  </Card>
+
+  <Card title="Rate limity" icon="gauge" href="/cs/reference/rate-limits">
+    Limity příjemců a propustnosti API.
+  </Card>
+</CardGroup>
