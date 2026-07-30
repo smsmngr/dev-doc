@@ -1,0 +1,131 @@
+---
+title: "Request Acceptance and Processing"
+sidebarTitle: "Request Acceptance"
+description: "How SmsManager accepts requests at api.smsmngr.com. Why an HTTP 200 OK with a message_id means only that the request was accepted for processing, and which validation happens afterward."
+---
+
+Sending a message through SmsManager happens in **two separate phases**. First, the endpoint at `api.smsmngr.com` synchronously **accepts** the request and responds. Only afterward does SmsManager asynchronously **process** each message and hand it off for delivery (send it into the operator's network). Understanding this split is key to integrating correctly: the response to the API call **does not mean** that the message was accepted for sending.
+
+---
+
+## Phase 1 — Request acceptance (synchronous)
+
+When you send a `POST` to `api.smsmngr.com`, the endpoint performs only a **quick input check** and responds immediately. It verifies only what can be evaluated right away without processing the individual messages:
+
+- **Authentication** — that the API key in the `x-api-key` header is valid.
+- **Content-Type** — that the request has the correct `Content-Type: application/json` header.
+- **Endpoint** — that you're calling an existing address and method (`POST /message`, `POST /messages`, …).
+- **Request size** — that you stay within the limits: max. **10 recipients** for the `/message` endpoint, or max. **10 message objects** (each with max. 10 recipients) for the `/messages` endpoint.
+
+If this check passes, the endpoint returns **`200 OK`** along with a `request_id` and a `message_id` value for each accepted message.
+
+<Warning>
+  **`200 OK` with a `message_id` means only that the request was accepted for processing — not that the message was accepted for sending.** Whether we actually hand the message off for delivery, you'll learn from the webhook (delivery report) in phase 2, not from this HTTP response.
+</Warning>
+
+At this point, the `message_id` serves as the identifier you'll use to track the message further — you'll match the delivery reports arriving at your callback URL against it.
+
+---
+
+## Phase 2 — Message processing (asynchronous)
+
+Only after the request is accepted does SmsManager process each message individually. It's here that the **detailed validation and preparation for delivery** takes place, for example:
+
+- **Phone number format** — whether the recipient's number is valid and in a supported form.
+- **Message price** — calculating the price based on destination, channel, and number of segments.
+- **Sufficient credit** — whether the account has enough funds to send the given message.
+- **Blacklist / opt-out** — whether the recipient is not on a blacklist or has not unsubscribed.
+- **Other routing rules** — checks specific to the sender, gateway, and destination.
+
+A message that passes this phase is handed off for delivery, and you continue tracking its status through the usual [sequence of delivery reports](/guides/webhooks) (`sending` → `sent` → `delivered`).
+
+---
+
+## The `rejected` status
+
+If a message fails one of the checks in phase 2 (invalid number, insufficient credit, recipient on a blacklist, etc.), it's marked as **`rejected`** (SmsManager didn't even attempt to send such a message). Because this happens **after** the `200 OK` HTTP response, you won't learn about it from the API call's return value, but **from the webhook**: an event with the `rejected` status and more detail about the cause in the `result_info` field arrives at your callback URL.
+
+```json Webhook event (excerpt)
+{
+  "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+  "result": "rejected",
+  "result_info": "[2] Rejected"
+}
+```
+
+<Note>
+  For this information to reach you, set the `callback` field on the request (or the default callback URL on the API key). Without a configured callback URL, you won't learn about a message being rejected in phase 2. For details, see the [Webhooks](/guides/webhooks) guide.
+</Note>
+
+---
+
+## Interpreting the `200 OK` response correctly
+
+The `200 OK` status code alone **is not enough** to confirm that all recipients were accepted. Up to 10 requests per call are placed into the processing queue, and each of them is evaluated separately. The response therefore contains two fields indexed by the original order (for `/message`, the index corresponds to the position in the `to` array; for `/messages`, the order of the message objects):
+
+| Field | Meaning |
+| --- | --- |
+| `accepted` | Requests accepted for processing. For the `/message` endpoint, it contains a `message_id` for each accepted recipient. |
+| `rejected` | Requests that were not accepted for processing and **must be retried**. |
+
+**Always check that the number of items in `accepted` matches the number of recipients** (`to`), or the number of message objects (`messages`). If `rejected` is non-empty, retry those specific requests.
+
+<Warning>
+  It's not the case that the sum of `accepted` and `rejected` must equal the number of recipients. You may also receive two empty fields, or some recipients in `accepted` while `rejected` is empty. Always base your decision on the number of items in `accepted`, not by subtracting `rejected`.
+</Warning>
+
+For the `simple/message` endpoints, the situation is simpler — they always work with just a single recipient, so the `accepted` field has a value of `true` or `false`.
+
+<Note>
+  Acceptance for processing (`accepted`) is still only phase 1. Even an accepted request can end up as `rejected` in phase 2 — but you'll learn that from the webhook, not from the API response. Don't confuse `rejected` in the API response (not accepted for processing, retry) with the `rejected` status in the delivery report (processed and rejected, don't blindly retry).
+</Note>
+
+## `40x` and `50x` responses
+
+Not every call ends with `200 OK`. Error codes require a different reaction:
+
+| Status | Meaning | How to respond |
+| --- | --- | --- |
+| `400 Bad Request` | An error in the request itself — e.g. more than 10 recipients on `/message` or more than 10 objects on `/messages`, invalid JSON, malformed content. | Don't retry unchanged; fix the request first. |
+| `401` / `403` | Authentication or authorization error (invalid API key). | Fix the API key. |
+| `500` / `503` | A temporary server-side error. | You usually don't need to change the request — wait a few minutes and retry. |
+
+<Tip>
+  We recommend not sending individual HTTP requests larger than **128 KB** (over 100,000 characters, which is more than enough for typical use).
+</Tip>
+
+---
+
+## Practical implication for your integration
+
+- **Don't rely on `200 OK` as confirmation of sending.** Treat it only as "the request was accepted for processing."
+- **Track delivery reports.** The message's actual fate (`delivered`, `undelivered`, `rejected`, `failed`) is only revealed through webhooks at your callback URL or when calling the REST API and the method for retrieving a message's status.
+- **Handle the `rejected` status.** Listen at your callback URL and use the `result_info` field for logging and diagnostics (e.g. distinguishing insufficient credit from an invalid number).
+
+<Tip>
+  The endpoint at `api.smsmngr.com` **synchronously** checks only the API key, `Content-Type`, the endpoint address, and the request size.
+
+  Price, number format, credit, and blacklist/opt-out are all handled **asynchronously** in phase 2, and their result is reported to you by a webhook.
+</Tip>
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Message flow" icon="timeline" href="/concepts/message-flow">
+    How the flow works through channels and when it falls back.
+  </Card>
+
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    Delivery report format, status sequence, and the `result_info` field.
+  </Card>
+
+  <Card title="message_id and request_id" icon="fingerprint" href="/concepts/message-ids">
+    How to match the API response with delivery reports from the webhook.
+  </Card>
+
+  <Card title="Testing your integration" icon="flask" href="/guides/testing">
+    Test the entire flow without sending real messages.
+  </Card>
+</CardGroup>

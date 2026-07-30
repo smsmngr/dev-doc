@@ -1,0 +1,138 @@
+---
+title: "How to set up SMS fallback for WhatsApp messages"
+sidebarTitle: "WhatsApp with SMS fallback"
+description: "Send a WhatsApp message that automatically falls back to SMS if WhatsApp delivery fails."
+---
+
+This guide shows how to send a WhatsApp message with an automatic SMS backup using the `flow` field in JSON API v2. SmsManager first attempts delivery over WhatsApp and, if that fails, automatically falls back to SMS — without you writing any retry logic of your own.
+
+The guide assumes you already know how to send a basic message and have an API key. If you're just getting started with WhatsApp, first work through [Sending a WhatsApp message](/guides/send-whatsapp).
+
+## How fallback works
+
+The `flow` field is an ordered list of channels. SmsManager tries them one by one, from first to last, and stops at the first one that delivers the message. As soon as you list `whatsapp_template` (or `whatsapp_text`) first and `sms` second, you get exactly a WhatsApp-to-SMS fallback.
+
+For details on channel ordering and failure conditions, see the [Message flow](/concepts/message-flow) and [Channels](/concepts/channels) concepts.
+
+<Note>
+  Always list SMS as the **last** channel in the `flow`. SMS works on every mobile phone without installing an app, so it's the most reliable final backup.
+</Note>
+
+## Prerequisites
+
+- A connected **WhatsApp Business Account** and its **Phone Number ID** — see [Sending a WhatsApp message](/guides/send-whatsapp).
+- For proactive outreach, a **pre-approved template** with the exact name and language code. The difference between a template and free-form text is described in [WhatsApp message types](/concepts/whatsapp-message-types).
+
+## Build the request with fallback
+
+<Steps>
+  <Step title="Set the root body for the SMS backup">
+    The `sms` channel has no content of its own, so it uses the root `body` field as the SMS text. Always set it — otherwise the SMS backup would arrive empty.
+
+    ```json Request root
+    {
+      "body": "Hi Jan, your order ORDER-123 has shipped!",
+      "to": [{ "phone_number": "420777123456" }]
+    }
+    ```
+  </Step>
+  <Step title="Add WhatsApp as the first flow step">
+    List `whatsapp_template` as the first element of the `flow` array. Set `sender` to your Phone Number ID, `template_name` to the name of the approved template, and `language` to the language code. Pass the template variables in the `params` array.
+  </Step>
+  <Step title="Add SMS as the second (fallback) step">
+    After WhatsApp, add an `sms` object. If the WhatsApp step fails — the recipient doesn't have WhatsApp, the template isn't approved, or the `ttl` expires — SmsManager automatically falls back to SMS.
+  </Step>
+</Steps>
+
+## Complete example
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Hi Jan, your order ORDER-123 has shipped!",
+    "to": [{ "phone_number": "420777123456" }],
+    "tag": "transactional",
+    "callback": "https://yourapp.com/webhooks/sms",
+    "flow": [
+      {
+        "whatsapp_template": {
+          "sender": "514578330250514",
+          "template_name": "order_update",
+          "language": "cs",
+          "params": ["Jan", "ORDER-123"],
+          "ttl": 60
+        }
+      },
+      {
+        "sms": {
+          "sender": "MyShop",
+          "gateway": "high"
+        }
+      }
+    ]
+  }'
+```
+
+```json Request body
+{
+  "body": "Hi Jan, your order ORDER-123 has shipped!",
+  "to": [{ "phone_number": "420777123456" }],
+  "tag": "transactional",
+  "callback": "https://yourapp.com/webhooks/sms",
+  "flow": [
+    {
+      "whatsapp_template": {
+        "sender": "514578330250514",
+        "template_name": "order_update",
+        "language": "cs",
+        "params": ["Jan", "ORDER-123"],
+        "ttl": 60
+      }
+    },
+    {
+      "sms": {
+        "sender": "MyShop",
+        "gateway": "high"
+      }
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+<Note>
+  If you want to fall back from **free-form text** (within an open 24-hour window) to SMS, replace the first step with the `whatsapp_text` channel and its own `body`. The complete fields of both channels are described in [Channels](/concepts/channels).
+</Note>
+
+## How to tell which channel delivered
+
+The API response confirms that the request was accepted, but the actual delivery happens asynchronously. To find out which channel ultimately delivered the message, use the **delivery webhooks**: SmsManager sends a POST to your `callback` URL on every status change, and the payload contains the channel the message was sent through.
+
+Setting up a webhook receiver and the payload structure are described in [Delivery webhooks](/guides/webhooks). The sequence of attempts across channels is explained in detail in [Message flow](/concepts/message-flow).
+
+## Notes and troubleshooting
+
+- **Empty SMS backup** — an `sms` channel without its own `body` uses the root `body`. If the root `body` is missing, the SMS arrives empty. Always set it.
+- **The WhatsApp step is skipped** — most often the template isn't yet approved by Meta, the number doesn't have the recipient's consent, or the `ttl` expires before delivery. In all of these cases the flow correctly falls back to SMS.
+- **`whatsapp_text` outside the 24-hour window** — free-form text can only be sent within an active customer service window. Outside it, the channel fails and the flow falls back to SMS. For proactive outreach, use `whatsapp_template`.
+
+<Warning>
+  The `whatsapp_template` and `whatsapp_text` channels have different deliverability rules. Before building your flow, verify which type fits your scenario — see [WhatsApp message types](/concepts/whatsapp-message-types).
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Delivery webhooks" icon="webhook" href="/guides/webhooks">
+    Receive delivery status and find out which channel delivered the message.
+  </Card>
+
+  <Card title="Message flow" icon="diagram-project" href="/concepts/message-flow">
+    Understand channel ordering and the conditions under which the flow moves on.
+  </Card>
+</CardGroup>

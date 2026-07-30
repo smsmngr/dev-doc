@@ -1,0 +1,340 @@
+---
+title: "WhatsApp Template Parameters"
+sidebarTitle: "WhatsApp templates"
+description: "Complete reference overview of the whatsapp_template object parameters — variables in the body and header, media, all button types, product carousel, and limited-time offers (LTO)."
+---
+
+You send a WhatsApp template using the `whatsapp_template` object inside the `flow` array. Beyond the required fields (`template_name`, `language`, `sender`), you can populate the template with content at runtime — variables in the text, media in the header, dynamic buttons, products, and limited-time offers. This page is a complete reference overview of those parameters. For a practical introduction, see the [Send WhatsApp](/guides/send-whatsapp) guide; the difference between a template and free text is explained in the [WhatsApp message types](/concepts/whatsapp-message-types) concept.
+
+## Required fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `template_name` | string | The name of a pre-registered and approved template. |
+| `language` | string | The template's language code, for example `cs`, `en`, `de`. |
+| `sender` | string | The **Phone Number ID** of your WhatsApp sender (the numeric ID, not the phone number), e.g. `514578330250514`. |
+| `ttl` | integer | Optional. Time to live in **minutes** — how long WhatsApp attempts delivery before advancing to the next `flow` step. |
+
+```json Minimal template
+{
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "whatsapp_template": {
+        "template_name": "welcome_template",
+        "language": "cs",
+        "sender": "514578330250514"
+      }
+    }
+  ]
+}
+```
+
+<Note>
+  The parameter fields accept two names as aliases: `params` / `params_header` / `params_buttons` (recommended, consistent with the [JSON API v2](/api-reference/json-v2/overview)) and the older `parameters_body` / `parameters_header` / `parameters_buttons`. Throughout this reference we use the `params_*` form.
+</Note>
+
+---
+
+## Variables in the message body (`params`)
+
+The `params` field fills in the variables in the template text. WhatsApp supports two styles of variables; the notation differs depending on which one you chose when creating the template.
+
+### Numbered variables
+
+A template with numbered variables `{{1}}`, `{{2}}`:
+
+```text
+Dobrý den {{1}}, potvrzujeme vaši rezervaci dne {{2}}.
+```
+
+Pass an **array of strings** — the values are substituted positionally:
+
+```json
+{
+  "whatsapp_template": {
+    "template_name": "potvrzeni_rezervace",
+    "language": "cs",
+    "sender": "514578330250514",
+    "params": ["Tomáši", "12. 11. 2026"]
+  }
+}
+```
+
+### Named variables
+
+A template with named variables `{{jmeno}}`, `{{den}}`:
+
+```text
+Dobrý den {{jmeno}}, potvrzujeme vaši rezervaci dne {{den}}.
+```
+
+Pass an **array of objects**, each with a single key = the variable name:
+
+```json
+{
+  "whatsapp_template": {
+    "template_name": "potvrzeni_rezervace",
+    "language": "cs",
+    "sender": "514578330250514",
+    "params": [
+      { "jmeno": "Tomáši" },
+      { "den": "12. 11. 2026" }
+    ]
+  }
+}
+```
+
+<Warning>
+  The number and order of values must match the variables in the template. A missing or extra value leads to the message being rejected (`rejected`).
+</Warning>
+
+---
+
+## Header (`params_header`)
+
+The `params_header` field always contains a **single element** — a WhatsApp template has at most one header. The simplest notation is a string; SmsManager determines the header type itself from its shape:
+
+| String value | Detected type |
+| --- | --- |
+| URL ending in `.jpg`, `.jpeg`, `.png` | Image |
+| URL ending in `.mp4`, `.3gp` | Video |
+| URL ending in `.pdf` | Document |
+| Any other text | Text header |
+
+```json Image header (shorthand notation)
+{
+  "whatsapp_template": {
+    "template_name": "potvrzeni_rezervace",
+    "language": "cs",
+    "sender": "514578330250514",
+    "params_header": ["https://example.com/soubor.jpg"]
+  }
+}
+```
+
+<Note>
+  Supported formats and limits: image `png`/`jpg` up to 5 MB, video `mp4`/`3gp` (H.264 + AAC, with an audio track) up to 16 MB, document `pdf` up to 100 MB.
+</Note>
+
+### Explicit header notation
+
+Instead of a string, you can pass an object and specify the header type explicitly. Use this for media via an object with `link`, a text variable, a location, or a product.
+
+```json Text header with a variable
+{ "params_header": [{ "text": { "objednavka": "ORD-123" } }] }
+```
+
+```json Image / video / document
+{ "params_header": [{ "image": { "link": "https://example.com/soubor.jpg" } }] }
+{ "params_header": [{ "video": { "link": "https://example.com/soubor.mp4" } }] }
+{ "params_header": [{ "document": { "link": "https://example.com/faktura.pdf", "filename": "faktura.pdf" } }] }
+```
+
+```json Location
+{
+  "params_header": [
+    {
+      "location": {
+        "latitude": "50.1045378",
+        "longitude": "14.4501183",
+        "name": "SmsManager",
+        "address": "Komunardů 36, Praha 7"
+      }
+    }
+  ]
+}
+```
+
+```json Product (Single-Product Message)
+{
+  "params_header": [
+    {
+      "product": {
+        "product_retailer_id": "nqryix03ez",
+        "catalog_id": "194836987003835"
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Buttons (`params_buttons`)
+
+The `params_buttons` field supplies the button parameters. Values are assigned **positionally** to the buttons in the template, so at the position of a static button (one without a parameter) insert `null`.
+
+<Note>
+  **Static buttons** (a fixed URL or phone number) do not need to be included when sending. **Dynamic buttons** and buttons with required parameters must always be included, and in the correct order.
+</Note>
+
+```json Only the second button is dynamic
+{
+  "whatsapp_template": {
+    "template_name": "...",
+    "language": "cs",
+    "sender": "514578330250514",
+    "params_buttons": [null, "kontaktujte-nas"]
+  }
+}
+```
+
+You specify the button type by the shape of the value:
+
+| Value | Button type |
+| --- | --- |
+| `"kontaktujte-nas"` (string) | Dynamic **URL** — appended to the button's base URL |
+| `{ "url": "kontaktujte-nas" }` | Dynamic **URL** (explicit) |
+| `{ "payload": "TAP_CONTACT" }` | **Quick reply** (postback with a custom payload) |
+| `{ "code": "ABCD10" }` | **Coupon** to copy to the clipboard |
+| `{ "catalog": "nqryix03ez" }` | **Catalog** — shows a product from the catalog |
+| `{ "voice_call": { "ttl_minutes": 5 } }` | **WhatsApp call** to your profile |
+| `{ "mpm": { … } }` | **Multi-product (MPM)** |
+| `{ "flow": { … } }` or `{ "flow": null }` | **Flow** form for collecting data |
+
+<Warning>
+  The coupon button uses the **`code`** key (`{ "code": "ABCD10" }`), not `coupon`.
+</Warning>
+
+### Multi-product (MPM)
+
+The object's key is the `product_retailer_id` of the preview product, and its value is an array of catalog sections:
+
+```json
+{
+  "params_buttons": [
+    {
+      "mpm": {
+        "2lc20305pt": [
+          {
+            "title": "Název sekce",
+            "product_items": [
+              { "product_retailer_id": "2lc20305pt" },
+              { "product_retailer_id": "nseiw1x3ch" },
+              { "product_retailer_id": "n6k6x0y7oe" }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+### Flow button
+
+A flow button must be included in the request even when you pass no data — in that case use `null`. To pre-fill the form, pass an object with the data:
+
+```json Without data
+{ "params_buttons": [{ "flow": null }] }
+```
+
+```json With pre-filled data
+{
+  "params_buttons": [
+    {
+      "flow": {
+        "first_name": "Tomáš",
+        "last_name": "Marný"
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Product carousel (`params_carousel`)
+
+The `params_carousel` field sends a carousel-type template — an array of cards, each with one product:
+
+```json
+{
+  "whatsapp_template": {
+    "template_name": "...",
+    "language": "cs",
+    "sender": "514578330250514",
+    "params_carousel": [
+      { "product": { "product_retailer_id": "vrpj01fvwp", "catalog_id": "194836987003835" } },
+      { "product": { "product_retailer_id": "va2l5ioeat", "catalog_id": "194836987003835" } }
+    ]
+  }
+}
+```
+
+---
+
+## Limited-time offer (`params_lto`)
+
+The `params_lto` field sets the expiry of an offer on a *Limited Time Offer* template. The value is a **timestamp in milliseconds** (a string or a number):
+
+```json
+{
+  "whatsapp_template": {
+    "template_name": "...",
+    "language": "cs",
+    "sender": "514578330250514",
+    "params_lto": ["1698562800000"]
+  }
+}
+```
+
+<Note>
+  The LTO countdown is shown only in the WhatsApp mobile app, not in the web client or on desktop.
+</Note>
+
+---
+
+## Complete example
+
+A template with a named variable in the body, an image in the header, a dynamic URL button, and an SMS fallback:
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Ahoj Jane, vaše objednávka ORD-123 byla odeslána!",
+    "to": [{ "phone_number": "420777123456" }],
+    "callback": "https://yourapp.com/webhooks/whatsapp",
+    "flow": [
+      {
+        "whatsapp_template": {
+          "template_name": "order_shipped",
+          "language": "cs",
+          "sender": "514578330250514",
+          "ttl": 60,
+          "params": [{ "jmeno": "Jan" }],
+          "params_header": ["https://example.com/track.png"],
+          "params_buttons": ["ORD-123"]
+        }
+      },
+      {
+        "sms": { "sender": "MujObchod", "gateway": "high" }
+      }
+    ]
+  }'
+```
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Send WhatsApp" icon="whatsapp" href="/guides/send-whatsapp">
+    A practical guide to sending both templates and free text.
+  </Card>
+
+  <Card title="WhatsApp message types" icon="comments" href="/concepts/whatsapp-message-types">
+    When to use a template and when to use free text within the 24-hour window.
+  </Card>
+
+  <Card title="SMS fallback for WhatsApp" icon="message-sms" href="/guides/whatsapp-sms-fallback">
+    Automatically switching to SMS when WhatsApp fails.
+  </Card>
+
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    WhatsApp delivery statuses and the delivery-report format.
+  </Card>
+</CardGroup>

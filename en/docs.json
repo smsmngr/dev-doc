@@ -64,7 +64,8 @@
             "group": "Get started",
             "pages": [
               "index",
-              "quickstart"
+              "quickstart",
+              "tutorials/whatsapp-business-registration"
             ]
           }
         ]
@@ -78,6 +79,7 @@
               "guides/send-sms",
               "guides/send-viber",
               "guides/send-whatsapp",
+              "guides/whatsapp-sms-fallback",
               "guides/batch-sending"
             ]
           },
@@ -86,6 +88,12 @@
             "pages": [
               "guides/phone-verification",
               "guides/webhooks"
+            ]
+          },
+          {
+            "group": "Testing",
+            "pages": [
+              "guides/testing"
             ]
           },
           {
@@ -272,6 +280,9 @@
               "reference/errors",
               "reference/rate-limits",
               "reference/phone-numbers",
+              "reference/whatsapp-templates",
+              "reference/whatsapp-text",
+              "reference/rcs",
               "api-reference/json-v2/webhooks"
             ]
           }
@@ -285,10 +296,13 @@
             "pages": [
               "introduction",
               "concepts/message-flow",
+              "concepts/request-acceptance",
+              "concepts/sending-queues",
               "concepts/channels",
               "concepts/message-ids",
               "concepts/phone-normalization",
-              "concepts/scheduling"
+              "concepts/scheduling",
+              "concepts/whatsapp-message-types"
             ]
           }
         ]

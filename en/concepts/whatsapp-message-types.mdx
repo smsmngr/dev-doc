@@ -1,0 +1,77 @@
+---
+title: "WhatsApp Message Types on SmsManager"
+sidebarTitle: "WhatsApp Message Types"
+description: "An explanation of the two WhatsApp message types on SmsManager and the rules that determine when to use each one."
+---
+
+SmsManager distinguishes two kinds of WhatsApp messages: **template messages** (`whatsapp_template`) and **text messages** (`whatsapp_text`). These aren't two variants of the same thing — each stems from a different part of the WhatsApp Business platform's rules and suits a different moment in the conversation. This page explains why these two types exist, what rules separate them, and how to choose the right one accordingly. For the practical steps of sending, see the [Send WhatsApp](/guides/send-whatsapp) guide.
+
+## Why two types at all
+
+WhatsApp isn't an open channel like SMS. Meta protects users from unsolicited messages by distinguishing **who initiated the conversation**. When a business reaches out to a person who didn't ask to be contacted, it must use a format that Meta has vetted in advance — a template. But once a person writes to the business themselves, they signal that they welcome the communication, and the business may speak with them freely for a limited time.
+
+From this single principle — *who initiated the conversation, and when* — follows the entire split into template and text messages. It's not a technical limitation of SmsManager, but a rule of the WhatsApp platform itself, which SmsManager makes available through a unified multi-channel `flow`.
+
+<CardGroup cols={2}>
+  <Card title="Template messages" icon="stamp">
+    Pre-approved by Meta. Can be sent **at any time** to anyone who has given consent — even without a prior conversation. For proactive outreach.
+  </Card>
+  <Card title="Text messages" icon="comments">
+    Free-form text composed at send time. Can be sent **only** within an open 24-hour window. For replies and support.
+  </Card>
+</CardGroup>
+
+## Template messages (`whatsapp_template`)
+
+A template is a fixed-structure message that you register in advance and have approved by Meta. The text is set; only predefined variable placeholders (name, order number, tracking link) can be changed. Because Meta vetted the content before sending, it trusts it enough to allow the template to be delivered **even to a recipient who has never communicated with you** — it's enough that they consented to receiving messages from your business.
+
+It's precisely this option for proactive outreach that makes templates the fundamental building block of automated notifications. Typical uses:
+
+- **Order confirmations and updates** — the message goes out at a moment determined by your system, not the customer.
+- **Shipping notifications and appointment reminders** — proactive, timed communications.
+- **One-time passwords (OTP)** — must arrive immediately, regardless of whether an open window exists.
+
+The price for this freedom is less flexibility: the text is pre-approved, so a template isn't suited to a spontaneous, individual reply. The approval process also takes anywhere from a few minutes to a few hours, which you need to factor in when designing a new message.
+
+## Text messages (`whatsapp_text`)
+
+A text message is free-form text that you compose only at the moment of sending — exactly the kind of message a person would type. It's not subject to any approval, and so it's ideal for live, unpredictable conversation. The only thing that limits it is the **24-hour customer service window**.
+
+Text messages are suited to situations where you're responding to a customer:
+
+- **Support and customer service** — answering questions, resolving complaints.
+- **Interactive conversations** — where a fixed template would feel curt or wouldn't be enough.
+
+## The 24-hour customer service window
+
+The customer service window is the period during which WhatsApp allows you to send free-form text. **It opens the moment the recipient writes to you** — either by sending you a first message or by replying to one of your template messages. From that moment, 24 hours run during which you can communicate with them freely. Each new message from the recipient pushes the window out by another 24 hours.
+
+Once the window expires, free-form text can no longer be sent — the only way to restart the conversation is a template. This is exactly where the two types meet: a template **opens** the window, and a text message **makes use of** it.
+
+<Note>
+  If you send a `whatsapp_text` outside an open window, the channel fails and SmsManager moves to the next step in your [flow](/concepts/channels) — typically to an SMS fallback. So you don't need to watch the window down to the millisecond, but for proactive outreach never rely on free-form text.
+</Note>
+
+## How to choose between them
+
+The decision criterion is single and always the same: **who is initiating the conversation**.
+
+| Situation | Type | Why |
+| --- | --- | --- |
+| You're reaching the recipient first (confirmation, notification, OTP) | `whatsapp_template` | Outside the window it's the only permitted option. |
+| The recipient wrote to you or replied in the last 24 hours | `whatsapp_text` | The window is open, free-form text is more flexible. |
+| You don't know whether the window is open | `whatsapp_template` | A template always goes through; free-form text outside the window fails. |
+
+In practice, the two types often complement each other: you initiate contact with a template (and thereby open the window), and once the customer replies, you switch to free-form text. For maximum deliverability, you then add an SMS fallback to the WhatsApp step, so that even a recipient without WhatsApp receives the message.
+
+<CardGroup cols={2}>
+  <Card title="Send WhatsApp" icon="whatsapp" href="/guides/send-whatsapp">
+    A practical guide to sending both types of WhatsApp messages through the API.
+  </Card>
+  <Card title="SMS fallback for WhatsApp" icon="message-sms" href="/guides/whatsapp-sms-fallback">
+    How to set up an automatic switch to SMS when WhatsApp fails.
+  </Card>
+  <Card title="Channels" icon="layer-group" href="/concepts/channels">
+    An overview of all SmsManager channels and their fields in a single flow.
+  </Card>
+</CardGroup>

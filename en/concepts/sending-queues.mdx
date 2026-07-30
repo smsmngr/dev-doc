@@ -1,0 +1,92 @@
+---
+title: "Sending Queues and Priority"
+sidebarTitle: "Queues and Priority"
+description: "How SmsManager sorts messages into queues based on the tag field — and why you should choose priority sending for time-critical messages (OTP, verification)."
+---
+
+SmsManager doesn't process all messages at the same speed. Based on the `tag` field, it places a message into one of three queues with different throughput and priority. Choosing the right queue determines whether a verification code arrives within seconds or waits for a marketing batch ahead of it to clear. This page explains how the queues differ and when to use each one. For how to set the `tag` in a request, see the [Send SMS](/guides/send-sms) guide.
+
+## Why queues at all
+
+Millions of messages go out through SmsManager, and bulk campaigns can temporarily saturate shared capacity. If everything were sent through a single queue, a verification code could get stuck behind a promotional offer being blasted out. Queues prevent this: they separate messages where seconds don't matter from those someone is waiting for right now.
+
+<CardGroup cols={3}>
+  <Card title="promotional" icon="bullhorn">
+    Default. Marketing and bulk messages. Shared throughput, delivery within minutes.
+  </Card>
+  <Card title="transactional" icon="receipt">
+    Messages tied to an existing business case — confirmations, shipping, service notifications.
+  </Card>
+  <Card title="priority" icon="bolt">
+    Time-critical service messages the user is waiting for (OTP, number verification). Dedicated connectivity.
+  </Card>
+</CardGroup>
+
+## `promotional` — marketing and bulk messages
+
+The default queue (used when you don't specify a `tag`). Intended for messages not directly related to an ongoing business case — general and targeted offers, promotions, bulk announcements. Throughput is **shared**, so sending may be delayed during peak load.
+
+Choose it whenever the exact delivery time doesn't matter (delivery on the given day is enough) — even for messages of a business nature.
+
+<Note>
+  On selected destinations (for example, SMS Czech Republic or France), marketing messages are only sent within the permitted window of **8 a.m.–8 p.m.** A message received after 8 p.m. waits until 8 a.m. the next morning. This window also applies when using [scheduling](/concepts/scheduling) via `datetime` or `delivery_time`.
+</Note>
+
+## `transactional` — service and informational messages
+
+Messages directly related to an existing business case, purely informational or service-oriented in nature: notifications about a change in order status, shipping information, parcel pickup notices, appointment changes. This also includes ordinary personal or team communication in real time.
+
+## `priority` — time-critical messages
+
+For priority messages, we have dedicated connectivity and priority processing in the GSM network (high-priority messages). It's intended **exclusively for service messages that can't tolerate any delay** — typically when a user is waiting for an SMS without which they can't proceed:
+
+- SMS PINs and one-time passwords (OTP),
+- phone number verification directly in a registration or login process.
+
+Priority sending may be more expensive than regular messages.
+
+<Warning>
+  The priority queue **cannot be used for bulk sending**. It has high priority but low throughput — under bulk load, sending actually slows down significantly. Marketing, advertising, and promotional messages don't belong in it.
+</Warning>
+
+## How to choose a queue
+
+| Situation | `tag` |
+| --- | --- |
+| Campaign, promotional offer, bulk send | `promotional` |
+| Order confirmation, shipping, service notification | `transactional` |
+| OTP, SMS PIN, number verification in registration (individually) | `priority` |
+
+```json Priority OTP
+{
+  "body": "Your login code is 291847",
+  "to": [{ "phone_number": "420777123456" }],
+  "tag": "priority"
+}
+```
+
+<Tip>
+  The `tag` also serves for reporting — you can add your own labels separated by commas (e.g. `"priority,otp"`) and track delivery statistics by campaign or message type. For details, see the [Send SMS](/guides/send-sms) guide.
+</Tip>
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Send SMS" icon="message-sms" href="/guides/send-sms">
+    How to set the `tag` and other fields of an SMS message.
+  </Card>
+
+  <Card title="Message flow" icon="timeline" href="/concepts/message-flow">
+    How the flow works through channels and how `ttl_condition` works.
+  </Card>
+
+  <Card title="Scheduling delivery" icon="clock" href="/concepts/scheduling">
+    Scheduling via `datetime` and `delivery_time` delivery windows.
+  </Card>
+
+  <Card title="Rate limits" icon="gauge" href="/reference/rate-limits">
+    Recipient and API throughput limits.
+  </Card>
+</CardGroup>

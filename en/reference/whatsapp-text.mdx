@@ -1,0 +1,170 @@
+---
+title: "WhatsApp Text Message Parameters"
+sidebarTitle: "WhatsApp text"
+description: "Reference overview of the whatsapp_text object — plain text, link preview, media (image, video, document, audio), quick-reply buttons, and a CTA button with a link."
+---
+
+The `whatsapp_text` object sends free-form content over WhatsApp within the open **24-hour customer window** — from plain text through media to interactive buttons. Unlike [templates](/reference/whatsapp-templates), nothing needs to be pre-registered, but the content can only be delivered when the recipient has messaged you in the last 24 hours. The window rules are explained in the [WhatsApp message types](/concepts/whatsapp-message-types) concept; this page is a reference overview of all the fields.
+
+## Basic fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `sender` | string | The **Phone Number ID** of your WhatsApp sender (the numeric ID, not the phone number). Required. |
+| `body` | string | The message text. It also serves as the caption for media and as the text for interactive messages. If omitted, the `body` from the root of the request is used. |
+| `preview` | boolean | For plain text, enables the link preview (`preview_url`). Defaults to `false`. |
+
+```json Plain text with a link preview
+{
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "whatsapp_text": {
+        "sender": "514578330250514",
+        "body": "Nová verze je venku: https://example.com/blog",
+        "preview": true
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Media
+
+Media can be sent in two ways.
+
+**1. Shorthand via `body`** — if `body` is a link (starting with `http`) with a recognized extension, SmsManager assembles a media message from it itself:
+
+| Extension in `body` | Type |
+| --- | --- |
+| `.png`, `.jpeg` | Image |
+| `.mp4`, `.3gp` | Video |
+| `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`, `.txt` | Document |
+| `.mp3`, `.acc`, `.m4a`, `.ogg`, `.amr` | Audio |
+
+**2. Explicit object** — you pass an `image`, `video`, `document`, or `audio` object with a `link` field. For an image, video, and document, `body` is used as the caption if the object does not contain its own `caption`.
+
+```json Image with a caption
+{
+  "whatsapp_text": {
+    "sender": "514578330250514",
+    "body": "Náhled produktu",
+    "image": { "link": "https://example.com/produkt.jpg" }
+  }
+}
+```
+
+```json Document with a custom file name
+{
+  "whatsapp_text": {
+    "sender": "514578330250514",
+    "document": { "link": "https://example.com/faktura.pdf", "filename": "faktura.pdf" }
+  }
+}
+```
+
+---
+
+## Quick-reply buttons (`buttons`)
+
+The `buttons` field creates an interactive message with quick-reply buttons — **at most 3** (any extras are trimmed). `body` is shown as the message text.
+
+| Button field | Type | Description |
+| --- | --- | --- |
+| `title` | string | The button label. |
+| `id` | string | Optional. The identifier returned in the webhook after a tap. Defaults to `reply_<index>`. |
+
+Optionally add a `footer` (text below the message) and a `header` (see [Header for interactive messages](#header-for-interactive-messages) below).
+
+```json
+{
+  "whatsapp_text": {
+    "sender": "514578330250514",
+    "body": "Chcete pokračovat v objednávce?",
+    "footer": "Odpovězte prosím do 24 hodin",
+    "buttons": [
+      { "id": "yes", "title": "Ano, pokračovat" },
+      { "id": "no", "title": "Zrušit" }
+    ]
+  }
+}
+```
+
+---
+
+## CTA button with a link (`url`)
+
+The `url` field (together with `title`) creates an interactive message with a single button that opens a link. `body` is the message text; you can optionally add a `footer` and a `header`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `url` | string | The button's target URL. |
+| `title` | string | The button label. |
+
+```json
+{
+  "whatsapp_text": {
+    "sender": "514578330250514",
+    "body": "Vaše objednávka byla odeslána.",
+    "url": "https://example.com/track/ORD-123",
+    "title": "Sledovat zásilku"
+  }
+}
+```
+
+---
+
+## Header for interactive messages
+
+For messages with `buttons` or `url`, you can add a `header` field (a string). The header type is determined by the shape of the value — a link with an image/video/document extension is shown as the corresponding media, otherwise as text:
+
+```json Image header
+{ "header": "https://example.com/banner.png" }
+```
+
+```json Text header
+{ "header": "Potvrzení objednávky" }
+```
+
+---
+
+## Raw passthrough (`raw`)
+
+For advanced cases this interface does not cover, you can pass a `raw` object with an `interactive` key, whose contents are sent to the WhatsApp API unchanged.
+
+```json
+{
+  "whatsapp_text": {
+    "sender": "514578330250514",
+    "raw": { "interactive": { "type": "list", "body": { "text": "…" }, "action": { "…": "…" } } }
+  }
+}
+```
+
+<Note>
+  Fields are evaluated in order: media in `body` → `document`/`audio`/`image`/`video` objects → `buttons` → `url` → `raw` → plain text. The first one found in the request wins, so combine only one type of content in a single message.
+</Note>
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Send WhatsApp" icon="whatsapp" href="/guides/send-whatsapp">
+    A practical guide to sending both templates and free text.
+  </Card>
+
+  <Card title="WhatsApp templates" icon="stamp" href="/reference/whatsapp-templates">
+    A reference of the parameters for proactive template messages.
+  </Card>
+
+  <Card title="WhatsApp message types" icon="comments" href="/concepts/whatsapp-message-types">
+    When to use a template and when to use free text within the 24-hour window.
+  </Card>
+
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    Receiving replies and button taps.
+  </Card>
+</CardGroup>

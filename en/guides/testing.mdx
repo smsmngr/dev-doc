@@ -1,0 +1,116 @@
+---
+title: "Testing your API integration"
+sidebarTitle: "Testing your integration"
+description: "Test your SmsManager integration without sending real messages and without unnecessary costs — using a test number, a test gateway, and mock (sandbox) endpoints."
+---
+
+Before you take your integration live, it's worth putting it through its paces — verifying that you build valid requests, handle responses correctly, and can receive delivery reports (webhooks). SmsManager offers three independent tools for this, which you can combine. None of them sends a real message to the recipient's phone.
+
+| Tool | How to enable | Credit | Sends an SMS? | Delivery reports (webhook)? | When to use |
+| --- | --- | --- | --- | --- | --- |
+| Test number | `to.phone_number` = `420777777777` | Not charged | No | No | Verify that a request goes through and you process the response correctly |
+| Test gateway | `gateway: "test"` in the `sms` flow object | CZK 0.01 / SMS | No | Yes | End-to-end test of delivery-report handling on your callback URL |
+| Mock endpoints | `api-mock` / `rest-api-mock` domain | Not charged | No | No | Development and automated tests against an API simulation |
+
+---
+
+## Test phone number
+
+A message sent to the special number `420777777777` is **never delivered** and **no credit is charged** for it. The recipient is evaluated as invalid. The API request is still processed as usual — you get back a `request_id` and a `message_id` for each recipient — so you can verify that your integration builds a valid request, authenticates, and reads the response correctly.
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Test message",
+    "to": [{"phone_number": "420777777777"}]
+  }'
+```
+
+<Note>
+  The test number does not generate delivery reports — the message is never actually handed off for delivery, so no webhook about its delivery status will arrive. If you also want to test receiving delivery reports, use the [test gateway](#test-gateway) below.
+</Note>
+
+---
+
+## Test gateway
+
+Adding `gateway: "test"` to the `sms` flow object marks the message as a test. Such messages cost only **CZK 0.01 / SMS**, are **not actually delivered to a phone**, but SmsManager **generates delivery reports** for them and sends them as a webhook to your callback URL. This lets you test the entire flow from sending through to processing the delivery report.
+
+```json Request body
+{
+  "body": "Test message with delivery report",
+  "to": [{"phone_number": "420777123456"}],
+  "callback": "https://yourapp.com/webhooks/sms",
+  "flow": [
+    {
+      "sms": {
+        "sender": "MyApp",
+        "gateway": "test"
+      }
+    }
+  ]
+}
+```
+
+<Tip>
+  Set the `callback` field to your endpoint's URL so you actually receive the delivery reports. For details on the payload format and the status sequence, see the [Webhooks](/guides/webhooks) guide.
+</Tip>
+
+---
+
+## Mock (sandbox) endpoints
+
+For development and automated tests, you can call **mock endpoints** instead of the production domains. They only simulate receiving a request and respond according to the OpenAPI specification — nothing is sent and no credit is charged. They're useful when you want to verify that requests are built and responses are parsed correctly without touching production.
+
+Just append `-mock` to the name of the corresponding production domain in the address:
+
+| API | Production base URL | Mock base URL |
+| --- | --- | --- |
+| JSON API v2 | `https://api.smsmngr.com/v2` | `https://api-mock.smsmngr.com/v2` |
+| REST API | `https://rest-api.smsmngr.com/v1` | `https://rest-api-mock.smsmngr.com/v1` |
+
+```bash cURL
+curl -X POST https://api-mock.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Hello from the mock!",
+    "to": [{"phone_number": "420777123456"}]
+  }'
+```
+
+<Note>
+  Mock endpoints return sample responses based on the OpenAPI specification — they do not reflect your account state or real delivery. To test actual delivery reports, use the [test gateway](#test-gateway) against the production domain.
+</Note>
+
+---
+
+## Recommended testing workflow
+
+<Steps>
+  <Step title="Verify request building">
+    During development, call the [mock endpoints](#mock-sandbox-endpoints) or production with the [test number](#test-phone-number) `420777777777`. This verifies authentication, request shape, and response parsing — for free and without sending anything.
+  </Step>
+  <Step title="Test delivery reports">
+    Switch to the [test gateway](#test-gateway) `gateway: "test"` with the `callback` field set. For CZK 0.01 / SMS, verify that your endpoint receives delivery reports and correctly processes the status sequence.
+  </Step>
+  <Step title="Go live">
+    Remove `gateway: "test"`, point your calls at the production domain, and send a message to your own real number for a final check. After that, you can take your integration live.
+  </Step>
+</Steps>
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Send SMS" icon="message-sms" href="/guides/send-sms">
+    A complete overview of SMS message fields, including the `gateway` field values.
+  </Card>
+
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    Delivery report format, status sequence, and best practices for your endpoint.
+  </Card>
+</CardGroup>

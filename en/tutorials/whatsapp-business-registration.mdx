@@ -1,0 +1,155 @@
+---
+title: "Registering a WhatsApp Business Account for your client"
+sidebarTitle: "First client registration"
+description: "Walk through registering your first client via the WhatsApp Partner API step by step and obtain their WABA ID."
+---
+
+In this tutorial, as a partner (ISV or reseller) you'll walk through the entire process of onboarding one of your clients into WhatsApp Business messaging for the first time — from calling the first endpoint to obtaining their **WABA ID**. You don't need any prior experience with the WhatsApp Partner API; all you need is a tool for sending HTTP requests (for example, `curl`) and a simple web server that can receive a callback.
+
+By the time you finish the tutorial, you'll have a fully onboarded client and their WABA ID in hand, which is the input for all further operations.
+
+<Note>
+  The entire API runs under your partner account. Your client never needs their own access to SmsManager — you start the registration and they only complete the hosted flow in their browser.
+</Note>
+
+## Before you begin
+
+Prepare three things:
+
+- A **partner API key** from SmsManager. You add it to every request in the `x-api-key` header.
+- A **publicly reachable callback URL** on your server that can receive a `POST` request. This is where SmsManager will send you a notification once the client's WABA is ready.
+- An **internal client identifier** (for example, `client-789`) from your system, so that you can later match the notification you receive to the correct record.
+
+The base URL of the Partner API is always:
+
+```text
+https://rest-api.smsmngr.com/v1
+```
+
+## Steps
+
+<Steps>
+
+<Step title="Start a registration session">
+
+Call `POST /whatsapp/signup` and pass your client's details. In this tutorial you'll let SmsManager assign a phone number from a pool (`phone_number: "preassign"`), so you only need to provide the client's country. (The `phone_number` values are now `manual`, `preassign`, and `assigned` — the former `automatic` is no longer valid.)
+
+```bash cURL
+curl -X POST https://rest-api.smsmngr.com/v1/whatsapp/signup \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{
+    "partner_name": "Acme Corp",
+    "partner_logo": "https://acme.com/logo.png",
+    "partner_callback_url": "https://acme.com/webhooks/waba",
+    "partner_client_id": "client-789",
+    "partner_finish_url": "https://acme.com/dashboard",
+    "phone_number": "preassign",
+    "wa_name": "Acme Support",
+    "wa_email": "support@acme.com",
+    "wa_website": "https://acme.com",
+    "country": "CZ"
+  }'
+```
+
+In the response you get a short-lived JWT `token` and a `redirect_url` — the base address of the hosted registration page:
+
+```json Response
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "redirect_url": "https://waba.smsmanager.com/registration/"
+}
+```
+
+<Tip>
+  The `partner_client_id` value you send here (`client-789`) is returned to you in the callback and in the account listing. So use a stable identifier from your own system.
+</Tip>
+
+</Step>
+
+<Step title="Build the redirect URL">
+
+Take the `redirect_url` from the response and append the `token` to it as a query parameter named `token`:
+
+```text
+https://waba.smsmanager.com/registration/?token=<JWT_TOKEN>
+```
+
+<Warning>
+  Treat the token as a secret. Build the redirect URL on your server — never print the token into client-side JavaScript or log it.
+</Warning>
+
+</Step>
+
+<Step title="Redirect the client into the hosted flow">
+
+Send the client's browser to the URL you built — via a server-side redirect (`302`), through `window.location`, or a meta refresh. The client will see SmsManager's registration interface showing your name (`partner_name`) and logo (`partner_logo`), and will go through the remaining steps of WhatsApp Business registration.
+
+No programming is required on their side. Once they complete or abandon the flow, SmsManager redirects them to your `partner_finish_url`.
+
+</Step>
+
+<Step title="Wait for the completion callback">
+
+As the client progresses through onboarding, SmsManager sends `POST` notifications to your `partner_callback_url`. Every notification contains your `partner_client_id`, so you can tell which client it concerns.
+
+On your server, listen for these notifications and wait for the **completion event** — it means the client's WABA is active and ready to use. Only then proceed to the next step.
+
+</Step>
+
+<Step title="Retrieve the WABA ID">
+
+After onboarding is complete, call `POST /whatsapp/accounts/list`. You can leave the body empty to return all of your accounts, or filter by a specific WABA.
+
+```bash cURL
+curl -X POST https://rest-api.smsmngr.com/v1/whatsapp/accounts/list \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{}'
+```
+
+In the response, find the account whose `client_id` matches your `partner_client_id`. Its `whatsapp_id` field is the **WABA ID** you're looking for:
+
+```json Response
+{
+  "success": true,
+  "accounts": [
+    {
+      "client_id": "client-789",
+      "whatsapp_name": "Acme Support",
+      "whatsapp_id": "123456789",
+      "whatsapp_currency": "EUR",
+      "whatsapp_owner_name": "Acme Corp",
+      "whatsapp_owner_id": "987654321",
+      "country": "CZ"
+    }
+  ]
+}
+```
+
+That's it — the `whatsapp_id` value (`123456789`) is your client's WABA ID.
+
+</Step>
+
+</Steps>
+
+## What you've accomplished
+
+You've just onboarded a client through the WhatsApp Partner API for the first time: you started a registration session, redirected the client into the hosted flow, received the completion callback, and obtained their **WABA ID**. This ID is the key to all further operations on the client's account.
+
+## What's next
+
+<CardGroup cols={2}>
+  <Card title="Partner API overview" icon="book" href="/api-reference/waba/overview">
+    A complete reference of endpoints, fields, and callbacks.
+  </Card>
+
+  <Card title="Send a WhatsApp message" icon="paper-plane" href="/guides/send-whatsapp">
+    Use the WABA ID you obtained and send your client their first message.
+  </Card>
+
+  <Card title="WhatsApp message types" icon="messages" href="/concepts/whatsapp-message-types">
+    Understand the difference between `whatsapp_text` and `whatsapp_template` messages.
+  </Card>
+</CardGroup>

@@ -1,0 +1,170 @@
+---
+title: "RCS Message Parameters"
+sidebarTitle: "RCS"
+description: "Reference overview of the rcs object — plain text, reply suggestions and action buttons, a standalone rich card, and a product carousel over RCS Business Messaging."
+---
+
+RCS (Rich Communication Services) is the successor to SMS, delivering rich content directly in the native messaging app on Android. With SmsManager you send an RCS message using the `rcs` object inside the `flow` array — from plain text through reply suggestions and action buttons all the way to rich cards and carousels. This page is a reference overview of the fields of the `rcs` object.
+
+## Basic fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `sender` | string | The ID of your RCS agent (sender). If omitted, the sender from the root of the request is used. |
+| `body` | string | The message text. If omitted, the `body` from the root of the request is used. |
+| `ttl` | integer | Time to live in **minutes**. Once it elapses, the flow advances to the next `flow` step. |
+
+```json Plain text
+{
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "rcs": {
+        "sender": "muj_rcs_agent",
+        "body": "Ahoj! Vaše objednávka je připravena k vyzvednutí."
+      }
+    }
+  ]
+}
+```
+
+<Note>
+  An RCS message is delivered only to recipients with RCS enabled. Always place an SMS fallback after the RCS step in your [flow](/concepts/message-flow) so the message reaches everyone else too.
+</Note>
+
+---
+
+## Buttons (`buttons`)
+
+The `buttons` array adds **reply suggestions** (chips) below the message. Each button has a `type` — either `reply` (a quick reply) or `url` (opens a link).
+
+| Button field | Applies to | Description |
+| --- | --- | --- |
+| `type` | both | `reply` or `url`. |
+| `text` | both | The button label. |
+| `postback` | both | The data returned in the webhook after a tap (`postbackData`). |
+| `url` | `url` | The target URL. |
+| `description` | `url` | A description of the link being opened. |
+| `webview` | `url` | The webview display mode (`webviewViewMode`). |
+
+```json
+{
+  "rcs": {
+    "sender": "muj_rcs_agent",
+    "body": "Jak vám můžeme pomoci?",
+    "buttons": [
+      { "type": "reply", "text": "Stav objednávky", "postback": "ORDER_STATUS" },
+      { "type": "url", "text": "Otevřít e-shop", "postback": "OPEN_SHOP", "url": "https://example.com" }
+    ]
+  }
+}
+```
+
+---
+
+## Standalone rich card (`card`)
+
+The `card` field sends a single card with an image/video, a title, a description, and optional buttons.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `title` | string | The card title. |
+| `description` | string | The card description. |
+| `file` | string | The media URL (image/video). |
+| `thumbnail` | string | The thumbnail URL. |
+| `buttons` | array | The card buttons (same shape as above). |
+
+```json
+{
+  "rcs": {
+    "sender": "muj_rcs_agent",
+    "card": {
+      "title": "Letní sleva",
+      "description": "Sleva 20 % na celý sortiment do konce měsíce.",
+      "file": "https://example.com/promo.jpg",
+      "thumbnail": "https://example.com/promo-thumb.jpg",
+      "buttons": [
+        { "type": "url", "text": "Nakoupit", "postback": "SHOP", "url": "https://example.com/sale" }
+      ]
+    }
+  }
+}
+```
+
+---
+
+## Carousel (`carousel`)
+
+The `carousel` field sends a horizontally scrollable row of cards. Each item additionally has a `type` field (the media type):
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `title` | string | The card title. |
+| `description` | string | The card description. |
+| `type` | string | The card's media type. |
+| `file` | string | The media URL. |
+| `thumbnail` | string | The thumbnail URL. |
+| `buttons` | array | The card buttons. |
+
+```json
+{
+  "rcs": {
+    "sender": "muj_rcs_agent",
+    "carousel": [
+      {
+        "title": "Produkt A",
+        "description": "Skladem",
+        "type": "image",
+        "file": "https://example.com/a.jpg",
+        "thumbnail": "https://example.com/a-thumb.jpg",
+        "buttons": [{ "type": "url", "text": "Detail", "postback": "A", "url": "https://example.com/a" }]
+      },
+      {
+        "title": "Produkt B",
+        "description": "Novinka",
+        "type": "image",
+        "file": "https://example.com/b.jpg",
+        "thumbnail": "https://example.com/b-thumb.jpg"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Raw passthrough (`raw`)
+
+For content this interface does not cover, pass a `raw` object — the `suggestions` key for custom suggestions or `richCard` for a custom card is sent to the RCS API unchanged.
+
+```json
+{
+  "rcs": {
+    "sender": "muj_rcs_agent",
+    "body": "…",
+    "raw": { "suggestions": [ { "reply": { "text": "Ano", "postbackData": "YES" } } ] }
+  }
+}
+```
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Channels" icon="layer-group" href="/concepts/channels">
+    An overview of all SmsManager channels and their fields in the flow.
+  </Card>
+
+  <Card title="Message lifecycle" icon="timeline" href="/concepts/message-flow">
+    How to queue RCS with an SMS fallback and how `ttl_condition` works.
+  </Card>
+
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    Receiving delivery statuses and button taps.
+  </Card>
+
+  <Card title="Send SMS" icon="message-sms" href="/guides/send-sms">
+    Configure an SMS fallback for your RCS messages.
+  </Card>
+</CardGroup>
