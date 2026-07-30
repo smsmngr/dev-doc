@@ -37,6 +37,10 @@
   "navbar": {
     "links": [
       {
+        "label": "← smsmanager.cz",
+        "href": "https://smsmanager.cz"
+      },
+      {
         "label": "English",
         "href": "https://smsmanager.com/docs"
       },
