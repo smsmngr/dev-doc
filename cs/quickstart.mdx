@@ -7,14 +7,14 @@ description: "Odešlete první SMS pomocí SmsManager JSON API v2. Naučte se au
 Tento průvodce vás provede odesláním první SMS pomocí SmsManager JSON API v2. Na konci budete mít úspěšné volání API, obdržíte `message_id` a budete vědět, kam pokračovat pro pokročilé funkce jako multikanálové toky a doručovací webhooky.
 
 <Note>
-  **Předpoklady:** Před začátkem potřebujete účet SmsManager a API klíč. Klíč získáte na [app.smsmanager.com/app/developers/apikeys](https://app.smsmanager.com/app/developers/apikeys).
+  **Předpoklady:** Před začátkem potřebujete účet SmsManager a API klíč. Klíč získáte na [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud).
 </Note>
 
 <Steps>
   <Step title="Získejte svůj API klíč">
-    Přihlaste se ke svému účtu SmsManager a přejděte na [API & Cloud](https://app.smsmanager.com/app/developers/apikeys). Váš hlavní API klíč je zobrazen na této stránce. Zkopírujte jej — budete jej předávat jako hlavičku `x-api-key` v každém požadavku.
+    Přihlaste se ke svému účtu SmsManager a přejděte na [API & Cloud](https://app.smsmanager.com/api-cloud). Váš hlavní API klíč je zobrazen na této stránce. Zkopírujte jej — budete jej předávat jako hlavičku `x-api-key` v každém požadavku.
 
-    Pokud potřebujete omezený klíč pro konkrétní integraci (například pro izolaci kreditu nebo zjednodušené odvolání), můžete si vytvořit sub-klíče přes [REST API](/cs/api-reference/rest/overview).
+    Pokud potřebujete omezený klíč pro konkrétní integraci (například pro izolaci kreditu nebo zjednodušené odvolání), můžete si vytvořit sub-klíče přes [REST API](/api-reference/rest/overview).
   </Step>
   <Step title="Odešlete první zprávu">
     Odešlete POST požadavek na `https://api.smsmngr.com/v2/message` s JSON tělem obsahujícím text zprávy a alespoň jedno telefonní číslo příjemce v mezinárodním formátu E.164 (bez úvodního `+` nebo `00`).
@@ -69,7 +69,7 @@ Tento průvodce vás provede odesláním první SMS pomocí SmsManager JSON API 
     }
     ```
 
-    Přečtěte si [průvodce Webhooky](/cs/guides/webhooks) pro celé schéma payload událostí a detaily ověření.
+    Přečtěte si [průvodce Webhooky](/guides/webhooks) pro celé schéma payload událostí a detaily ověření.
   </Step>
 </Steps>
 
@@ -150,15 +150,15 @@ echo $response;
 ## Další kroky
 
 <CardGroup cols={3}>
-  <Card title="Tok zpráv" icon="arrow-right-arrow-left" href="/cs/concepts/message-flow">
+  <Card title="Tok zpráv" icon="arrow-right-arrow-left" href="/concepts/message-flow">
     Naučte se vytvářet multikanálové záložní řetězce pomocí vlastnosti `flow`.
   </Card>
 
-  <Card title="Přehled kanálů" icon="layer-group" href="/cs/concepts/channels">
+  <Card title="Přehled kanálů" icon="layer-group" href="/concepts/channels">
     Prozkoumejte rozdíly mezi odesíláním přes SMS, Viber a WhatsApp.
   </Card>
 
-  <Card title="Webhooky" icon="webhook" href="/cs/guides/webhooks">
+  <Card title="Webhooky" icon="webhook" href="/guides/webhooks">
     Přijímejte potvrzení o doručení a příchozí zprávy v reálném čase.
   </Card>
 </CardGroup>

@@ -58,9 +58,14 @@ SmsManager's JSON API v2 lets you send SMS messages to any phone number worldwid
 
     | Gateway | Description |
     | --- | --- |
-    | `high` | Default. Best delivery rate via aggregator network. |
-    | `direct` | Required when using a virtual number as the sender. Routes through direct carrier connections. |
-    | `custom` | For SIM-hosting setups where you supply your own SIM hardware. |
+    | `high` | Default. Best delivery rate via the aggregator network. |
+    | `lowcost` | Low-cost routing. |
+    | `direct` | Required when using a dedicated virtual number as the sender. Routes through direct carrier connections. |
+    | `custom` | SIM-hosting setup where you supply your own SIM hardware. |
+    | `simhost` | SIM-hosting setup (alternative to `custom`). |
+    | `gsm` | Route through your own GSM gateway. |
+
+    You normally don't need to set `gateway` — SmsManager picks it automatically based on the sender.
 
     ```json Request body
     {
@@ -235,19 +240,19 @@ console.log(data);
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="Batch Sending" icon="layer-group" href="/en/guides/batch-sending">
+  <Card title="Batch Sending" icon="layer-group" href="/guides/batch-sending">
     Send up to 100 messages in a single API call using the /messages endpoint.
   </Card>
 
-  <Card title="Webhooks" icon="webhook" href="/en/guides/webhooks">
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
     Receive real-time delivery status updates at your callback URL.
   </Card>
 
-  <Card title="Send Viber" icon="message" href="/en/guides/send-viber">
+  <Card title="Send Viber" icon="message" href="/guides/send-viber">
     Add Viber Business Messages with rich content and SMS fallback.
   </Card>
 
-  <Card title="Phone Verification" icon="shield-check" href="/en/guides/phone-verification">
+  <Card title="Phone Verification" icon="shield-check" href="/guides/phone-verification">
     Verify phone numbers with OTP using the SmsManager Verify API.
   </Card>
 </CardGroup>

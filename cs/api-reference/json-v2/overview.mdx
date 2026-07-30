@@ -1,4 +1,10 @@
-JSON API v2 je hlavní API SmsManageru pro odesílání zpráv přes SMS, Viber a WhatsApp. Každý požadavek je autentizován vaším API klíčem a většina endpointů přijímá JSON tělo, které vám umožňuje cílit až 10 příjemců, definovat multikanálové toky, plánovat doručení a přijímat doručovací callbacky. Pro novou práci doporučujeme JSON API v2; jednodušší [HTTP API](/cs/api-reference/http-api/send) a [XML API](/cs/api-reference/xml-api/send) zůstávají trvale podporované (hodí se pro služby, které umí jen GET/POST bez vlastní hlavičky).
+---
+title: "JSON API v2 — Reference odesílání zpráv SmsManager"
+sidebarTitle: "Overview"
+description: "Přehled JSON API v2 pro odesílání SMS, Viber, WhatsApp a RCS zpráv. Základní URL, autentizace a souhrn endpointů."
+---
+
+JSON API v2 je hlavní API SmsManageru pro odesílání zpráv přes SMS, Viber, WhatsApp a RCS. Každý požadavek je autentizován vaším API klíčem a většina endpointů přijímá JSON tělo, které vám umožňuje cílit až 10 příjemců, definovat multikanálové toky, plánovat doručení a přijímat doručovací callbacky. Pro novou práci doporučujeme JSON API v2; jednodušší [HTTP API](/api-reference/http-api/send) a [XML API](/api-reference/xml-api/send) zůstávají trvale podporované (hodí se pro služby, které umí jen GET/POST bez vlastní hlavičky).
 
 ## Základní URL
 
@@ -18,15 +24,16 @@ x-api-key: YOUR_API_KEY
 
 Endpoint `GET /simple/message` je jedinou výjimkou — přijímá klíč jako query parametr `apikey`.
 
-Svůj API klíč najdete v [nastavení účtu](https://app.smsmanager.com/app/developers/apikeys). Udržujte svůj klíč soukromý; kdokoli, kdo jej drží, může odesílat zprávy vaším jménem.
+Svůj API klíč najdete v [nastavení účtu](https://app.smsmanager.com/api-cloud). Udržujte svůj klíč soukromý; kdokoli, kdo jej drží, může odesílat zprávy vaším jménem.
 
-Pro širší vysvětlení autentizace napříč SmsManager API vizte [Průvodce autentizací](/cs/authentication).
+Pro širší vysvětlení autentizace napříč SmsManager API vizte [Průvodce autentizací](/authentication).
 
 ## Souhrn endpointů
 
 | Metoda | Endpoint | Popis |
 | --- | --- | --- |
 | `POST` | `/message` | Odeslat zprávu až 10 příjemcům |
+| `POST` | `/message/priority` | Odeslat časově kritickou zprávu přes prioritní frontu |
 | `POST` | `/messages` | Odeslat dávku až 10 objektů zpráv (celkem až 100 příjemců) |
 | `GET` | `/simple/message` | Odeslat zprávu přes query parametry — nevyžaduje JSON tělo |
 | `POST` | `/simple/message` | Odeslat zprávu přes form-encoded tělo |
@@ -43,16 +50,17 @@ Následující pole jsou sdílena mezi `POST /message` a `POST /messages`. Každ
 | --- | --- | --- | --- |
 | `body` | string (max 1000) | Ano\* | Text zprávy. Povinné, pokud každý kanál flow nedefinuje svůj vlastní `body`. |
 | `to` | array (1–10 položek) | Ano | Seznam objektů příjemců, každý obsahující řetězec `phone_number`. |
-| `flow` | array | Ne | Seřazený seznam objektů kanálů (`sms`, `viber`, `whatsapp_text`, `whatsapp_template`). SmsManager zkouší každý kanál v pořadí, dokud jeden neuspěje. |
-| `callback` | string (URI) | Ne | Webhook URL pro příjem oznámení o stavu doručení této zprávy. |
-| `tag` | string | Ne | Štítek pro seskupování zpráv. Vestavěné hodnoty: `promotional` (výchozí), `transactional`, `priority`. Přijímá vlastní řetězce. |
+| `flow` | array | Ne | Seřazený seznam objektů kanálů (`sms`, `viber`, `whatsapp_text`, `whatsapp_template`, `rcs`). SmsManager zkouší každý kanál v pořadí, dokud jeden neuspěje. Každý krok kanálu podporuje také `ttl` (time-to-live, v minutách) a `ttl_condition` (`sent`, `delivered` nebo `seen`), které určuje, kdy SmsManager přejde na další kanál, pokud tento stav není během TTL dosažen. |
+| `sender` | string | Ne | Výchozí odesílatel pro všechny kroky flow; odesílatel definovaný v konkrétním kroku má přednost. |
+| `callback` | string \| object | Ne | Webhook URL pro příjem oznámení o stavu doručení této zprávy. Předejte prostý řetězec URL nebo objekt s rozšířenou konfigurací callbacku. |
+| `tag` | string | Ne | Štítek pro seskupování zpráv. Lze uvést více štítků oddělených čárkou, které jsou normalizovány na malá písmena. Speciální hodnoty: `promotional` (výchozí), `transactional`, `priority`. Zprávy s výchozím štítkem `promotional` jsou kontrolovány proti seznamu odhlášených příjemců. `messageTag` je zastaralý alias. |
 | `datetime` | string (ISO 8601, UTC) | Ne | Naplánovat zprávu na budoucí UTC datetime, např. `2025-06-01T09:00:00Z`. |
 | `delivery_time` | object | Ne | Omezit doručení na časové okno: `days` (pole názvů dní v týdnu), `start` (HH:MM), `end` (HH:MM), `tz` (IANA časové pásmo, výchozí `UTC`). |
 | `params` | object | Ne | Speciální parametry zpracování (např. zkrácení odkazů). Podrobnosti kontaktujte podporu SmsManager. |
 | `payload` | object | Ne | Libovolná klíč-hodnota data, která SmsManager vrací v každé webhook události pro tuto zprávu. |
 
 <Note>
-  **Používejte JSON API v2** (`https://api.smsmngr.com/v2`) pro nové integrace. Jednodušší [HTTP API](/cs/api-reference/http-api/send) a [XML API](/cs/api-reference/xml-api/send) zůstávají trvale podporované.
+  **Používejte JSON API v2** (`https://api.smsmngr.com/v2`) pro nové integrace. Jednodušší [HTTP API](/api-reference/http-api/send) a [XML API](/api-reference/xml-api/send) zůstávají trvale podporované.
 </Note>
 
 ## Prozkoumejte endpointy

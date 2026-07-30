@@ -1,0 +1,51 @@
+---
+title: "Normalizace telefonních čísel"
+sidebarTitle: "Normalizace čísel"
+description: "Jak SmsManager normalizuje telefonní čísla: odstranění nečíselných znaků a úvodních nul. Podpora mezinárodních i národních formátů a doplnění předvolby podle země účtu."
+---
+
+Než SmsManager směruje zprávu k doručení, každé telefonní číslo příjemce nejprve **normalizuje** na jednotný tvar. Díky tomu můžete čísla předávat v tom formátu, který máte právě po ruce — s mezerami, se znaménkem `+`, s úvodními nulami — a nemusíte je čistit sami. Tato stránka popisuje, jak normalizace probíhá a jak se zachází s národními čísly bez mezinárodní předvolby.
+
+## Proces normalizace
+
+Normalizace má dva kroky, které se provádějí vždy a v tomto pořadí:
+
+1. **Odstranění všech nečíselných znaků.** Ze vstupu se odeberou mezery, pomlčky, závorky, znaménko `+` i jakýkoliv jiný znak, který není číslice. Zůstane pouze posloupnost číslic `0`–`9`.
+2. **Odstranění všech úvodních nul.** Z výsledné posloupnosti se zleva odeberou všechny znaky `0`, dokud číslo nezačíná nenulovou číslicí.
+
+Díky tomu jsou následující zápisy stejného čísla vzájemně zaměnitelné a všechny fungují:
+
+| Vstup | Po odstranění nečíselných znaků | Po odstranění úvodních nul | Výsledek |
+| --- | --- | --- | --- |
+| `+420 777 12 34 56` | `420777123456` | `420777123456` | `420777123456` |
+| `420777123456` | `420777123456` | `420777123456` | `420777123456` |
+| `00420 777 123 456` | `00420777123456` | `420777123456` | `420777123456` |
+
+Všechny tři varianty vedou na totéž číslo `420777123456`. Nemusíte se tedy starat o to, zda číslo přišlo z formuláře, z CRM nebo z ručního zadání — normalizace srovná formátování za vás.
+
+## Národní čísla bez mezinárodní předvolby
+
+Zvláštní případ nastává, když po normalizaci zůstane **národní číslo bez mezinárodní předvolby** — například `777123456` (nebo `0777 123 456`, které se po odstranění úvodní nuly změní na `777123456`).
+
+Takové číslo samo o sobě neurčuje zemi doručení. Aby zprávy zůstaly funkční, SmsManager v tomto případě ověří, **z jaké země je založen váš účet**, a podle toho zkusí variantu s doplněnou mezinárodní předvolbou dané země.
+
+Pro účet registrovaný v České republice (předvolba `420`) tedy platí:
+
+| Vstup | Po normalizaci | Doplněná předvolba účtu | Výsledek |
+| --- | --- | --- | --- |
+| `777123456` | `777123456` | `420` | `420777123456` |
+| `0777 123 456` | `777123456` | `420` | `420777123456` |
+
+Tato logika zajišťuje, že národní čísla odeslaná bez předvolby dojdou ke správnému příjemci ve stejné zemi, ze které byl účet založen.
+
+<Warning>
+  Doplnění předvolby se řídí zemí, ve které je založen **váš účet**, nikoliv zemí příjemce. Posíláte-li národní číslo bez předvolby příjemci v jiné zemi, doplní se předvolba vašeho účtu a zpráva může být směrována špatně. Pro příjemce mimo zemi vašeho účtu vždy uvádějte celé mezinárodní číslo.
+</Warning>
+
+## Doporučení
+
+Normalizace je navržena tak, aby byla tolerantní, ale nejspolehlivější je předávat čísla už v mezinárodním tvaru:
+
+- **Preferujte plný mezinárodní formát** — `420777123456` nebo `+420 777 123 456`. Tím se úplně vyhnete doplňování předvolby podle země účtu a odstraníte veškerou nejednoznačnost.
+- **Na doplnění národní předvolby spoléhejte jen tehdy**, když víte, že všichni příjemci jsou ze stejné země jako váš účet.
+- **Formátování si nemusíte hlídat.** Mezery, pomlčky, závorky i znaménko `+` normalizace odstraní, takže čísla nemusíte před odesláním nijak čistit.

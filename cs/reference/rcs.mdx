@@ -29,7 +29,7 @@ RCS (Rich Communication Services) je nástupce SMS s bohatým obsahem přímo v 
 ```
 
 <Note>
-  RCS zpráva se odešle jen příjemcům s aktivním RCS. Vždy zařaďte za RCS krok SMS zálohu ve [flow](/cs/concepts/message-flow), aby zpráva dorazila i ostatním.
+  RCS zpráva se odešle jen příjemcům s aktivním RCS. Vždy zařaďte za RCS krok SMS zálohu ve [flow](/concepts/message-flow), aby zpráva dorazila i ostatním.
 </Note>
 
 ---
@@ -152,19 +152,19 @@ Pro obsah, který toto rozhraní nepokrývá, předejte objekt `raw` — klíč 
 ## Další kroky
 
 <CardGroup cols={2}>
-  <Card title="Kanály" icon="layer-group" href="/cs/concepts/channels">
+  <Card title="Kanály" icon="layer-group" href="/concepts/channels">
     Přehled všech kanálů SmsManageru a jejich polí ve flow.
   </Card>
 
-  <Card title="Životní cyklus zprávy" icon="timeline" href="/cs/concepts/message-flow">
+  <Card title="Životní cyklus zprávy" icon="timeline" href="/concepts/message-flow">
     Jak zařadit RCS s SMS zálohou a jak funguje `ttl_condition`.
   </Card>
 
-  <Card title="Webhooky" icon="webhook" href="/cs/guides/webhooks">
+  <Card title="Webhooky" icon="webhook" href="/guides/webhooks">
     Příjem stavů doručení a klepnutí na tlačítka.
   </Card>
 
-  <Card title="Odeslat SMS" icon="message-sms" href="/cs/guides/send-sms">
+  <Card title="Odeslat SMS" icon="message-sms" href="/guides/send-sms">
     Nakonfigurujte SMS zálohu pro vaše RCS zprávy.
   </Card>
 </CardGroup>

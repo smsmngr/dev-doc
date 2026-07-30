@@ -1,0 +1,1486 @@
+openapi: 3.1.0
+info:
+  title: WhatsApp Business Partner API
+  description: |
+    API pro registraci a správu WhatsApp Business účtů (WABA): vestavěná registrace (embedded signup), telefonní čísla, šablony zpráv a analytika.
+
+    ## Autentizace
+
+    Požadavky jsou autentizovány buď vaším API klíčem v HTTP hlavičce `x-api-key`, nebo — v případě hostovaného registračního procesu — krátkodobým polem `token` v těle požadavku (získaným z `/whatsapp/signup`, platným 1 hodinu).
+
+    ## Konvence odpovědí
+
+    Selhání na úrovni byznys logiky (neznámá WABA, zamítnutí ze strany Meta, neautentizovaný požadavek) jsou vracena jako HTTP `200` s `{ "success": false, "message": "..." }`. HTTP chybové stavové kódy (`400`, `401`, `500`) se používají pouze pro chybějící povinná pole a neočekávané chyby.
+  version: v1
+  contact:
+    url: https://smsmanager.com
+    email: cc@smsmanager.com
+
+servers:
+  - url: 'https://rest-api.smsmngr.com/v1'
+    description: Produkční server
+
+security:
+  - x-api-key: []
+
+components:
+  securitySchemes:
+    x-api-key:
+      type: apiKey
+      in: header
+      name: x-api-key
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Chybová zpráva.
+    Failure:
+      type: object
+      description: Selhání na úrovni byznys logiky (vraceno s HTTP 200).
+      properties:
+        success:
+          type: boolean
+          const: false
+        message:
+          type: string
+
+paths:
+  /whatsapp/signup:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Zahájit registraci"
+      tags:
+        - waba
+      summary: Zahájení vestavěné registrace WhatsApp
+      description: |
+        Zahájí proces vestavěné registrace (embedded signup) WhatsApp. Vytvoří krátkodobý registrační token (platný 1 hodinu) vázaný na váš API klíč a vrátí jej spolu s URL hostované registrace. Přesměrujte uživatele na `redirect_url` s vráceným `token`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                partner_name:
+                  type: string
+                  description: Název partnera zobrazený v registračním procesu.
+                partner_logo:
+                  type: string
+                  description: URL loga partnera.
+                partner_callback_url:
+                  type: string
+                  description: URL volaná po dokončení registrace.
+                partner_client_id:
+                  type: string
+                  description: Váš identifikátor klienta.
+                partner_finish_url:
+                  type: string
+                  description: URL, na kterou je uživatel přesměrován po dokončení.
+                wa_name:
+                  type: string
+                  description: Obchodní název na WhatsApp.
+                wa_email:
+                  type: string
+                  description: Kontaktní e-mail firmy (používá se pro ověřovací e-maily k číslu, když je číslo předpřiřazeno).
+                wa_website:
+                  type: string
+                  description: Webové stránky firmy.
+                phone_number:
+                  type: string
+                  enum:
+                    - manual
+                    - preassign
+                    - assigned
+                  description: |
+                    Režim telefonního čísla: `manual` — uživatel připojí vlastní číslo přes aplikaci WhatsApp Business; `preassign` — číslo z našeho poolu je předpřiřazeno k vašemu účtu; `assigned` — použije se již přiřazené číslo. Jakákoli jiná hodnota zahájí běžnou registraci se sdílením WABA.
+                country:
+                  type: string
+                  description: Země přiřazeného telefonního čísla (pro režimy `preassign` / `assigned`).
+            examples:
+              Signup with pre-assigned number:
+                value:
+                  partner_name: "Acme Messaging"
+                  partner_logo: "https://partner.example/logo.png"
+                  partner_callback_url: "https://partner.example/wa/callback"
+                  partner_finish_url: "https://partner.example/wa/done"
+                  partner_client_id: "client-42"
+                  wa_name: "Acme Store"
+                  wa_email: "owner@acme.example"
+                  wa_website: "https://acme.example"
+                  phone_number: "preassign"
+                  country: "cz"
+              Signup with own number:
+                value:
+                  partner_name: "Acme Messaging"
+                  partner_client_id: "client-42"
+                  wa_name: "Acme Store"
+                  phone_number: "manual"
+      responses:
+        '200':
+          description: Registrace zahájena
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  token:
+                    type: string
+                    description: Registrační token (platný 1 hodinu). Předejte jej hostovanému registračnímu rozhraní a endpointu `/whatsapp/registration`.
+                  redirect_url:
+                    type: string
+                    description: URL hostované registrace.
+              example:
+                success: true
+                token: "eyJhbGciOi..."
+                redirect_url: "https://waba.smsmanager.com/"
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to whatsapp registration
+
+  /whatsapp/registration:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Dokončit registraci"
+      tags:
+        - waba
+      summary: Dokončení registrace WhatsApp
+      description: |
+        Dokončí registraci: vymění Meta OAuth `code` za business token, připojí WABA k vašemu účtu, zaregistruje telefonní číslo a volitelně nastaví firemní profil. Zadejte buď `phone_number_id` (existující číslo připojené v registračním procesu), nebo `country` (bude přiděleno nové číslo z našeho poolu).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - waba_id
+                - code
+              properties:
+                token:
+                  type: string
+                  description: Registrační token z `/whatsapp/signup`.
+                waba_id:
+                  type: string
+                  description: ID WhatsApp Business účtu.
+                code:
+                  type: string
+                  description: Autorizační kód Meta OAuth z vestavěné registrace.
+                phone_number_id:
+                  type: string
+                  description: Phone Number ID existujícího čísla. Povinné, pokud není zadáno `country`.
+                country:
+                  type: string
+                  description: Země pro přidělení nového čísla z našeho poolu. Povinné, pokud není zadáno `phone_number_id`.
+                client_id:
+                  type: string
+                  description: Váš identifikátor klienta.
+                description:
+                  type: string
+                  description: Popis firemního profilu.
+                logo:
+                  type: string
+                  description: Profilový obrázek firmy jako base64 data URL (`data:image/...;base64,...`).
+                email:
+                  type: string
+                  description: E-mail firemního profilu.
+                website:
+                  type: string
+                  description: Webové stránky firemního profilu.
+            examples:
+              Existing number:
+                value:
+                  token: "eyJhbGciOi..."
+                  waba_id: "1234567890"
+                  code: "AQD...meta-oauth-code"
+                  phone_number_id: "109876543210987"
+                  client_id: "client-42"
+                  description: "Official Acme Store WhatsApp"
+                  email: "support@acme.example"
+                  website: "https://acme.example"
+              New number from pool:
+                value:
+                  token: "eyJhbGciOi..."
+                  waba_id: "1234567890"
+                  code: "AQD...meta-oauth-code"
+                  country: "cz"
+      responses:
+        '200':
+          description: Výsledek registrace
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  phone_number_id:
+                    type: string
+                  phone_number:
+                    type: string
+                  message:
+                    type: string
+                    description: Důvod selhání, když je `success` `false`.
+              examples:
+                Registered:
+                  value:
+                    success: true
+                    phone_number_id: "109876543210987"
+                    phone_number: "420226633283"
+                Failed:
+                  value:
+                    success: false
+                    message: "Whatsapp phone number not registered"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing required fields (phone_number_id or country) in request data
+        '401':
+          description: Chybějící povinná pole
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing required fields (token, waba_id, code) in request data
+
+  /whatsapp/phone_numbers/verify:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Ověřit číslo"
+      tags:
+        - waba-numbers
+      summary: Přeposlání ověřovacího kódu telefonního čísla
+      description: |
+        Přepošle ověřovací kód pro předpřiřazené telefonní číslo na e-mail nastavený při registraci.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone_number
+                - code
+              properties:
+                phone_number:
+                  type: string
+                  description: Telefonní číslo (pouze číslice).
+                  example: "420226633283"
+                code:
+                  type: string
+                  description: Ověřovací kód.
+            example:
+              phone_number: "420226633283"
+              code: "123456"
+      responses:
+        '200':
+          description: Výsledek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              examples:
+                Verified:
+                  value:
+                    success: true
+                    message: "Whatsapp phone number verified"
+                Not found:
+                  value:
+                    success: false
+                    message: "Whatsapp phone number not found"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'phone_number' or 'code' in request data
+
+  /whatsapp/phone_numbers/check:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Zkontrolovat číslo"
+      tags:
+        - waba-numbers
+      summary: Kontrola dostupnosti telefonního čísla
+      description: Zkontroluje, zda předpřipravené WhatsApp telefonní číslo existuje a je ověřené.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone_number
+              properties:
+                phone_number:
+                  type: string
+                  example: "420226633283"
+            example:
+              phone_number: "420226633283"
+      responses:
+        '200':
+          description: Výsledek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              examples:
+                Available:
+                  value:
+                    success: true
+                Not exist:
+                  value:
+                    success: false
+                    message: "Whatsapp phone number not exist"
+                Not verified:
+                  value:
+                    success: false
+                    message: "Whatsapp phone number not verified"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'phone_number' in request data
+
+  /whatsapp/phone_numbers/list:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Seznam čísel"
+      tags:
+        - waba-numbers
+      summary: Seznam telefonních čísel WABA
+      description: Vypíše telefonní čísla registrovaná na WhatsApp Business účtu.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+              properties:
+                waba_id:
+                  type: string
+                  description: ID WhatsApp Business účtu.
+                token:
+                  type: string
+                  description: Registrační token (alternativní autentizace, když se nepoužívá `x-api-key`).
+            example:
+              waba_id: "1234567890"
+      responses:
+        '200':
+          description: Telefonní čísla
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  phone_numbers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          description: Ověřený obchodní název.
+                        phone_number_id:
+                          type: string
+                        phone_number:
+                          type: string
+                          description: Telefonní číslo (pouze číslice).
+                        phone_number_formated:
+                          type: string
+                          description: Formátované telefonní číslo.
+                        phone_number_status:
+                          type: string
+                          description: Stav čísla (např. `CONNECTED`).
+                        phone_number_quality:
+                          type: string
+                          description: Hodnocení kvality (např. `GREEN`).
+              examples:
+                Numbers:
+                  value:
+                    success: true
+                    phone_numbers:
+                      - name: "Acme Store"
+                        phone_number_id: "109876543210987"
+                        phone_number: "420226633283"
+                        phone_number_formated: "+420 226 633 283"
+                        phone_number_status: "CONNECTED"
+                        phone_number_quality: "GREEN"
+                Account not found:
+                  value:
+                    success: false
+                    message: "Whatsapp account not found"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'waba_id' in request data
+
+  /whatsapp/accounts/list:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Seznam účtů"
+      tags:
+        - waba
+      summary: Seznam připojených WhatsApp účtů
+      description: Vypíše WhatsApp Business účty připojené k vašemu API klíči, volitelně filtrované podle `client_id`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                client_id:
+                  type: string
+                  description: Filtrování účtů podle vašeho identifikátoru klienta.
+                waba_id:
+                  type: string
+                  description: Používá se pouze společně s autentizací pomocí `token`.
+                token:
+                  type: string
+                  description: Registrační token (alternativní autentizace, když se nepoužívá `x-api-key`; vyžaduje `waba_id`).
+            examples:
+              All accounts:
+                value: {}
+              Filter by client:
+                value:
+                  client_id: "client-42"
+      responses:
+        '200':
+          description: Účty
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  accounts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        client_id:
+                          type: string
+                        whatsapp_name:
+                          type: string
+                        whatsapp_id:
+                          type: string
+                          description: WABA ID.
+                        whatsapp_currency:
+                          type: string
+                        whatsapp_owner_name:
+                          type: string
+                        whatsapp_owner_id:
+                          type: string
+                        country:
+                          type: string
+              examples:
+                Accounts:
+                  value:
+                    success: true
+                    accounts:
+                      - client_id: "client-42"
+                        whatsapp_name: "Acme Store"
+                        whatsapp_id: "1234567890"
+                        whatsapp_currency: "CZK"
+                        whatsapp_owner_name: "Acme s.r.o."
+                        whatsapp_owner_id: "9988776655"
+                        country: "cz"
+                No accounts:
+                  value:
+                    success: false
+                    message: "No whatsapp accounts found"
+
+  /whatsapp/templates/list:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Seznam šablon"
+      tags:
+        - waba-templates
+      summary: Seznam šablon zpráv
+      description: Vypíše všechny šablony zpráv dané WABA (objekty šablon Meta jsou předávány beze změny).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+              properties:
+                waba_id:
+                  type: string
+                token:
+                  type: string
+                  description: Registrační token (alternativní autentizace).
+            example:
+              waba_id: "1234567890"
+      responses:
+        '200':
+          description: Šablony
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  templates:
+                    type: array
+                    items:
+                      type: object
+                      description: Objekt šablony zprávy Meta.
+              example:
+                success: true
+                templates:
+                  - name: "order_update"
+                    language: "cs"
+                    status: "APPROVED"
+                    category: "UTILITY"
+                    id: "9876543210"
+                    components:
+                      - type: "BODY"
+                        text: "Ahoj {{1}}, objednávka {{2}} byla odeslána."
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing waba_id:
+                  value:
+                    message: Missing 'waba_id' in request data
+                Missing auth:
+                  value:
+                    message: Missing 'xapikey' or 'token' in request data
+
+  /whatsapp/templates/create:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Vytvořit šablonu"
+      tags:
+        - waba-templates
+      summary: Vytvoření šablony zprávy
+      description: |
+        Vytvoří šablonu zprávy na WABA. Objekt `template` odpovídá modelu šablon zpráv Meta (`name`, `language`, `category`, `components`). Obrázkovou hlavičku lze odeslat jako base64 data URL v `components[].example.base64_image` — je automaticky nahrána do Meta a nahrazena hodnotou `header_handle`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+                - template
+              properties:
+                waba_id:
+                  type: string
+                token:
+                  type: string
+                  description: Registrační token (alternativní autentizace).
+                template:
+                  type: object
+                  required:
+                    - name
+                    - language
+                    - category
+                    - components
+                  properties:
+                    name:
+                      type: string
+                    language:
+                      type: string
+                      description: Kód jazyka šablony (např. `cs`, `en_US`).
+                    category:
+                      type: string
+                      enum:
+                        - MARKETING
+                        - UTILITY
+                        - AUTHENTICATION
+                    components:
+                      type: array
+                      description: Komponenty šablony Meta (`HEADER`, `BODY`, `FOOTER`, `BUTTONS`). Zástupné symboly proměnných jsou poziční (`{{1}}` + `example.body_text`) nebo pojmenované (`{{name}}` + `example.body_text_named_params`).
+                      items:
+                        type: object
+            examples:
+              Marketing template with image header:
+                value:
+                  waba_id: "1234567890"
+                  template:
+                    name: "autumn_sale"
+                    language: "en_US"
+                    category: "MARKETING"
+                    components:
+                      - type: "HEADER"
+                        format: "IMAGE"
+                        example:
+                          base64_image: "data:image/jpeg;base64,/9j/4AAQSk..."
+                      - type: "BODY"
+                        text: "Hi {{1}}, use code {{2}} for {{3}} off."
+                        example:
+                          body_text:
+                            - - "Alex"
+                              - "25OFF"
+                              - "25%"
+                      - type: "FOOTER"
+                        text: "Reply STOP to opt out"
+                      - type: "BUTTONS"
+                        buttons:
+                          - type: "QUICK_REPLY"
+                            text: "Shop now"
+      responses:
+        '200':
+          description: Výsledek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  template_id:
+                    type: string
+                  message:
+                    type: string
+                    description: Důvod selhání, když je `success` `false`.
+              examples:
+                Created:
+                  value:
+                    success: true
+                    template_id: "9876543210"
+                Failed:
+                  value:
+                    success: false
+                    message: "Whatsapp template creation failed"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'waba_id' in request data
+
+  /whatsapp/templates/library/create:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Vytvořit z knihovny"
+      tags:
+        - waba-templates
+      summary: Vytvoření šablony z knihovny Meta
+      description: Vytvoří šablonu na základě šablony z knihovny Meta Template Library.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+                - template
+              properties:
+                waba_id:
+                  type: string
+                token:
+                  type: string
+                  description: Registrační token (alternativní autentizace).
+                template:
+                  type: object
+                  required:
+                    - name
+                    - language
+                    - library_template_name
+                  properties:
+                    name:
+                      type: string
+                    language:
+                      type: string
+                    library_template_name:
+                      type: string
+                      description: Identifikátor šablony z knihovny.
+                    category:
+                      type: string
+                      default: UTILITY
+                    library_template_button_inputs:
+                      type: array
+                      items:
+                        type: object
+                    library_template_body_inputs:
+                      type: object
+            examples:
+              Delivery update:
+                value:
+                  waba_id: "1234567890"
+                  template:
+                    name: "delivery_update_1"
+                    language: "en_US"
+                    category: "UTILITY"
+                    library_template_name: "delivery_update"
+                    library_template_button_inputs:
+                      - type: "URL"
+                        url:
+                          base_url: "https://acme.example/track/{{1}}"
+                          url_suffix_example: "ABC123"
+      responses:
+        '200':
+          description: Výsledek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  template_id:
+                    type: string
+                  status:
+                    type: string
+                  category:
+                    type: string
+                  message:
+                    type: string
+                    description: Důvod selhání, když je `success` `false`.
+              examples:
+                Created:
+                  value:
+                    success: true
+                    template_id: "9876543210"
+                    status: "PENDING"
+                    category: "UTILITY"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing waba_id:
+                  value:
+                    message: Missing 'waba_id' in request data
+                Missing template:
+                  value:
+                    message: Missing 'template' in request data
+
+  /whatsapp/templates/edit:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Upravit šablonu"
+      tags:
+        - waba-templates
+      summary: Úprava šablony zprávy
+      description: |
+        Upraví existující šablonu podle jejího Meta `template_id` (nikoli podle názvu). Použijí se pouze `template.category` a/nebo `template.components`. Každá zahrnutá komponenta **nahrazuje** existující komponentu stejného `type`; vynechané komponenty zůstávají beze změny. Pro změnu obrázkové hlavičky zahrňte komponentu `HEADER` s `format: IMAGE` a novou data URL v `example.base64_image` — nový media handle je nahrán automaticky. Pozor na limity Meta: schválenou šablonu lze upravit nejvýše 10krát za 30 dní a jednou za 24 hodin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+                - template_id
+              properties:
+                waba_id:
+                  type: string
+                template_id:
+                  type: string
+                  description: Meta id šablony.
+                token:
+                  type: string
+                  description: Registrační token (alternativní autentizace).
+                template:
+                  type: object
+                  properties:
+                    category:
+                      type: string
+                      enum:
+                        - MARKETING
+                        - UTILITY
+                        - AUTHENTICATION
+                    components:
+                      type: array
+                      items:
+                        type: object
+            examples:
+              Edit body:
+                value:
+                  waba_id: "1234567890"
+                  template_id: "9876543210"
+                  template:
+                    components:
+                      - type: "BODY"
+                        text: "Hi {{1}}, our Autumn Sale is on! Use code {{2}}."
+                        example:
+                          body_text:
+                            - - "Alex"
+                              - "25OFF"
+              Change category only:
+                value:
+                  waba_id: "1234567890"
+                  template_id: "9876543210"
+                  template:
+                    category: "MARKETING"
+      responses:
+        '200':
+          description: Výsledek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              examples:
+                Updated:
+                  value:
+                    success: true
+                    message: "Whatsapp template updated"
+                Failed:
+                  value:
+                    success: false
+                    message: "Whatsapp template edit failed"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing waba_id:
+                  value:
+                    message: Missing 'waba_id' in request data
+                Missing template_id:
+                  value:
+                    message: Missing 'template_id' in request data
+
+  /whatsapp/templates/delete:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Smazat šablonu"
+      tags:
+        - waba-templates
+      summary: Smazání šablony zprávy
+      description: Smaže šablonu podle jejího názvu (smažou se všechny jazykové verze daného názvu).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+                - template_name
+              properties:
+                waba_id:
+                  type: string
+                template_name:
+                  type: string
+                  description: Název šablony, která se má smazat.
+                token:
+                  type: string
+                  description: Registrační token (alternativní autentizace).
+            example:
+              waba_id: "1234567890"
+              template_name: "autumn_sale"
+      responses:
+        '200':
+          description: Výsledek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              examples:
+                Deleted:
+                  value:
+                    success: true
+                    message: "Whatsapp template deleted"
+                Failed:
+                  value:
+                    success: false
+                    message: "Whatsapp template deletion failed"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'waba_id' in request data
+
+  /whatsapp/templates/test:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Otestovat šablonu"
+      tags:
+        - waba-templates
+      summary: Odeslání testovací zprávy ze šablony
+      description: |
+        Odešle příjemci ostrou zprávu ze šablony pro její otestování. Payload je sestaven z definice šablony — jako parametry se použijí ukázkové hodnoty komponent `HEADER` a `BODY`; komponenty `FOOTER` a `BUTTONS` jsou přeskočeny.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+                - sender
+                - phone_number
+                - template
+              properties:
+                waba_id:
+                  type: string
+                sender:
+                  type: string
+                  description: Phone Number ID použité pro odeslání.
+                phone_number:
+                  type: string
+                  description: Telefonní číslo příjemce.
+                token:
+                  type: string
+                  description: Registrační token (alternativní autentizace).
+                template:
+                  type: object
+                  required:
+                    - name
+                    - language
+                    - components
+                  properties:
+                    name:
+                      type: string
+                    language:
+                      type: string
+                    components:
+                      type: array
+                      items:
+                        type: object
+            examples:
+              Test send:
+                value:
+                  waba_id: "1234567890"
+                  sender: "109876543210987"
+                  phone_number: "420777000000"
+                  template:
+                    name: "autumn_sale"
+                    language: "en_US"
+                    components:
+                      - type: "HEADER"
+                        format: "IMAGE"
+                        example:
+                          header_handle:
+                            - "4::aW..."
+                      - type: "BODY"
+                        example:
+                          body_text:
+                            - - "Alex"
+                              - "25OFF"
+                              - "25%"
+      responses:
+        '200':
+          description: Výsledek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  wamid:
+                    type: string
+                    description: WhatsApp id odeslané testovací zprávy.
+              examples:
+                Sent:
+                  value:
+                    success: true
+                    message: "Whatsapp template tested"
+                    wamid: "wamid.HBgMNDIw...=="
+                Failed:
+                  value:
+                    success: false
+                    message: "Whatsapp template test failed"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'waba_id' in request data
+
+  /whatsapp/analytics/messages:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Analytika zpráv"
+      tags:
+        - waba-analytics
+      summary: Získání analytiky zpráv
+      description: Vrací analytiku zpráv (počty odeslaných / doručených) dané WABA. Časové značky jsou v sekundách Unix epochy; výchozí rozsah je posledních 30 dní.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+              properties:
+                waba_id:
+                  type: string
+                token:
+                  type: string
+                  description: Registrační token (alternativní autentizace).
+                start:
+                  type: integer
+                  description: Začátek rozsahu (Unix sekundy). Výchozí je před 30 dny.
+                end:
+                  type: integer
+                  description: Konec rozsahu (Unix sekundy). Výchozí je nyní.
+                granularity:
+                  type: string
+                  enum:
+                    - HALF_HOUR
+                    - DAY
+                    - MONTH
+                  default: DAY
+                phone_numbers:
+                  type: array
+                  items:
+                    type: string
+                  description: Filtrování podle telefonních čísel.
+                country_codes:
+                  type: array
+                  items:
+                    type: string
+                  description: Filtrování podle kódů zemí.
+            example:
+              waba_id: "1234567890"
+              start: 1719792000
+              end: 1722384000
+              granularity: "DAY"
+              phone_numbers:
+                - "420226633283"
+      responses:
+        '200':
+          description: Analytická data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  granularity:
+                    type: string
+                  phone_numbers:
+                    type: array
+                    items:
+                      type: string
+                  country_codes:
+                    type: array
+                    items:
+                      type: string
+                  data_points:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        start:
+                          type: integer
+                        end:
+                          type: integer
+                        sent:
+                          type: integer
+                        delivered:
+                          type: integer
+              example:
+                success: true
+                granularity: "DAY"
+                phone_numbers:
+                  - "420226633283"
+                country_codes:
+                  - "CZ"
+                data_points:
+                  - start: 1719792000
+                    end: 1719878400
+                    sent: 120
+                    delivered: 118
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing waba_id:
+                  value:
+                    message: Missing 'waba_id' in request data
+                Missing auth:
+                  value:
+                    message: Missing 'xapikey' or 'token' in request data
+
+  /whatsapp/analytics/conversations:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Analytika konverzací"
+      tags:
+        - waba-analytics
+      summary: Získání analytiky konverzací
+      description: Vrací analytiku konverzací (počty a náklady) dané WABA. Časové značky jsou v sekundách Unix epochy; výchozí rozsah je posledních 30 dní.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+              properties:
+                waba_id:
+                  type: string
+                token:
+                  type: string
+                  description: Registrační token (alternativní autentizace).
+                start:
+                  type: integer
+                  description: Začátek rozsahu (Unix sekundy). Výchozí je před 30 dny.
+                end:
+                  type: integer
+                  description: Konec rozsahu (Unix sekundy). Výchozí je nyní.
+                granularity:
+                  type: string
+                  enum:
+                    - HALF_HOUR
+                    - DAILY
+                    - MONTHLY
+                  default: DAILY
+                phone_numbers:
+                  type: array
+                  items:
+                    type: string
+                country_codes:
+                  type: array
+                  items:
+                    type: string
+                metric_types:
+                  type: array
+                  items:
+                    type: string
+                  description: Metriky, které se mají vrátit.
+                  default:
+                    - COST
+                    - CONVERSATION
+                conversation_categories:
+                  type: array
+                  items:
+                    type: string
+                  description: 'Filtrování podle kategorie: `MARKETING`, `UTILITY`, `AUTHENTICATION`, `SERVICE`.'
+                conversation_types:
+                  type: array
+                  items:
+                    type: string
+                  description: 'Filtrování podle typu: `FREE_ENTRY`, `FREE_TIER`, `REGULAR`.'
+                conversation_directions:
+                  type: array
+                  items:
+                    type: string
+                  description: 'Filtrování podle směru: `BUSINESS_INITIATED`, `USER_INITIATED`.'
+                dimensions:
+                  type: array
+                  items:
+                    type: string
+                  default:
+                    - CONVERSATION_CATEGORY
+                    - CONVERSATION_TYPE
+            example:
+              waba_id: "1234567890"
+              granularity: "DAILY"
+              conversation_categories:
+                - "MARKETING"
+      responses:
+        '200':
+          description: Analytická data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data_points:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        start:
+                          type: integer
+                        end:
+                          type: integer
+                        conversation:
+                          type: integer
+                        cost:
+                          type: number
+                        conversation_category:
+                          type: string
+                        conversation_type:
+                          type: string
+                        conversation_direction:
+                          type: string
+              example:
+                success: true
+                data_points:
+                  - start: 1719792000
+                    end: 1719878400
+                    conversation: 42
+                    cost: 12.5
+                    conversation_category: "MARKETING"
+                    conversation_type: "REGULAR"
+                    conversation_direction: "BUSINESS_INITIATED"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'waba_id' in request data
+
+  /whatsapp/analytics/templates:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Analytika šablon"
+      tags:
+        - waba-analytics
+      summary: Získání analytiky šablon
+      description: |
+        Vrací analytiku jednotlivých šablon (odesláno, doručeno, přečteno, kliknuto). Nejprve je nutné povolit statistiky šablon přes `/whatsapp/analytics/templates/enable`. Časové značky jsou v sekundách Unix epochy; výchozí rozsah je posledních 30 dní.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+                - template_ids
+              properties:
+                waba_id:
+                  type: string
+                token:
+                  type: string
+                  description: Registrační token (alternativní autentizace).
+                start:
+                  type: integer
+                  description: Začátek rozsahu (Unix sekundy). Výchozí je před 30 dny.
+                end:
+                  type: integer
+                  description: Konec rozsahu (Unix sekundy). Výchozí je nyní.
+                granularity:
+                  type: string
+                  default: DAILY
+                metric_types:
+                  type: array
+                  items:
+                    type: string
+                  default:
+                    - SENT
+                    - DELIVERED
+                    - READ
+                    - CLICKED
+                template_ids:
+                  type: array
+                  items:
+                    type: string
+                  description: Meta id šablon, pro které se má vytvořit report.
+            example:
+              waba_id: "1234567890"
+              template_ids:
+                - "9876543210"
+              granularity: "DAILY"
+      responses:
+        '200':
+          description: Analytická data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        template_id:
+                          type: string
+                        granularity:
+                          type: string
+                        data_points:
+                          type: array
+                          items:
+                            type: object
+                  paging:
+                    type: object
+              example:
+                success: true
+                data:
+                  - template_id: "9876543210"
+                    granularity: "DAILY"
+                    data_points:
+                      - start: 1719792000
+                        end: 1719878400
+                        sent: 100
+                        delivered: 98
+                        read: 80
+                        clicked:
+                          - type: "quick_reply_button"
+                            button_content: "Shop now"
+                            count: 12
+                paging:
+                  cursors:
+                    before: "..."
+                    after: "..."
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'waba_id' in request data
+
+  /whatsapp/analytics/templates/enable:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Povolit statistiky"
+      tags:
+        - waba-analytics
+      summary: Povolení statistik šablon
+      description: Povolí analytiku šablon (insights) na WABA. Musí být povolena dříve, než se začnou sbírat analytická data šablon.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+              properties:
+                waba_id:
+                  type: string
+                token:
+                  type: string
+                  description: Registrační token (alternativní autentizace).
+            example:
+              waba_id: "1234567890"
+      responses:
+        '200':
+          description: Výsledek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  result:
+                    type: object
+                    description: Surový výsledek z Meta.
+              example:
+                success: true
+                result:
+                  success: true
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'waba_id' in request data
+
+tags:
+  - name: waba
+    x-displayName: WhatsApp účty
+    x-group: "WhatsApp účty"
+    description: |
+      Vestavěná registrace a správa připojených WhatsApp Business účtů.
+  - name: waba-numbers
+    x-displayName: Telefonní čísla
+    x-group: "Telefonní čísla"
+    description: |
+      Správa a ověřování WhatsApp telefonních čísel.
+  - name: waba-templates
+    x-displayName: Šablony zpráv
+    x-group: "Šablony zpráv"
+    description: |
+      Vytváření, úprava, mazání a testování šablon WhatsApp zpráv.
+  - name: waba-analytics
+    x-displayName: Analytika
+    x-group: "Analytika"
+    description: |
+      Analytika zpráv, konverzací a šablon dané WABA.

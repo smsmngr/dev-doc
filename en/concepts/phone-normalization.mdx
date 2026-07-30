@@ -1,0 +1,51 @@
+---
+title: "Phone Number Normalization in SmsManager"
+sidebarTitle: "Phone normalization"
+description: "How SmsManager normalizes phone numbers: stripping non-numeric characters and leading zeros, with support for international and national formats and country-prefix fallback based on the account's country."
+---
+
+Before SmsManager routes a message for delivery, it first **normalizes** every recipient phone number into a consistent form. This means you can pass numbers in whatever format you have on hand — with spaces, a leading `+`, or leading zeros — without cleaning them up yourself. This page explains how normalization works and how national numbers without an international prefix are handled.
+
+## The normalization process
+
+Normalization has two steps, applied every time and in this order:
+
+1. **Strip all non-numeric characters.** Spaces, dashes, parentheses, the `+` sign, and any other character that is not a digit are removed. Only the digits `0`–`9` remain.
+2. **Strip all leading zeros.** Every `0` at the start of the resulting string is removed until the number begins with a non-zero digit.
+
+As a result, the following ways of writing the same number are interchangeable and all work:
+
+| Input | After stripping non-numerics | After stripping leading zeros | Result |
+| --- | --- | --- | --- |
+| `+420 777 12 34 56` | `420777123456` | `420777123456` | `420777123456` |
+| `420777123456` | `420777123456` | `420777123456` | `420777123456` |
+| `00420 777 123 456` | `00420777123456` | `420777123456` | `420777123456` |
+
+All three variants resolve to the same number, `420777123456`. You don't have to worry about whether a number came from a form, a CRM, or manual entry — normalization levels out the formatting for you.
+
+## National numbers without an international prefix
+
+A special case arises when normalization leaves a **national number without an international prefix** — for example `777123456` (or `0777 123 456`, which becomes `777123456` after the leading zero is stripped).
+
+Such a number does not, on its own, identify the destination country. To keep messages working, SmsManager checks **which country your account is registered in** and tries the variant with that country's international prefix prepended.
+
+So for an account registered in the Czech Republic (prefix `420`):
+
+| Input | After normalization | Account prefix added | Result |
+| --- | --- | --- | --- |
+| `777123456` | `777123456` | `420` | `420777123456` |
+| `0777 123 456` | `777123456` | `420` | `420777123456` |
+
+This logic ensures that national numbers sent without a prefix reach the correct recipient in the same country the account was created in.
+
+<Warning>
+  The prefix fallback is driven by the country **your account** is registered in, not the recipient's country. If you send a national number without a prefix to a recipient in a different country, your account's prefix is applied and the message may be misrouted. Always provide the full international number for recipients outside your account's country.
+</Warning>
+
+## Recommendations
+
+Normalization is designed to be forgiving, but passing numbers in international form is the most reliable:
+
+- **Prefer the full international format** — `420777123456` or `+420 777 123 456`. This avoids the account-country prefix fallback entirely and removes all ambiguity.
+- **Rely on national-prefix fallback only** when you know every recipient is in the same country as your account.
+- **You don't need to sanitize formatting.** Spaces, dashes, parentheses, and the `+` sign are stripped during normalization, so numbers don't need cleaning before you send them.

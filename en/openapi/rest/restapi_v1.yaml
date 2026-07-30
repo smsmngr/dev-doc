@@ -1,0 +1,2945 @@
+openapi: 3.1.0
+info:
+  title: REST API SmsManager
+  description: |
+    REST API for managing your SmsManager account: API keys, credit, billing, contact lists (blacklist / opt-out), message status reporting, inbox and bulk messaging support.
+
+    ## Authentication
+
+    API key is required for all requests — send it in the `x-api-key` HTTP header. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+
+    For sending messages use the [JSON API v2](https://api.smsmngr.com/v2).
+  version: v1
+  contact:
+    url: https://smsmanager.com
+    email: cc@smsmanager.com
+
+servers:
+  - url: 'https://rest-api.smsmngr.com/v1'
+    description: Production server
+
+security:
+  - x-api-key: []
+
+components:
+  securitySchemes:
+    x-api-key:
+      type: apiKey
+      in: header
+      name: x-api-key
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Error message.
+
+paths:
+  /apikey/me:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Key info"
+      tags:
+        - api
+      summary: Get current API key info
+      description: |
+        Returns the profile of the calling API key. This endpoint always reflects the live state of the key (enabled/disabled, senders, scope).
+      responses:
+        '200':
+          description: API key info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  me:
+                    type: object
+                    properties:
+                      note:
+                        type: string
+                        description: Your note attached to the API key.
+                      default_callback_url:
+                        type: string
+                        description: Default webhook URL for delivery notifications.
+                      account:
+                        type: string
+                        enum:
+                          - prepaid
+                          - postpaid
+                        description: Account type.
+                      scope:
+                        type: string
+                        enum:
+                          - full
+                          - rest-api
+                          - api
+                        description: Scope of the API key. `full` and `rest-api` can change settings, `api` can only send messages.
+                      share_senders:
+                        type: string
+                        description: '`"1"` if the key shares senders with its child keys.'
+                      is_blocked:
+                        type: integer
+                        description: '`1` if the key is blocked.'
+                      senders:
+                        type: array
+                        description: Registered senders of the key.
+                        items:
+                          type: object
+                          properties:
+                            flow:
+                              type: string
+                              description: Channel of the sender (`sms`, `viber`, `whatsapp`, ...).
+                            value:
+                              type: string
+                              description: Sender value (name or number).
+                            name:
+                              type: string
+                              description: Display name of the sender.
+                      vat:
+                        type: string
+                        description: '`"1"` if the account is a VAT payer.'
+                      currency:
+                        type: string
+                        enum:
+                          - czk
+                          - eur
+                        description: Account currency.
+                      tz:
+                        type: string
+                        description: Account timezone.
+                        example: Europe/Prague
+              examples:
+                Current key:
+                  value:
+                    success: true
+                    me:
+                      note: "eshop"
+                      default_callback_url: "https://example.com/hook"
+                      account: "prepaid"
+                      scope: "full"
+                      share_senders: "1"
+                      is_blocked: 0
+                      senders:
+                        - flow: "sms"
+                          value: "Mojefirma"
+                          name: "Mojefirma"
+                      vat: "1"
+                      currency: "czk"
+                      tz: "Europe/Prague"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Unauthorized
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to load API key
+
+  /apikey/add:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Create sub-key"
+      tags:
+        - api
+      summary: Create a child API key
+      description: |
+        Creates a new child (sub) API key under the calling top-level key. Only a top-level key with scope `full` or `rest-api` can create child keys (max. 19 children).
+
+        A `shared` child key inherits the parent's billing and currency and draws credit from the parent's wallet. A non-shared child key has its own billing — `billing_name`, `billing_email` and `currency` are then required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shared:
+                  type: boolean
+                  description: If `true`, the new key shares billing and credit with the parent key (its currency is inherited from the parent).
+                billing_name:
+                  type: string
+                  description: Billing name. Required unless `shared` is `true`.
+                billing_email:
+                  type: string
+                  description: Billing e-mail. Required unless `shared` is `true`.
+                currency:
+                  type: string
+                  enum:
+                    - czk
+                    - eur
+                  description: Currency of the new key. Required unless `shared` is `true` (a shared key inherits the parent's currency).
+                app_userid:
+                  type: string
+                  description: Optional link to an application user. If a key for this user already exists, the existing key is returned instead of creating a new one.
+                billing_id:
+                  type: string
+                  description: Optional existing billing id.
+                note:
+                  type: string
+                  description: Your note for the new key.
+                scope:
+                  type: string
+                  enum:
+                    - full
+                    - rest-api
+                    - api
+                  description: Scope of the new key.
+                share_senders:
+                  type: boolean
+                  description: If `true`, the parent's registered senders (and WhatsApp numbers) are shared with the new key.
+            examples:
+              Child key with own billing:
+                value:
+                  billing_name: "ACME s.r.o."
+                  billing_email: "invoicing@acme.example"
+                  currency: "czk"
+                  note: "eshop"
+                  scope: "rest-api"
+              Shared child key:
+                value:
+                  shared: true
+                  note: "warehouse app"
+                  scope: "api"
+                  share_senders: true
+      responses:
+        '200':
+          description: API key created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  apikey:
+                    type: string
+                    description: The new API key.
+                  billing_id:
+                    type:
+                      - string
+                      - 'null'
+                    description: Billing id of the new key (`null` for a shared key).
+              examples:
+                Created:
+                  value:
+                    success: true
+                    apikey: "aB3xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+                    billing_id: "1234"
+                Created shared:
+                  value:
+                    success: true
+                    apikey: "cD4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+                    billing_id: null
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing fields:
+                  value:
+                    message: Missing required fields in request data
+                Invalid scope:
+                  value:
+                    message: Invalid scope value
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Not top-level:
+                  value:
+                    message: Only a top-level apikey can create new apikeys
+                Limit reached:
+                  value:
+                    message: Child apikey limit reached (19)
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /apikey/update:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Update key"
+      tags:
+        - api
+      summary: Update current API key
+      description: |
+        Updates settings of the calling API key. Both fields must be present (an empty string clears the value). Changing `default_callback_url` also updates the webhook URL on all senders of the key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - default_callback_url
+                - note
+              properties:
+                default_callback_url:
+                  type: string
+                  description: Default webhook URL for delivery notifications. Empty string clears it.
+                note:
+                  type: string
+                  description: Your note for the key. Empty string clears it.
+            examples:
+              Set callback:
+                value:
+                  default_callback_url: "https://example.com/hook"
+                  note: "eshop"
+              Clear callback:
+                value:
+                  default_callback_url: ""
+                  note: "eshop"
+      responses:
+        '200':
+          description: API key updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+              example:
+                success: true
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'default_callback_url' or 'note' in request data
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Apikey scope 'api' is not allowed to change settings
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /apikey/list:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "List sub-keys"
+      tags:
+        - api
+      summary: List child API keys
+      description: Lists child API keys created by the calling key.
+      responses:
+        '200':
+          description: List of child API keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  list:
+                    type: array
+                    items:
+                      type: string
+                    description: Child API keys.
+              example:
+                success: true
+                list:
+                  - "cD4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+                  - "eF5xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /apikey/change:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Change sub-key"
+      tags:
+        - api
+      summary: Change a child API key
+      description: |
+        Changes the scope and/or blocked state of a child API key. Only the parent (top-level) key can change its children; the parent cannot change itself.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - apikey
+              properties:
+                apikey:
+                  type: string
+                  description: The child API key to change.
+                scope:
+                  type: string
+                  enum:
+                    - full
+                    - rest-api
+                    - api
+                  description: New scope of the child key. At least one of `scope` / `disable` is required.
+                disable:
+                  type: integer
+                  enum:
+                    - 0
+                    - 1
+                  description: '`1` blocks the child key, `0` unblocks it. At least one of `scope` / `disable` is required.'
+            examples:
+              Change scope:
+                value:
+                  apikey: "cD4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+                  scope: "api"
+              Disable key:
+                value:
+                  apikey: "cD4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+                  disable: 1
+      responses:
+        '200':
+          description: API key changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+              example:
+                success: true
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing apikey:
+                  value:
+                    message: Missing 'apikey' in request data
+                Missing change:
+                  value:
+                    message: Missing 'scope' or 'disable' in request data
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Not owner:
+                  value:
+                    message: Target apikey does not belong to this parent
+                Self change:
+                  value:
+                    message: Parent apikey cannot change itself
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /credit:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Credit balance"
+      tags:
+        - credit
+      summary: Get credit balance
+      description: Returns the current credit balance and price-level state of the calling key.
+      responses:
+        '200':
+          description: Credit balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  credit:
+                    type: object
+                    properties:
+                      priceLevels:
+                        type: object
+                        description: Map of `<platform>_<mcc>` to the reached discount-bracket index (only entries with an index greater than 0 are present).
+                        additionalProperties:
+                          type: integer
+                      credit_czk:
+                        type: string
+                        description: Credit balance in CZK (numeric string).
+                      credit_eur:
+                        type: string
+                        description: Credit balance in EUR (numeric string).
+                      billing_id:
+                        type: string
+                        description: Billing id of the key (numeric string).
+                      vat:
+                        type: string
+                        description: '`"1"` if the account is a VAT payer.'
+                      currency:
+                        type: string
+                        enum:
+                          - czk
+                          - eur
+                        description: Account currency.
+                      tz:
+                        type: string
+                        description: Account timezone.
+                        example: Europe/Prague
+              example:
+                success: true
+                credit:
+                  priceLevels:
+                    sms_230: 2
+                  credit_czk: "150.5"
+                  credit_eur: "0"
+                  billing_id: "1234"
+                  vat: "1"
+                  currency: "czk"
+                  tz: "Europe/Prague"
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to check credit
+
+  /credit/services:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Service catalog"
+      tags:
+        - credit
+      summary: Get service catalog
+      description: |
+        Returns the catalog of orderable paid services (senders, virtual numbers, SIM hosting, ...). The catalog is structured as `services.sender.<platform>.<country_calling_code>.<variant>`. The flat service id used by `/credit/order` is composed as `sender_<platform>_<calling_code>_<variant>` (e.g. `sender_sms_420_alnum`).
+
+        Each service variant contains: localized `name` (and optional `requirements` and `delay`), `subject` (`defined` = you supply the subject such as sender text or phone number, `assigned` = a pooled number is assigned automatically), optional default `status`, and `prices` per currency with `setup`, `monthly` and optional `min_interval` (`month` / `year`) or `min_monthly_spend`.
+      responses:
+        '200':
+          description: Service catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  services:
+                    type: object
+                    description: Nested service catalog.
+              example:
+                success: true
+                services:
+                  sender:
+                    sms:
+                      "420":
+                        alnum:
+                          name:
+                            cs: "Textový odesílatel"
+                            en: "Text ID sender"
+                          subject: "defined"
+                          status: "new"
+                          prices:
+                            czk:
+                              setup: 500
+                              monthly: 500
+                            eur:
+                              setup: 20
+                              monthly: 20
+                        simhost:
+                          name:
+                            cs: "SIM hosting"
+                            en: "SIM hosting"
+                          subject: "defined"
+                          prices:
+                            czk:
+                              setup: 200
+                              monthly: 100
+                              min_interval: "year"
+                            eur:
+                              setup: 8
+                              monthly: 4
+                              min_interval: "year"
+
+  /credit/prices:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Price list"
+      tags:
+        - credit
+      summary: Get price list
+      description: |
+        Returns the per-destination price list, keyed by channel (`sms`, `smsdirect`, `smscustom`, `viber`) and country calling code. Each entry contains the country `mcc`, `price_czk`, `price_eur` and optionally per-operator overrides in `operators`.
+      responses:
+        '200':
+          description: Price list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  prices:
+                    type: object
+                    description: Price list keyed by channel and country calling code.
+              example:
+                success: true
+                prices:
+                  sms:
+                    "420":
+                      mcc: 230
+                      price_czk: 0.89
+                      price_eur: 0.04
+                      operators:
+                        "1":
+                          price_czk: 0.89
+                          price_eur: 0.04
+                    "49":
+                      mcc: 262
+                      price_czk: 1.85
+                      price_eur: 0.08
+                  viber:
+                    "420":
+                      mcc: 230
+                      price_czk: 0.39
+                      price_eur: 0.016
+
+  /credit/notify:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Alert settings"
+      tags:
+        - credit
+      summary: Get low-credit notification settings
+      description: Returns the low-credit e-mail alert settings of the calling key.
+      responses:
+        '200':
+          description: Notification settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  notify:
+                    type:
+                      - object
+                      - 'null'
+                    description: '`null` if never configured.'
+                    properties:
+                      email:
+                        type: string
+                        description: Alert recipient e-mail address.
+                      value:
+                        type: number
+                        description: Credit threshold that triggers the alert.
+                      enabled:
+                        type: boolean
+              examples:
+                Configured:
+                  value:
+                    success: true
+                    notify:
+                      email: "ops@acme.example"
+                      value: 100
+                      enabled: true
+                Not configured:
+                  value:
+                    success: true
+                    notify: null
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Set alert"
+      tags:
+        - credit
+      summary: Set low-credit notification
+      description: Sets the low-credit e-mail alert of the calling key. All fields are required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - value
+                - enable
+              properties:
+                email:
+                  type: string
+                  description: Alert recipient e-mail address.
+                value:
+                  type: number
+                  description: Credit threshold that triggers the alert (must be greater than 0).
+                enable:
+                  type: boolean
+                  description: Enable or disable the alert.
+            examples:
+              Enable alert:
+                value:
+                  email: "ops@acme.example"
+                  value: 100
+                  enable: true
+      responses:
+        '200':
+          description: Notification saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+              example:
+                success: true
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'email', 'value' or 'enable' in request data
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Apikey scope 'api' is not allowed to change settings
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /credit/order:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Order service"
+      tags:
+        - credit
+      summary: Order a paid service
+      description: |
+        Orders a paid service from the catalog (see `/credit/services`) and deducts the fee from your credit. The total fee is `setup + monthly × months`, where the number of months is derived from the service's minimal interval (`year` = 12, `quarter` = 3, otherwise 1). For services with `subject: defined` you must provide the subject (e.g. sender text or phone number); for `subject: assigned` a pooled number is assigned automatically. Use `dryrun` to validate the order (credit, availability) without any changes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - service_id
+                - period
+              properties:
+                service_id:
+                  type: string
+                  description: Flat service id from the catalog.
+                  example: sender_sms_420_alnum
+                period:
+                  type: string
+                  description: Requested billing period. Note that the effective billing period is determined by the service's minimal interval.
+                  example: month
+                subject:
+                  type: string
+                  description: 'The subject of the service (sender text, phone number, ...). Required for services with `subject: defined`.'
+                payload:
+                  type: object
+                  description: Optional additional data stored with the service order.
+                dryrun:
+                  type: boolean
+                  description: If `true`, only validates the order and returns the total fee without any changes.
+            examples:
+              Order text sender:
+                value:
+                  service_id: "sender_sms_420_alnum"
+                  period: "month"
+                  subject: "Mojefirma"
+              Dry run:
+                value:
+                  service_id: "sender_sms_420_alnum"
+                  period: "month"
+                  subject: "Mojefirma"
+                  dryrun: true
+      responses:
+        '200':
+          description: Service ordered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  order:
+                    type: object
+                    properties:
+                      subject:
+                        type: string
+                        description: Subject of the ordered service (for `assigned` services the allocated number).
+                      subject_id:
+                        type: string
+                      status:
+                        type: string
+                        description: Initial status of the service (`new` or `active`).
+                      dryrun:
+                        type: boolean
+                        description: Present only for dry runs.
+                      total_fee:
+                        type: number
+                        description: Total fee (dry run only).
+                      currency:
+                        type: string
+                        description: Currency of the fee (dry run only).
+                      service_id:
+                        type: string
+                        description: Service id (dry run only).
+              examples:
+                Ordered:
+                  value:
+                    success: true
+                    order:
+                      subject: "Mojefirma"
+                      subject_id: "Mojefirma"
+                      status: "new"
+                Dry run:
+                  value:
+                    success: true
+                    order:
+                      dryrun: true
+                      total_fee: 1000
+                      currency: "czk"
+                      subject: null
+                      service_id: "sender_sms_420_alnum"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing required service fields in request data
+        '500':
+          description: Order failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Invalid service:
+                  value:
+                    message: Invalid service id
+                Insufficient credit:
+                  value:
+                    message: Insufficient credit
+                No available sender:
+                  value:
+                    message: No available sender for this service
+
+  /credit/cancel:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Cancel service"
+      tags:
+        - credit
+      summary: Cancel a paid service
+      description: |
+        Flags an ordered service for cancellation at the end of its paid period. No immediate charge or refund happens; the service stays active until the end of the paid period. The call is idempotent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - service_id
+                - subject
+              properties:
+                service_id:
+                  type: string
+                  description: Flat service id from the catalog.
+                  example: sender_sms_420_alnum
+                subject:
+                  type: string
+                  description: The exact subject of the ordered service.
+                  example: Mojefirma
+            examples:
+              Cancel sender:
+                value:
+                  service_id: "sender_sms_420_alnum"
+                  subject: "Mojefirma"
+      responses:
+        '200':
+          description: Service flagged for cancellation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  cancel:
+                    type: object
+                    properties:
+                      cancel_at_period_end:
+                        type: boolean
+                      active_until:
+                        type:
+                          - string
+                          - 'null'
+                        description: Date until which the service stays active (`YYYY-MM-DD`).
+              example:
+                success: true
+                cancel:
+                  cancel_at_period_end: true
+                  active_until: "2026-08-15"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing required service fields in request data
+        '500':
+          description: Cancellation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Not found:
+                  value:
+                    message: Service not found
+                Already cancelled:
+                  value:
+                    message: Service already cancelled
+
+  /billing/get:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Billing contact"
+      tags:
+        - billing
+      summary: Get billing contact
+      description: Returns the billing contact for a billing id owned by the calling key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - billing_id
+              properties:
+                billing_id:
+                  type: string
+                  description: Billing id (see `/credit`).
+            example:
+              billing_id: "1234"
+      responses:
+        '200':
+          description: Billing contact
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  billing:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      email:
+                        type: string
+                      currency:
+                        type: string
+                      contact:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          company_id:
+                            type: string
+                          company_vat:
+                            type: string
+                          address:
+                            type: string
+                          city:
+                            type: string
+                          zip:
+                            type: string
+                          country:
+                            type: string
+              example:
+                success: true
+                billing:
+                  name: "ACME s.r.o."
+                  email: "invoicing@acme.example"
+                  currency: "czk"
+                  contact:
+                    name: "ACME s.r.o."
+                    company_id: "12345678"
+                    company_vat: "CZ12345678"
+                    address: "Ulice 1"
+                    city: "Praha"
+                    zip: "11000"
+                    country: "CZ"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'billing_id' in request data
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to get billing
+
+  /billing/set:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Set billing"
+      tags:
+        - billing
+      summary: Set billing contact
+      description: |
+        Updates the billing contact for a billing id owned by the calling key. `billing_id` is required plus at least one contact field. Shared child keys do not own a billing record and cannot use this endpoint.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - billing_id
+              properties:
+                billing_id:
+                  type: string
+                name:
+                  type: string
+                  description: Company name.
+                email:
+                  type: string
+                street:
+                  type: string
+                city:
+                  type: string
+                zip:
+                  type: string
+                country:
+                  type: string
+                  description: ISO country code (default `CZ`).
+                company_id:
+                  type: string
+                  description: Company registration number.
+                company_vat:
+                  type: string
+                  description: VAT number.
+                dryrun:
+                  type: boolean
+                  description: If `true`, only validates the request without saving.
+            examples:
+              Update contact:
+                value:
+                  billing_id: "1234"
+                  name: "ACME s.r.o."
+                  email: "invoicing@acme.example"
+                  street: "Ulice 1"
+                  city: "Praha"
+                  zip: "11000"
+                  country: "cz"
+                  company_id: "12345678"
+                  company_vat: "CZ12345678"
+      responses:
+        '200':
+          description: Billing contact saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  dryrun:
+                    type: boolean
+                    description: Present only for dry runs.
+              example:
+                success: true
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing billing id:
+                  value:
+                    message: Missing 'billing_id' in request data
+                Missing fields:
+                  value:
+                    message: Missing required fields in request data
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Apikey is not authorized for this billing_id
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /billing/invoices/list:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "List invoices"
+      tags:
+        - billing
+      summary: List invoices
+      description: Lists issued invoices for a billing id owned by the calling key (up to 100, newest first).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - billing_id
+              properties:
+                billing_id:
+                  type: string
+            example:
+              billing_id: "1234"
+      responses:
+        '200':
+          description: List of invoices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  invoices:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          description: Invoice id (use in `/billing/invoices/pdf`).
+                        name:
+                          type: string
+                          description: Invoice number.
+                        vs:
+                          type: string
+                          description: Variable symbol.
+                        date:
+                          type: string
+                          description: Issue date (`YYYY-MM-DD`).
+                        amount:
+                          type: string
+                          description: Total amount (numeric string).
+                        currency:
+                          type: string
+                          description: Display currency.
+              example:
+                success: true
+                invoices:
+                  - id: "123"
+                    name: "2026001"
+                    vs: "1110001234"
+                    date: "2026-07-01"
+                    amount: "1210.00"
+                    currency: "Kč"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'billing_id' in request data
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to get invoices
+
+  /billing/invoices/pdf:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Invoice PDF"
+      tags:
+        - billing
+      summary: Download invoice PDF
+      description: Returns a single invoice rendered as a PDF (base64-encoded).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - billing_id
+                - invoice_id
+              properties:
+                billing_id:
+                  type: string
+                invoice_id:
+                  type: string
+                  description: Invoice id from `/billing/invoices/list`.
+                lang:
+                  type: string
+                  description: Language of the rendered invoice (e.g. `cs`, `en`).
+            example:
+              billing_id: "1234"
+              invoice_id: "123"
+              lang: "cs"
+      responses:
+        '200':
+          description: Invoice PDF
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  invoice:
+                    type: string
+                    description: PDF file encoded as base64.
+              example:
+                success: true
+                invoice: "JVBERi0xLjQKJ...=="
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'billing_id' or 'invoice_id' in request data
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Apikey is not authorized for this billing_id
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to get invoice
+
+  /billing/topup:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Top-up details"
+      tags:
+        - billing
+      summary: Get bank transfer top-up details
+      description: |
+        Returns the bank account details for topping up credit by wire transfer, including your payment variable symbol (`vs`). Payments are matched by the variable symbol.
+      responses:
+        '200':
+          description: Top-up details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  topup:
+                    type: object
+                    properties:
+                      account_number:
+                        type: string
+                      account_bank:
+                        type: string
+                        description: Bank code.
+                      iban:
+                        type: string
+                      vs:
+                        type: string
+                        description: Your variable symbol for the payment.
+              example:
+                success: true
+                topup:
+                  account_number: "2900164253"
+                  account_bank: "2010"
+                  iban: "CZ0220100000002900164253"
+                  vs: "111001234"
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to get topup info
+
+  /message:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Message status"
+      tags:
+        - status
+      summary: Get message status
+      description: Returns the full status of a single sent message by its `message_id`. Only messages sent by the calling key are returned.
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Message id.
+      responses:
+        '200':
+          description: Message status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type:
+                      - object
+                      - 'null'
+                    description: '`null` if the message was not found (or is not owned by the calling key).'
+                    properties:
+                      status_code:
+                        type:
+                          - string
+                          - 'null'
+                        description: Sending status code (`200` = sent).
+                      delivery_code:
+                        type:
+                          - string
+                          - 'null'
+                        description: Delivery status code (`201` = delivered, `202` = seen).
+                      status_info:
+                        type:
+                          - string
+                          - 'null'
+                      tag:
+                        type:
+                          - string
+                          - 'null'
+                      body:
+                        type: string
+                      to:
+                        type: object
+                        description: The recipient object as submitted.
+                      request_id:
+                        type:
+                          - string
+                          - 'null'
+                      ts_created:
+                        type:
+                          - string
+                          - 'null'
+                      ts_sent:
+                        type:
+                          - string
+                          - 'null'
+                      ts_delivered:
+                        type:
+                          - string
+                          - 'null'
+                      ts_seen:
+                        type:
+                          - string
+                          - 'null'
+                      ts_clicked:
+                        type:
+                          - string
+                          - 'null'
+                      ts_updated:
+                        type:
+                          - string
+                          - 'null'
+                      flow:
+                        type: array
+                        description: The original flow of the message.
+                      flow_index:
+                        type:
+                          - string
+                          - 'null'
+                        description: Index of the flow step that was used.
+                      flow_status:
+                        type: object
+                        description: Per-flow-step status codes, keyed by step index.
+                      price:
+                        type:
+                          - number
+                          - 'null'
+              example:
+                success: true
+                message:
+                  status_code: "200"
+                  delivery_code: "201"
+                  status_info: "Delivered"
+                  tag: "newsletter"
+                  body: "Hello world"
+                  to:
+                    phone_number: "420777123456"
+                  request_id: "bc36f3d1-d284-463a-921b-a3560c154649"
+                  ts_created: "2026-07-30T10:00:00Z"
+                  ts_sent: "2026-07-30T10:00:01Z"
+                  ts_delivered: "2026-07-30T10:00:04Z"
+                  ts_seen: null
+                  ts_clicked: null
+                  ts_updated: "2026-07-30T10:00:05Z"
+                  flow:
+                    - sms: {}
+                  flow_index: "0"
+                  flow_status:
+                    "0":
+                      status_code: "200"
+                      delivery_code: "201"
+                  price: 1.2
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'id' in request data
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to read message
+
+  /messages:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "List messages"
+      tags:
+        - status
+      summary: List sent messages by date
+      description: |
+        Lists per-recipient message overview rows for the given date, with cursor pagination. Optionally filter by tag and/or phone number.
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Date (`YYYY-MM-DD`).
+          example: "2026-07-30"
+        - name: subid
+          in: query
+          required: false
+          schema:
+            type: string
+            default: default
+          description: Sub-account id.
+        - name: tag
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by tag (comma-separated tags are normalized and sorted before matching).
+        - name: phone_number
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by recipient phone number.
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Pagination cursor from the previous response (`next_cursor`).
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  messages:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        message_id:
+                          type: string
+                        message_parts:
+                          type: integer
+                        ts_sent:
+                          type:
+                            - string
+                            - 'null'
+                        ts_delivered:
+                          type:
+                            - string
+                            - 'null'
+                        ts_updated:
+                          type:
+                            - string
+                            - 'null'
+                        ts_clicked:
+                          type:
+                            - string
+                            - 'null'
+                        ts_seen:
+                          type:
+                            - string
+                            - 'null'
+                        ts_replied:
+                          type:
+                            - string
+                            - 'null'
+                        ts_optout:
+                          type:
+                            - string
+                            - 'null'
+                        sent:
+                          type: integer
+                        delivered:
+                          type: integer
+                        seen:
+                          type: integer
+                        clicked:
+                          type: integer
+                        replied:
+                          type: integer
+                        optout:
+                          type: integer
+                        nondelivered:
+                          type: integer
+                        body:
+                          type: string
+                        flow:
+                          type: string
+                          description: Used channel.
+                        sender:
+                          type: string
+                        phone_number:
+                          type: string
+                        price_czk:
+                          type: string
+                          description: Price in CZK (numeric string).
+                        price_eur:
+                          type: string
+                          description: Price in EUR (numeric string).
+                  next_cursor:
+                    type:
+                      - string
+                      - 'null'
+                    description: Pass back as `cursor` to fetch the next page; `null` when there are no more pages.
+              example:
+                success: true
+                messages:
+                  - message_id: "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"
+                    message_parts: 1
+                    ts_sent: "2026-07-30T10:00:01Z"
+                    ts_delivered: "2026-07-30T10:00:04Z"
+                    ts_updated: "2026-07-30T10:00:05Z"
+                    ts_clicked: null
+                    ts_seen: null
+                    ts_replied: null
+                    ts_optout: null
+                    sent: 1
+                    delivered: 1
+                    seen: 0
+                    clicked: 0
+                    replied: 0
+                    optout: 0
+                    nondelivered: 0
+                    body: "Hello world"
+                    flow: "sms"
+                    sender: "Mojefirma"
+                    phone_number: "420777123456"
+                    price_czk: "1.2"
+                    price_eur: "0.05"
+                next_cursor: null
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'date' or 'xapikey' in request data
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to read messages
+
+  /request:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Request stats"
+      tags:
+        - status
+      summary: Get request statistics
+      description: Returns aggregate statistics of a single send request (`request_id`) on the given date.
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Date (`YYYY-MM-DD`).
+          example: "2026-07-30"
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Request id.
+        - name: subid
+          in: query
+          required: false
+          schema:
+            type: string
+            default: default
+          description: Sub-account id.
+      responses:
+        '200':
+          description: Request statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  request:
+                    type:
+                      - object
+                      - 'null'
+                    description: '`null` if no statistics exist for the given date and request id.'
+                    properties:
+                      count_delivered:
+                        type: string
+                      count_nondelivered:
+                        type: string
+                      count_sent:
+                        type: string
+                      count_notsent:
+                        type: string
+                      count_replied:
+                        type: string
+                      count_optout:
+                        type: string
+                      msg_sent:
+                        type: string
+                      price_czk:
+                        type: string
+                      price_eur:
+                        type: string
+                      first_ts_sent:
+                        type:
+                          - string
+                          - 'null'
+                      last_ts_sent:
+                        type:
+                          - string
+                          - 'null'
+              example:
+                success: true
+                request:
+                  count_delivered: "120"
+                  count_nondelivered: "3"
+                  count_sent: "125"
+                  count_notsent: "2"
+                  count_replied: "5"
+                  count_optout: "1"
+                  msg_sent: "130"
+                  price_czk: "150.5"
+                  price_eur: "6.1"
+                  first_ts_sent: "2026-07-30T09:00:00Z"
+                  last_ts_sent: "2026-07-30T09:05:00Z"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'date' or 'request_id' in request data
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /requests:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Daily stats"
+      tags:
+        - status
+      summary: Get aggregated statistics per date
+      description: Returns aggregated sending statistics grouped per date, for one or more dates, optionally filtered by tag.
+      parameters:
+        - name: dates
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Comma-separated list of dates (`YYYY-MM-DD,YYYY-MM-DD,...`).
+          example: "2026-07-29,2026-07-30"
+        - name: subid
+          in: query
+          required: false
+          schema:
+            type: string
+            default: default
+          description: Sub-account id.
+        - name: tag
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by tag.
+      responses:
+        '200':
+          description: Aggregated statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  requests:
+                    type: array
+                    description: One item per date with data (dates without data are omitted).
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                        tags:
+                          type: array
+                          items:
+                            type: string
+                          description: Tags found for the date.
+                        stats:
+                          type: object
+                          properties:
+                            count_delivered:
+                              type: integer
+                            count_seen:
+                              type: integer
+                            count_clicked:
+                              type: integer
+                            count_nondelivered:
+                              type: integer
+                            count_sent:
+                              type: integer
+                            count_notsent:
+                              type: integer
+                            count_replied:
+                              type: integer
+                            count_optout:
+                              type: integer
+                            msg_sent:
+                              type: integer
+                            first_ts_sent:
+                              type:
+                                - string
+                                - 'null'
+                            last_ts_sent:
+                              type:
+                                - string
+                                - 'null'
+                            msg_mccmnc:
+                              type: object
+                              description: Message counts per mobile network (MCC+MNC).
+                              additionalProperties:
+                                type: integer
+              example:
+                success: true
+                requests:
+                  - date: "2026-07-30"
+                    tags:
+                      - "newsletter"
+                      - "promo"
+                    stats:
+                      count_delivered: 120
+                      count_seen: 40
+                      count_clicked: 10
+                      count_nondelivered: 3
+                      count_sent: 125
+                      count_notsent: 2
+                      count_replied: 5
+                      count_optout: 1
+                      msg_sent: 130
+                      first_ts_sent: "2026-07-30T09:00:00Z"
+                      last_ts_sent: "2026-07-30T18:00:00Z"
+                      msg_mccmnc:
+                        "23001": 50
+                        "23002": 80
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'dates' or 'xapikey' in request data
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /inbox:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Inbox"
+      tags:
+        - inbox
+      summary: Get inbox messages by date
+      description: Returns inbound (received) messages for the given date.
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Date (`YYYY-MM-DD`).
+          example: "2026-07-30"
+      responses:
+        '200':
+          description: Inbox messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  inbox:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ts_received:
+                          type: string
+                        body:
+                          type: string
+                        from:
+                          type: string
+                          description: Sender phone number.
+                        to:
+                          type: string
+                          description: Your recipient number/sender.
+                        gateway:
+                          type: string
+                        payload:
+                          type:
+                            - object
+                            - 'null'
+                          description: Original payload of the related outbound message, if any.
+              example:
+                success: true
+                inbox:
+                  - ts_received: "2026-07-30T11:22:33Z"
+                    body: "STOP"
+                    from: "420777123456"
+                    to: "Mojefirma"
+                    gateway: "sms"
+                    payload: null
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'date' or 'xapikey' in request data
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /blacklist:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Download blacklist"
+      tags:
+        - blacklist
+      summary: Download blacklist
+      description: Returns a presigned URL (valid 60 seconds) to download the blacklist CSV.
+      parameters:
+        - name: subid
+          in: query
+          required: false
+          schema:
+            type: string
+            default: default
+          description: Sub-account id.
+      responses:
+        '200':
+          description: Download URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  url:
+                    type: string
+                    description: Presigned download URL, valid for 60 seconds.
+              example:
+                success: true
+                url: "https://smsmngr-managed-contactlist.s3.amazonaws.com/...&X-Amz-Expires=60..."
+        '404':
+          description: Blacklist not found (no numbers stored yet)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              example:
+                success: true
+                message: Blacklist not found
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              example:
+                success: false
+                message: Failed to generate download URL
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Add to blacklist"
+      tags:
+        - blacklist
+      summary: Add numbers to blacklist
+      description: |
+        Adds phone numbers to the account's blacklist. Numbers are normalized (Czech 9-digit mobile numbers get `420` prepended) and processed asynchronously — the call returns the count of accepted numbers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - to
+              properties:
+                to:
+                  type: string
+                  description: Newline-separated list of phone numbers.
+                  example: "420777123456\n420777654321"
+                subid:
+                  type: string
+                  default: default
+                  description: Sub-account id.
+            examples:
+              Add numbers:
+                value:
+                  to: "420777123456\n776654321"
+                  subid: "default"
+      responses:
+        '200':
+          description: Numbers accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  accepted:
+                    type: integer
+                    description: Count of unique valid numbers accepted.
+                  invalid:
+                    type: array
+                    items:
+                      type: string
+                    description: Input lines that could not be parsed as phone numbers.
+              example:
+                success: true
+                accepted: 2
+                invalid: []
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  invalid:
+                    type: array
+                    items:
+                      type: string
+              examples:
+                Missing to:
+                  value:
+                    success: false
+                    message: "Missing 'to'"
+                No valid numbers:
+                  value:
+                    success: false
+                    message: "No valid phone numbers"
+                    invalid:
+                      - "not-a-number"
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              example:
+                success: false
+                message: Enqueue failed
+    delete:
+      x-mint:
+        metadata:
+          sidebarTitle: "Remove from blacklist"
+      tags:
+        - blacklist
+      summary: Remove numbers from blacklist
+      description: 'Removes specific numbers from the blacklist, or wipes the whole list with `all: true`.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to:
+                  type: string
+                  description: Newline-separated list of numbers to remove. Required unless `all` is `true`.
+                all:
+                  type: boolean
+                  description: If `true`, deletes the entire blacklist.
+                subid:
+                  type: string
+                  default: default
+                  description: Sub-account id.
+            examples:
+              Remove numbers:
+                value:
+                  to: "420777123456"
+              Wipe list:
+                value:
+                  all: true
+      responses:
+        '200':
+          description: Numbers removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  blacklist:
+                    type: object
+                    properties:
+                      removed:
+                        type: integer
+                      remaining:
+                        type: integer
+                      invalid:
+                        type: array
+                        items:
+                          type: string
+                      wiped:
+                        type: boolean
+              examples:
+                Removed:
+                  value:
+                    success: true
+                    blacklist:
+                      removed: 1
+                      remaining: 5
+                      invalid: []
+                Wiped:
+                  value:
+                    success: true
+                    blacklist:
+                      wiped: true
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                blacklist:
+                  message: "Provide 'to' or 'all: true'"
+        '404':
+          description: Blacklist not found
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                blacklist:
+                  message: Blacklist not found
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                blacklist:
+                  message: Delete failed
+
+  /optout:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Download opt-out"
+      tags:
+        - blacklist
+      summary: Download opt-out list
+      description: Returns a presigned URL (valid 60 seconds) to download the opt-out list CSV. The opt-out list is applied to messages with the `promotional` tag.
+      parameters:
+        - name: subid
+          in: query
+          required: false
+          schema:
+            type: string
+            default: default
+          description: Sub-account id.
+      responses:
+        '200':
+          description: Download URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  url:
+                    type: string
+                    description: Presigned download URL, valid for 60 seconds.
+              example:
+                success: true
+                url: "https://smsmngr-managed-contactlist.s3.amazonaws.com/...&X-Amz-Expires=60..."
+        '404':
+          description: Opt-out list not found (no numbers stored yet)
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: true
+                message: Optout not found
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                message: Failed to generate download URL
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Add to opt-out"
+      tags:
+        - blacklist
+      summary: Add numbers to opt-out list
+      description: |
+        Adds phone numbers to the account's opt-out list. Numbers are normalized and processed asynchronously — the call returns the count of accepted numbers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - to
+              properties:
+                to:
+                  type: string
+                  description: Newline-separated list of phone numbers.
+                  example: "420777123456\n420777654321"
+                subid:
+                  type: string
+                  default: default
+                  description: Sub-account id.
+            examples:
+              Add numbers:
+                value:
+                  to: "420777123456\n776654321"
+      responses:
+        '200':
+          description: Numbers accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  accepted:
+                    type: integer
+                  invalid:
+                    type: array
+                    items:
+                      type: string
+              example:
+                success: true
+                accepted: 2
+                invalid: []
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+              examples:
+                Missing to:
+                  value:
+                    success: false
+                    message: "Missing 'to'"
+                No valid numbers:
+                  value:
+                    success: false
+                    message: "No valid phone numbers"
+                    invalid:
+                      - "not-a-number"
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                message: Enqueue failed
+    delete:
+      x-mint:
+        metadata:
+          sidebarTitle: "Remove from opt-out"
+      tags:
+        - blacklist
+      summary: Remove numbers from opt-out list
+      description: 'Removes specific numbers from the opt-out list, or wipes the whole list with `all: true`.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to:
+                  type: string
+                  description: Newline-separated list of numbers to remove. Required unless `all` is `true`.
+                all:
+                  type: boolean
+                  description: If `true`, deletes the entire opt-out list.
+                subid:
+                  type: string
+                  default: default
+                  description: Sub-account id.
+            examples:
+              Remove numbers:
+                value:
+                  to: "420777123456"
+              Wipe list:
+                value:
+                  all: true
+      responses:
+        '200':
+          description: Numbers removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  optout:
+                    type: object
+                    properties:
+                      removed:
+                        type: integer
+                      remaining:
+                        type: integer
+                      invalid:
+                        type: array
+                        items:
+                          type: string
+                      wiped:
+                        type: boolean
+              examples:
+                Removed:
+                  value:
+                    success: true
+                    optout:
+                      removed: 1
+                      remaining: 5
+                      invalid: []
+                Wiped:
+                  value:
+                    success: true
+                    optout:
+                      wiped: true
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                optout:
+                  message: "Provide 'to' or 'all: true'"
+        '404':
+          description: Opt-out list not found
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                optout:
+                  message: Optout not found
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                optout:
+                  message: Delete failed
+
+  /messaging/url:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Bulk upload URL"
+      tags:
+        - messaging
+      summary: Get bulk upload URL
+      description: |
+        Returns a presigned upload URL (valid 60 seconds) for submitting a bulk message file. The file is a JSONL (one JSON message per line, same format as the JSON API v2 `Message`) or a gzipped JSONL. Upload the file with `PUT` and `Content-Type: application/jsonl` (for `jsonl`) or `application/gzip` (for `gz`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - bulk_id
+                - filetype
+              properties:
+                bulk_id:
+                  type: string
+                  description: Your identifier of the bulk upload.
+                filetype:
+                  type: string
+                  enum:
+                    - jsonl
+                    - gz
+                  description: File type of the upload.
+                datetime:
+                  type: string
+                  format: date-time
+                  description: Optional scheduled processing time (UTC).
+            examples:
+              JSONL upload:
+                value:
+                  bulk_id: "batch-2026-07-30"
+                  filetype: "jsonl"
+              Scheduled gzip upload:
+                value:
+                  bulk_id: "batch-2026-07-31"
+                  filetype: "gz"
+                  datetime: "2026-07-31T08:00:00Z"
+      responses:
+        '200':
+          description: Upload URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  url:
+                    type: string
+                    description: Presigned PUT URL, valid for 60 seconds.
+              example:
+                success: true
+                url: "https://smsmngr-bulk-uploads.s3.amazonaws.com/...&X-Amz-Expires=60..."
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing fields:
+                  value:
+                    message: Missing 'bulk_id' or 'filetype' or 'datetime' in request data
+                Unsupported filetype:
+                  value:
+                    message: Unsupported filetype
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to generate upload URL
+
+  /messaging/cancel:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Cancel schedule"
+      tags:
+        - messaging
+      summary: Cancel a scheduled message or bulk upload
+      description: |
+        Cancels a previously scheduled single message (`message_id`) or a scheduled bulk upload (`bulk_id`). Provide exactly one of the two fields.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message_id:
+                  type: string
+                  description: Id of the scheduled message. Do not combine with `bulk_id`.
+                bulk_id:
+                  type: string
+                  description: Id of the scheduled bulk upload. Do not combine with `message_id`.
+            examples:
+              Cancel message:
+                value:
+                  message_id: "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"
+              Cancel bulk:
+                value:
+                  bulk_id: "batch-2026-07-31"
+      responses:
+        '200':
+          description: Schedule cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              example:
+                success: true
+                message: Schedule cancelled
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'message_id' or 'bulk_id' in request data
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to cancel schedule
+
+  /partner/signup:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Partner signup"
+      tags:
+        - partner
+      summary: Start partner signup flow
+      description: |
+        Starts a partner-branded onboarding flow. Returns a signed token (valid 1 hour) and a hosted signup URL where the end user completes the registration. Available to partner accounts only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                connector_name:
+                  type: string
+                  description: Name of the connector/integration.
+                callback_url:
+                  type: string
+                  description: URL called by our system after the signup finishes.
+                callback_data:
+                  type: string
+                  description: Opaque data passed back to the callback.
+                final_url:
+                  type: string
+                  description: URL where the user is redirected after finishing the signup.
+                partner_logo_url:
+                  type: string
+                  description: URL of the partner logo displayed on the signup page.
+                partner_client_id:
+                  type: string
+                  description: Your identifier of the client.
+                partner_client_data:
+                  type: string
+                  description: Opaque client data stored with the signup.
+                language:
+                  type: string
+                  description: Language of the signup page.
+                partner_copyright:
+                  type: string
+                  description: Copyright/footer text displayed on the signup page.
+            examples:
+              Start signup:
+                value:
+                  connector_name: "My Shop"
+                  callback_url: "https://partner.example/callback"
+                  callback_data: "abc"
+                  final_url: "https://partner.example/done"
+                  partner_logo_url: "https://partner.example/logo.png"
+                  partner_client_id: "client-1"
+                  language: "en"
+                  partner_copyright: "© My Shop"
+      responses:
+        '200':
+          description: Signup started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  token:
+                    type: string
+                    description: Signed signup token (valid 1 hour).
+                  domain:
+                    type: string
+                  redirect_url:
+                    type: string
+                    description: Hosted signup URL for the end user.
+              example:
+                success: true
+                token: "eyJhbGciOi..."
+                domain: "connect.smsmanager.com"
+                redirect_url: "https://connect.smsmanager.com/?configuration=eyJhbGciOi..."
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to new partner registration
+
+  /push/device:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Register device"
+      tags:
+        - partner
+      summary: Register push device
+      description: Registers (or updates) a push notification device. A device id already registered by another API key cannot be re-registered.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - id
+                - token
+              properties:
+                id:
+                  type: string
+                  description: Device id.
+                token:
+                  type: string
+                  description: Push token of the device.
+            example:
+              id: "device-uuid-123"
+              token: "fcm-token-xyz"
+      responses:
+        '200':
+          description: Device registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+              example:
+                success: true
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'id' or 'token' in request data
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Device is owned by another apikey
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /recipient/register:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Register recipient"
+      tags:
+        - partner
+      summary: Register recipient
+      description: |
+        Creates a new recipient (when `id` is omitted, a new id is generated) or updates an existing recipient's phone number and push tokens. Only the provided fields are updated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: Recipient id. Omit to create a new recipient.
+                phone_number:
+                  type: string
+                  description: Phone number of the recipient.
+                fcm_token:
+                  type: string
+                  description: Android (FCM) push token.
+                apns_token:
+                  type: string
+                  description: iOS (APNs) push token.
+            examples:
+              New recipient:
+                value:
+                  phone_number: "420777123456"
+                  fcm_token: "fcm-abc"
+              Update recipient:
+                value:
+                  id: "b1f2c3d4-5678-90ab-cdef-1234567890ab"
+                  apns_token: "apns-xyz"
+      responses:
+        '200':
+          description: Recipient registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  recipient:
+                    type: string
+                    description: Recipient id.
+              example:
+                success: true
+                recipient: "b1f2c3d4-5678-90ab-cdef-1234567890ab"
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to register recipient
+
+  /connect/{connector}/{action}:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Connector action"
+      tags:
+        - partner
+      summary: Connector action
+      description: |
+        Executes an action of a connected integration. Currently the `klaviyo` connector is supported with actions `segments`, `recipients`, `senders` and `me`.
+
+        - `segments` — lists the account's segments: `{ "success": true, "segments": [{ "id", "name" }] }`
+        - `recipients` — lists phone numbers in a segment (requires body field `segment_id`): `{ "success": true, "recipients": ["420777123456"] }`
+        - `senders` — lists available senders: `{ "success": true, "senders": [{ "type": "sms", "name": "info-sms" }] }`
+        - `me` — returns the connected account info: `{ "success": true, "account": { ... }, "currency": "eur" }`
+      parameters:
+        - name: connector
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - klaviyo
+          description: Connector name.
+        - name: action
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - segments
+              - recipients
+              - senders
+              - me
+          description: Connector action.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - app_userid
+              properties:
+                app_userid:
+                  type: string
+                  description: Application user id of the connected account.
+                segment_id:
+                  type: string
+                  description: Segment id (required for the `recipients` action).
+            examples:
+              List segments:
+                value:
+                  app_userid: "user-123"
+              List recipients of a segment:
+                value:
+                  app_userid: "user-123"
+                  segment_id: "SEG123"
+      responses:
+        '200':
+          description: Action result (shape depends on the action)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+              examples:
+                Segments:
+                  value:
+                    success: true
+                    segments:
+                      - id: "SEG123"
+                        name: "VIP customers"
+                Recipients:
+                  value:
+                    success: true
+                    recipients:
+                      - "420777123456"
+                      - "420777000111"
+                Not authenticated:
+                  value:
+                    success: false
+                    message: "Klaviyo request not authenticated"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Invalid 'app_userid' in request data
+        '404':
+          description: Unsupported connector or action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Unsupported connector or action
+
+
+tags:
+  - name: api
+    x-displayName: API keys
+    x-group: "API keys"
+    description: |
+      Management of API keys: profile of the current key, creating and managing child keys.
+  - name: credit
+    x-displayName: Credit
+    x-group: "Credit"
+    description: |
+      Credit balance, price list, orderable services and low-credit notifications.
+  - name: billing
+    x-displayName: Billing
+    x-group: "Billing"
+    description: |
+      Billing contact, invoices and bank transfer top-up.
+  - name: status
+    x-displayName: Message status
+    x-group: "Message status"
+    description: |
+      Status of sent messages and aggregated sending statistics.
+  - name: inbox
+    x-displayName: Inbox
+    x-group: "Inbox"
+    description: |
+      Received (inbound) messages.
+  - name: blacklist
+    x-displayName: Blacklist & Opt-out
+    x-group: "Blacklist & Opt-out"
+    description: |
+      Managed contact lists. The blacklist blocks all messages to listed numbers; the opt-out list blocks messages with the `promotional` tag.
+  - name: messaging
+    x-displayName: Bulk messaging
+    x-group: "Bulk messaging"
+    description: |
+      Support endpoints for bulk sending: upload URL for bulk files and cancellation of scheduled messages.
+  - name: partner
+    x-displayName: Partner & integrations
+    x-group: "Partner & integrations"
+    description: |
+      Partner onboarding, connector integrations and push/recipient registration.

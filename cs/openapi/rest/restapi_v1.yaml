@@ -1,0 +1,2945 @@
+openapi: 3.1.0
+info:
+  title: REST API SmsManager
+  description: |
+    REST API pro správu vašeho účtu SmsManager: API klíče, kredit, fakturace, kontaktní seznamy (blacklist / opt-out), zjišťování stavu zpráv, přijaté zprávy a podpora hromadného odesílání.
+
+    ## Autentizace
+
+    Pro všechny požadavky je vyžadován API klíč — zasílejte jej v HTTP hlavičce `x-api-key`. Svůj API klíč najdete v [nastavení účtu](https://app.smsmanager.com/api-cloud).
+
+    Pro odesílání zpráv použijte [JSON API v2](https://api.smsmngr.com/v2).
+  version: v1
+  contact:
+    url: https://smsmanager.com
+    email: cc@smsmanager.com
+
+servers:
+  - url: 'https://rest-api.smsmngr.com/v1'
+    description: Produkční server
+
+security:
+  - x-api-key: []
+
+components:
+  securitySchemes:
+    x-api-key:
+      type: apiKey
+      in: header
+      name: x-api-key
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Chybová zpráva.
+
+paths:
+  /apikey/me:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Info o klíči"
+      tags:
+        - api
+      summary: Získat informace o aktuálním API klíči
+      description: |
+        Vrací profil volajícího API klíče. Tento endpoint vždy odráží aktuální stav klíče (povolen/zablokován, odesílatelé, rozsah oprávnění).
+      responses:
+        '200':
+          description: Informace o API klíči
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  me:
+                    type: object
+                    properties:
+                      note:
+                        type: string
+                        description: Vaše poznámka připojená k API klíči.
+                      default_callback_url:
+                        type: string
+                        description: Výchozí webhook URL pro notifikace o doručení.
+                      account:
+                        type: string
+                        enum:
+                          - prepaid
+                          - postpaid
+                        description: Typ účtu.
+                      scope:
+                        type: string
+                        enum:
+                          - full
+                          - rest-api
+                          - api
+                        description: Rozsah oprávnění API klíče. `full` a `rest-api` mohou měnit nastavení, `api` může pouze odesílat zprávy.
+                      share_senders:
+                        type: string
+                        description: '`"1"`, pokud klíč sdílí odesílatele se svými podřízenými klíči.'
+                      is_blocked:
+                        type: integer
+                        description: '`1`, pokud je klíč zablokován.'
+                      senders:
+                        type: array
+                        description: Registrovaní odesílatelé klíče.
+                        items:
+                          type: object
+                          properties:
+                            flow:
+                              type: string
+                              description: Kanál odesílatele (`sms`, `viber`, `whatsapp`, ...).
+                            value:
+                              type: string
+                              description: Hodnota odesílatele (název nebo číslo).
+                            name:
+                              type: string
+                              description: Zobrazovaný název odesílatele.
+                      vat:
+                        type: string
+                        description: '`"1"`, pokud je účet plátcem DPH.'
+                      currency:
+                        type: string
+                        enum:
+                          - czk
+                          - eur
+                        description: Měna účtu.
+                      tz:
+                        type: string
+                        description: Časová zóna účtu.
+                        example: Europe/Prague
+              examples:
+                Current key:
+                  value:
+                    success: true
+                    me:
+                      note: "eshop"
+                      default_callback_url: "https://example.com/hook"
+                      account: "prepaid"
+                      scope: "full"
+                      share_senders: "1"
+                      is_blocked: 0
+                      senders:
+                        - flow: "sms"
+                          value: "Mojefirma"
+                          name: "Mojefirma"
+                      vat: "1"
+                      currency: "czk"
+                      tz: "Europe/Prague"
+        '401':
+          description: Neautorizováno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Unauthorized
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to load API key
+
+  /apikey/add:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Vytvořit sub-klíč"
+      tags:
+        - api
+      summary: Vytvořit podřízený API klíč
+      description: |
+        Vytváří nový podřízený (sub) API klíč pod volajícím nadřazeným klíčem. Podřízené klíče může vytvářet pouze nadřazený klíč s rozsahem oprávnění `full` nebo `rest-api` (max. 19 podřízených klíčů).
+
+        Sdílený (`shared`) podřízený klíč přebírá fakturaci a měnu nadřazeného klíče a čerpá kredit z jeho peněženky. Nesdílený podřízený klíč má vlastní fakturaci — pole `billing_name`, `billing_email` a `currency` jsou pak povinná.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shared:
+                  type: boolean
+                  description: Pokud je `true`, nový klíč sdílí fakturaci a kredit s nadřazeným klíčem (měnu dědí od nadřazeného klíče).
+                billing_name:
+                  type: string
+                  description: Fakturační jméno. Povinné, pokud `shared` není `true`.
+                billing_email:
+                  type: string
+                  description: Fakturační e-mail. Povinný, pokud `shared` není `true`.
+                currency:
+                  type: string
+                  enum:
+                    - czk
+                    - eur
+                  description: Měna nového klíče. Povinná, pokud `shared` není `true` (sdílený klíč dědí měnu nadřazeného klíče).
+                app_userid:
+                  type: string
+                  description: Volitelná vazba na uživatele aplikace. Pokud klíč pro tohoto uživatele již existuje, je vrácen existující klíč místo vytvoření nového.
+                billing_id:
+                  type: string
+                  description: Volitelné existující fakturační id.
+                note:
+                  type: string
+                  description: Vaše poznámka k novému klíči.
+                scope:
+                  type: string
+                  enum:
+                    - full
+                    - rest-api
+                    - api
+                  description: Rozsah oprávnění nového klíče.
+                share_senders:
+                  type: boolean
+                  description: Pokud je `true`, registrovaní odesílatelé nadřazeného klíče (a WhatsApp čísla) jsou sdíleni s novým klíčem.
+            examples:
+              Child key with own billing:
+                value:
+                  billing_name: "ACME s.r.o."
+                  billing_email: "invoicing@acme.example"
+                  currency: "czk"
+                  note: "eshop"
+                  scope: "rest-api"
+              Shared child key:
+                value:
+                  shared: true
+                  note: "warehouse app"
+                  scope: "api"
+                  share_senders: true
+      responses:
+        '200':
+          description: API klíč vytvořen
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  apikey:
+                    type: string
+                    description: Nový API klíč.
+                  billing_id:
+                    type:
+                      - string
+                      - 'null'
+                    description: Fakturační id nového klíče (`null` u sdíleného klíče).
+              examples:
+                Created:
+                  value:
+                    success: true
+                    apikey: "aB3xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+                    billing_id: "1234"
+                Created shared:
+                  value:
+                    success: true
+                    apikey: "cD4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+                    billing_id: null
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing fields:
+                  value:
+                    message: Missing required fields in request data
+                Invalid scope:
+                  value:
+                    message: Invalid scope value
+        '403':
+          description: Zakázáno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Not top-level:
+                  value:
+                    message: Only a top-level apikey can create new apikeys
+                Limit reached:
+                  value:
+                    message: Child apikey limit reached (19)
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /apikey/update:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Upravit klíč"
+      tags:
+        - api
+      summary: Upravit aktuální API klíč
+      description: |
+        Upravuje nastavení volajícího API klíče. Obě pole musí být přítomna (prázdný řetězec hodnotu smaže). Změna `default_callback_url` zároveň aktualizuje webhook URL u všech odesílatelů klíče.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - default_callback_url
+                - note
+              properties:
+                default_callback_url:
+                  type: string
+                  description: Výchozí webhook URL pro notifikace o doručení. Prázdný řetězec hodnotu smaže.
+                note:
+                  type: string
+                  description: Vaše poznámka ke klíči. Prázdný řetězec hodnotu smaže.
+            examples:
+              Set callback:
+                value:
+                  default_callback_url: "https://example.com/hook"
+                  note: "eshop"
+              Clear callback:
+                value:
+                  default_callback_url: ""
+                  note: "eshop"
+      responses:
+        '200':
+          description: API klíč upraven
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+              example:
+                success: true
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'default_callback_url' or 'note' in request data
+        '403':
+          description: Zakázáno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Apikey scope 'api' is not allowed to change settings
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /apikey/list:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Vypsat sub-klíče"
+      tags:
+        - api
+      summary: Vypsat podřízené API klíče
+      description: Vypíše podřízené API klíče vytvořené volajícím klíčem.
+      responses:
+        '200':
+          description: Seznam podřízených API klíčů
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  list:
+                    type: array
+                    items:
+                      type: string
+                    description: Podřízené API klíče.
+              example:
+                success: true
+                list:
+                  - "cD4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+                  - "eF5xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /apikey/change:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Změnit sub-klíč"
+      tags:
+        - api
+      summary: Změnit podřízený API klíč
+      description: |
+        Mění rozsah oprávnění a/nebo blokaci podřízeného API klíče. Podřízené klíče může měnit pouze nadřazený klíč; nadřazený klíč nemůže měnit sám sebe.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - apikey
+              properties:
+                apikey:
+                  type: string
+                  description: Podřízený API klíč, který se má změnit.
+                scope:
+                  type: string
+                  enum:
+                    - full
+                    - rest-api
+                    - api
+                  description: Nový rozsah oprávnění podřízeného klíče. Vyžadováno je alespoň jedno z polí `scope` / `disable`.
+                disable:
+                  type: integer
+                  enum:
+                    - 0
+                    - 1
+                  description: '`1` podřízený klíč zablokuje, `0` odblokuje. Vyžadováno je alespoň jedno z polí `scope` / `disable`.'
+            examples:
+              Change scope:
+                value:
+                  apikey: "cD4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+                  scope: "api"
+              Disable key:
+                value:
+                  apikey: "cD4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+                  disable: 1
+      responses:
+        '200':
+          description: API klíč změněn
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+              example:
+                success: true
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing apikey:
+                  value:
+                    message: Missing 'apikey' in request data
+                Missing change:
+                  value:
+                    message: Missing 'scope' or 'disable' in request data
+        '403':
+          description: Zakázáno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Not owner:
+                  value:
+                    message: Target apikey does not belong to this parent
+                Self change:
+                  value:
+                    message: Parent apikey cannot change itself
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /credit:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Stav kreditu"
+      tags:
+        - credit
+      summary: Získat stav kreditu
+      description: Vrací aktuální stav kreditu a dosažené cenové hladiny volajícího klíče.
+      responses:
+        '200':
+          description: Stav kreditu
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  credit:
+                    type: object
+                    properties:
+                      priceLevels:
+                        type: object
+                        description: Mapa `<platform>_<mcc>` na index dosaženého slevového pásma (přítomny jsou pouze položky s indexem větším než 0).
+                        additionalProperties:
+                          type: integer
+                      credit_czk:
+                        type: string
+                        description: Stav kreditu v CZK (číselný řetězec).
+                      credit_eur:
+                        type: string
+                        description: Stav kreditu v EUR (číselný řetězec).
+                      billing_id:
+                        type: string
+                        description: Fakturační id klíče (číselný řetězec).
+                      vat:
+                        type: string
+                        description: '`"1"`, pokud je účet plátcem DPH.'
+                      currency:
+                        type: string
+                        enum:
+                          - czk
+                          - eur
+                        description: Měna účtu.
+                      tz:
+                        type: string
+                        description: Časová zóna účtu.
+                        example: Europe/Prague
+              example:
+                success: true
+                credit:
+                  priceLevels:
+                    sms_230: 2
+                  credit_czk: "150.5"
+                  credit_eur: "0"
+                  billing_id: "1234"
+                  vat: "1"
+                  currency: "czk"
+                  tz: "Europe/Prague"
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to check credit
+
+  /credit/services:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Katalog služeb"
+      tags:
+        - credit
+      summary: Získat katalog služeb
+      description: |
+        Vrací katalog objednatelných placených služeb (odesílatelé, virtuální čísla, SIM hosting, ...). Katalog má strukturu `services.sender.<platform>.<country_calling_code>.<variant>`. Ploché id služby používané v `/credit/order` se skládá jako `sender_<platform>_<calling_code>_<variant>` (např. `sender_sms_420_alnum`).
+
+        Každá varianta služby obsahuje: lokalizovaný `name` (a volitelné `requirements` a `delay`), `subject` (`defined` = předmět dodáváte vy, např. text odesílatele nebo telefonní číslo, `assigned` = číslo z poolu je přiděleno automaticky), volitelný výchozí `status` a `prices` pro jednotlivé měny s poli `setup`, `monthly` a volitelně `min_interval` (`month` / `year`) nebo `min_monthly_spend`.
+      responses:
+        '200':
+          description: Katalog služeb
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  services:
+                    type: object
+                    description: Vnořený katalog služeb.
+              example:
+                success: true
+                services:
+                  sender:
+                    sms:
+                      "420":
+                        alnum:
+                          name:
+                            cs: "Textový odesílatel"
+                            en: "Text ID sender"
+                          subject: "defined"
+                          status: "new"
+                          prices:
+                            czk:
+                              setup: 500
+                              monthly: 500
+                            eur:
+                              setup: 20
+                              monthly: 20
+                        simhost:
+                          name:
+                            cs: "SIM hosting"
+                            en: "SIM hosting"
+                          subject: "defined"
+                          prices:
+                            czk:
+                              setup: 200
+                              monthly: 100
+                              min_interval: "year"
+                            eur:
+                              setup: 8
+                              monthly: 4
+                              min_interval: "year"
+
+  /credit/prices:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Ceník"
+      tags:
+        - credit
+      summary: Získat ceník
+      description: |
+        Vrací ceník podle destinací, klíčovaný kanálem (`sms`, `smsdirect`, `smscustom`, `viber`) a telefonní předvolbou země. Každá položka obsahuje `mcc` země, `price_czk`, `price_eur` a volitelně ceny pro jednotlivé operátory v `operators`.
+      responses:
+        '200':
+          description: Ceník
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  prices:
+                    type: object
+                    description: Ceník klíčovaný kanálem a telefonní předvolbou země.
+              example:
+                success: true
+                prices:
+                  sms:
+                    "420":
+                      mcc: 230
+                      price_czk: 0.89
+                      price_eur: 0.04
+                      operators:
+                        "1":
+                          price_czk: 0.89
+                          price_eur: 0.04
+                    "49":
+                      mcc: 262
+                      price_czk: 1.85
+                      price_eur: 0.08
+                  viber:
+                    "420":
+                      mcc: 230
+                      price_czk: 0.39
+                      price_eur: 0.016
+
+  /credit/notify:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Nastavení upozornění"
+      tags:
+        - credit
+      summary: Získat nastavení upozornění na nízký kredit
+      description: Vrací nastavení e-mailového upozornění na nízký kredit volajícího klíče.
+      responses:
+        '200':
+          description: Nastavení upozornění
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  notify:
+                    type:
+                      - object
+                      - 'null'
+                    description: '`null`, pokud upozornění nebylo nikdy nastaveno.'
+                    properties:
+                      email:
+                        type: string
+                        description: E-mailová adresa příjemce upozornění.
+                      value:
+                        type: number
+                        description: Hranice kreditu, při které se upozornění odešle.
+                      enabled:
+                        type: boolean
+              examples:
+                Configured:
+                  value:
+                    success: true
+                    notify:
+                      email: "ops@acme.example"
+                      value: 100
+                      enabled: true
+                Not configured:
+                  value:
+                    success: true
+                    notify: null
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Nastavit upozornění"
+      tags:
+        - credit
+      summary: Nastavit upozornění na nízký kredit
+      description: Nastavuje e-mailové upozornění na nízký kredit volajícího klíče. Všechna pole jsou povinná.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - value
+                - enable
+              properties:
+                email:
+                  type: string
+                  description: E-mailová adresa příjemce upozornění.
+                value:
+                  type: number
+                  description: Hranice kreditu, při které se upozornění odešle (musí být větší než 0).
+                enable:
+                  type: boolean
+                  description: Zapnutí nebo vypnutí upozornění.
+            examples:
+              Enable alert:
+                value:
+                  email: "ops@acme.example"
+                  value: 100
+                  enable: true
+      responses:
+        '200':
+          description: Upozornění uloženo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+              example:
+                success: true
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'email', 'value' or 'enable' in request data
+        '403':
+          description: Zakázáno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Apikey scope 'api' is not allowed to change settings
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /credit/order:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Objednat službu"
+      tags:
+        - credit
+      summary: Objednat placenou službu
+      description: |
+        Objedná placenou službu z katalogu (viz `/credit/services`) a odečte poplatek z vašeho kreditu. Celkový poplatek je `setup + monthly × months`, kde počet měsíců vyplývá z minimálního intervalu služby (`year` = 12, `quarter` = 3, jinak 1). U služeb se `subject: defined` musíte předmět dodat (např. text odesílatele nebo telefonní číslo); u `subject: assigned` je číslo z poolu přiděleno automaticky. Pomocí `dryrun` objednávku pouze ověříte (kredit, dostupnost) bez jakýchkoliv změn.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - service_id
+                - period
+              properties:
+                service_id:
+                  type: string
+                  description: Ploché id služby z katalogu.
+                  example: sender_sms_420_alnum
+                period:
+                  type: string
+                  description: Požadované fakturační období. Skutečné fakturační období je určeno minimálním intervalem služby.
+                  example: month
+                subject:
+                  type: string
+                  description: 'Předmět služby (text odesílatele, telefonní číslo, ...). Povinné u služeb se `subject: defined`.'
+                payload:
+                  type: object
+                  description: Volitelná doplňková data uložená k objednávce služby.
+                dryrun:
+                  type: boolean
+                  description: Pokud je `true`, objednávka se pouze ověří a vrátí se celkový poplatek bez jakýchkoliv změn.
+            examples:
+              Order text sender:
+                value:
+                  service_id: "sender_sms_420_alnum"
+                  period: "month"
+                  subject: "Mojefirma"
+              Dry run:
+                value:
+                  service_id: "sender_sms_420_alnum"
+                  period: "month"
+                  subject: "Mojefirma"
+                  dryrun: true
+      responses:
+        '200':
+          description: Služba objednána
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  order:
+                    type: object
+                    properties:
+                      subject:
+                        type: string
+                        description: Předmět objednané služby (u služeb typu `assigned` přidělené číslo).
+                      subject_id:
+                        type: string
+                      status:
+                        type: string
+                        description: Počáteční stav služby (`new` nebo `active`).
+                      dryrun:
+                        type: boolean
+                        description: Přítomno pouze u dry runů.
+                      total_fee:
+                        type: number
+                        description: Celkový poplatek (pouze dry run).
+                      currency:
+                        type: string
+                        description: Měna poplatku (pouze dry run).
+                      service_id:
+                        type: string
+                        description: Id služby (pouze dry run).
+              examples:
+                Ordered:
+                  value:
+                    success: true
+                    order:
+                      subject: "Mojefirma"
+                      subject_id: "Mojefirma"
+                      status: "new"
+                Dry run:
+                  value:
+                    success: true
+                    order:
+                      dryrun: true
+                      total_fee: 1000
+                      currency: "czk"
+                      subject: null
+                      service_id: "sender_sms_420_alnum"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing required service fields in request data
+        '500':
+          description: Objednávka selhala
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Invalid service:
+                  value:
+                    message: Invalid service id
+                Insufficient credit:
+                  value:
+                    message: Insufficient credit
+                No available sender:
+                  value:
+                    message: No available sender for this service
+
+  /credit/cancel:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Zrušit službu"
+      tags:
+        - credit
+      summary: Zrušit placenou službu
+      description: |
+        Označí objednanou službu ke zrušení na konci zaplaceného období. Nedochází k žádnému okamžitému účtování ani vracení peněz; služba zůstává aktivní do konce zaplaceného období. Volání je idempotentní.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - service_id
+                - subject
+              properties:
+                service_id:
+                  type: string
+                  description: Ploché id služby z katalogu.
+                  example: sender_sms_420_alnum
+                subject:
+                  type: string
+                  description: Přesný předmět objednané služby.
+                  example: Mojefirma
+            examples:
+              Cancel sender:
+                value:
+                  service_id: "sender_sms_420_alnum"
+                  subject: "Mojefirma"
+      responses:
+        '200':
+          description: Služba označena ke zrušení
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  cancel:
+                    type: object
+                    properties:
+                      cancel_at_period_end:
+                        type: boolean
+                      active_until:
+                        type:
+                          - string
+                          - 'null'
+                        description: Datum, do kterého služba zůstává aktivní (`YYYY-MM-DD`).
+              example:
+                success: true
+                cancel:
+                  cancel_at_period_end: true
+                  active_until: "2026-08-15"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing required service fields in request data
+        '500':
+          description: Zrušení selhalo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Not found:
+                  value:
+                    message: Service not found
+                Already cancelled:
+                  value:
+                    message: Service already cancelled
+
+  /billing/get:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Fakturační kontakt"
+      tags:
+        - billing
+      summary: Získat fakturační kontakt
+      description: Vrací fakturační kontakt pro fakturační id vlastněné volajícím klíčem.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - billing_id
+              properties:
+                billing_id:
+                  type: string
+                  description: Fakturační id (viz `/credit`).
+            example:
+              billing_id: "1234"
+      responses:
+        '200':
+          description: Fakturační kontakt
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  billing:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      email:
+                        type: string
+                      currency:
+                        type: string
+                      contact:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          company_id:
+                            type: string
+                          company_vat:
+                            type: string
+                          address:
+                            type: string
+                          city:
+                            type: string
+                          zip:
+                            type: string
+                          country:
+                            type: string
+              example:
+                success: true
+                billing:
+                  name: "ACME s.r.o."
+                  email: "invoicing@acme.example"
+                  currency: "czk"
+                  contact:
+                    name: "ACME s.r.o."
+                    company_id: "12345678"
+                    company_vat: "CZ12345678"
+                    address: "Ulice 1"
+                    city: "Praha"
+                    zip: "11000"
+                    country: "CZ"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'billing_id' in request data
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to get billing
+
+  /billing/set:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Nastavit fakturaci"
+      tags:
+        - billing
+      summary: Nastavit fakturační kontakt
+      description: |
+        Aktualizuje fakturační kontakt pro fakturační id vlastněné volajícím klíčem. Povinné je `billing_id` plus alespoň jedno kontaktní pole. Sdílené podřízené klíče nevlastní fakturační záznam a tento endpoint použít nemohou.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - billing_id
+              properties:
+                billing_id:
+                  type: string
+                name:
+                  type: string
+                  description: Název společnosti.
+                email:
+                  type: string
+                street:
+                  type: string
+                city:
+                  type: string
+                zip:
+                  type: string
+                country:
+                  type: string
+                  description: ISO kód země (výchozí `CZ`).
+                company_id:
+                  type: string
+                  description: IČO.
+                company_vat:
+                  type: string
+                  description: DIČ.
+                dryrun:
+                  type: boolean
+                  description: Pokud je `true`, požadavek se pouze ověří bez uložení.
+            examples:
+              Update contact:
+                value:
+                  billing_id: "1234"
+                  name: "ACME s.r.o."
+                  email: "invoicing@acme.example"
+                  street: "Ulice 1"
+                  city: "Praha"
+                  zip: "11000"
+                  country: "cz"
+                  company_id: "12345678"
+                  company_vat: "CZ12345678"
+      responses:
+        '200':
+          description: Fakturační kontakt uložen
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  dryrun:
+                    type: boolean
+                    description: Přítomno pouze u dry runů.
+              example:
+                success: true
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing billing id:
+                  value:
+                    message: Missing 'billing_id' in request data
+                Missing fields:
+                  value:
+                    message: Missing required fields in request data
+        '403':
+          description: Zakázáno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Apikey is not authorized for this billing_id
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /billing/invoices/list:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Seznam faktur"
+      tags:
+        - billing
+      summary: Vypsat faktury
+      description: Vypíše vystavené faktury pro fakturační id vlastněné volajícím klíčem (max. 100, od nejnovějších).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - billing_id
+              properties:
+                billing_id:
+                  type: string
+            example:
+              billing_id: "1234"
+      responses:
+        '200':
+          description: Seznam faktur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  invoices:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          description: Id faktury (použijte v `/billing/invoices/pdf`).
+                        name:
+                          type: string
+                          description: Číslo faktury.
+                        vs:
+                          type: string
+                          description: Variabilní symbol.
+                        date:
+                          type: string
+                          description: Datum vystavení (`YYYY-MM-DD`).
+                        amount:
+                          type: string
+                          description: Celková částka (číselný řetězec).
+                        currency:
+                          type: string
+                          description: Zobrazovaná měna.
+              example:
+                success: true
+                invoices:
+                  - id: "123"
+                    name: "2026001"
+                    vs: "1110001234"
+                    date: "2026-07-01"
+                    amount: "1210.00"
+                    currency: "Kč"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'billing_id' in request data
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to get invoices
+
+  /billing/invoices/pdf:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Faktura PDF"
+      tags:
+        - billing
+      summary: Stáhnout fakturu v PDF
+      description: Vrací jednu fakturu vykreslenou jako PDF (kódované base64).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - billing_id
+                - invoice_id
+              properties:
+                billing_id:
+                  type: string
+                invoice_id:
+                  type: string
+                  description: Id faktury z `/billing/invoices/list`.
+                lang:
+                  type: string
+                  description: Jazyk vykreslené faktury (např. `cs`, `en`).
+            example:
+              billing_id: "1234"
+              invoice_id: "123"
+              lang: "cs"
+      responses:
+        '200':
+          description: PDF faktury
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  invoice:
+                    type: string
+                    description: Soubor PDF kódovaný jako base64.
+              example:
+                success: true
+                invoice: "JVBERi0xLjQKJ...=="
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'billing_id' or 'invoice_id' in request data
+        '403':
+          description: Zakázáno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Apikey is not authorized for this billing_id
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to get invoice
+
+  /billing/topup:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Údaje pro dobití"
+      tags:
+        - billing
+      summary: Získat údaje pro dobití bankovním převodem
+      description: |
+        Vrací bankovní údaje pro dobití kreditu bankovním převodem, včetně vašeho variabilního symbolu platby (`vs`). Platby jsou párovány podle variabilního symbolu.
+      responses:
+        '200':
+          description: Údaje pro dobití
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  topup:
+                    type: object
+                    properties:
+                      account_number:
+                        type: string
+                      account_bank:
+                        type: string
+                        description: Kód banky.
+                      iban:
+                        type: string
+                      vs:
+                        type: string
+                        description: Váš variabilní symbol pro platbu.
+              example:
+                success: true
+                topup:
+                  account_number: "2900164253"
+                  account_bank: "2010"
+                  iban: "CZ0220100000002900164253"
+                  vs: "111001234"
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to get topup info
+
+  /message:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Stav zprávy"
+      tags:
+        - status
+      summary: Získat stav zprávy
+      description: Vrací úplný stav jedné odeslané zprávy podle jejího `message_id`. Vraceny jsou pouze zprávy odeslané volajícím klíčem.
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Id zprávy.
+      responses:
+        '200':
+          description: Stav zprávy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type:
+                      - object
+                      - 'null'
+                    description: '`null`, pokud zpráva nebyla nalezena (nebo nepatří volajícímu klíči).'
+                    properties:
+                      status_code:
+                        type:
+                          - string
+                          - 'null'
+                        description: Stavový kód odeslání (`200` = odesláno).
+                      delivery_code:
+                        type:
+                          - string
+                          - 'null'
+                        description: Stavový kód doručení (`201` = doručeno, `202` = zobrazeno).
+                      status_info:
+                        type:
+                          - string
+                          - 'null'
+                      tag:
+                        type:
+                          - string
+                          - 'null'
+                      body:
+                        type: string
+                      to:
+                        type: object
+                        description: Objekt příjemce tak, jak byl odeslán.
+                      request_id:
+                        type:
+                          - string
+                          - 'null'
+                      ts_created:
+                        type:
+                          - string
+                          - 'null'
+                      ts_sent:
+                        type:
+                          - string
+                          - 'null'
+                      ts_delivered:
+                        type:
+                          - string
+                          - 'null'
+                      ts_seen:
+                        type:
+                          - string
+                          - 'null'
+                      ts_clicked:
+                        type:
+                          - string
+                          - 'null'
+                      ts_updated:
+                        type:
+                          - string
+                          - 'null'
+                      flow:
+                        type: array
+                        description: Původní flow zprávy.
+                      flow_index:
+                        type:
+                          - string
+                          - 'null'
+                        description: Index kroku flow, který byl použit.
+                      flow_status:
+                        type: object
+                        description: Stavové kódy jednotlivých kroků flow, klíčované indexem kroku.
+                      price:
+                        type:
+                          - number
+                          - 'null'
+              example:
+                success: true
+                message:
+                  status_code: "200"
+                  delivery_code: "201"
+                  status_info: "Delivered"
+                  tag: "newsletter"
+                  body: "Hello world"
+                  to:
+                    phone_number: "420777123456"
+                  request_id: "bc36f3d1-d284-463a-921b-a3560c154649"
+                  ts_created: "2026-07-30T10:00:00Z"
+                  ts_sent: "2026-07-30T10:00:01Z"
+                  ts_delivered: "2026-07-30T10:00:04Z"
+                  ts_seen: null
+                  ts_clicked: null
+                  ts_updated: "2026-07-30T10:00:05Z"
+                  flow:
+                    - sms: {}
+                  flow_index: "0"
+                  flow_status:
+                    "0":
+                      status_code: "200"
+                      delivery_code: "201"
+                  price: 1.2
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'id' in request data
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to read message
+
+  /messages:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Seznam zpráv"
+      tags:
+        - status
+      summary: Vypsat odeslané zprávy podle data
+      description: |
+        Vypíše přehledové řádky zpráv po příjemcích pro zadané datum, se stránkováním pomocí kurzoru. Volitelně lze filtrovat podle tagu a/nebo telefonního čísla.
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Datum (`YYYY-MM-DD`).
+          example: "2026-07-30"
+        - name: subid
+          in: query
+          required: false
+          schema:
+            type: string
+            default: default
+          description: Id podúčtu.
+        - name: tag
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filtr podle tagu (tagy oddělené čárkou jsou před porovnáním normalizovány a seřazeny).
+        - name: phone_number
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filtr podle telefonního čísla příjemce.
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Kurzor stránkování z předchozí odpovědi (`next_cursor`).
+      responses:
+        '200':
+          description: Seznam zpráv
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  messages:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        message_id:
+                          type: string
+                        message_parts:
+                          type: integer
+                        ts_sent:
+                          type:
+                            - string
+                            - 'null'
+                        ts_delivered:
+                          type:
+                            - string
+                            - 'null'
+                        ts_updated:
+                          type:
+                            - string
+                            - 'null'
+                        ts_clicked:
+                          type:
+                            - string
+                            - 'null'
+                        ts_seen:
+                          type:
+                            - string
+                            - 'null'
+                        ts_replied:
+                          type:
+                            - string
+                            - 'null'
+                        ts_optout:
+                          type:
+                            - string
+                            - 'null'
+                        sent:
+                          type: integer
+                        delivered:
+                          type: integer
+                        seen:
+                          type: integer
+                        clicked:
+                          type: integer
+                        replied:
+                          type: integer
+                        optout:
+                          type: integer
+                        nondelivered:
+                          type: integer
+                        body:
+                          type: string
+                        flow:
+                          type: string
+                          description: Použitý kanál.
+                        sender:
+                          type: string
+                        phone_number:
+                          type: string
+                        price_czk:
+                          type: string
+                          description: Cena v CZK (číselný řetězec).
+                        price_eur:
+                          type: string
+                          description: Cena v EUR (číselný řetězec).
+                  next_cursor:
+                    type:
+                      - string
+                      - 'null'
+                    description: Předejte zpět jako `cursor` pro načtení další stránky; `null`, pokud už žádné další stránky nejsou.
+              example:
+                success: true
+                messages:
+                  - message_id: "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"
+                    message_parts: 1
+                    ts_sent: "2026-07-30T10:00:01Z"
+                    ts_delivered: "2026-07-30T10:00:04Z"
+                    ts_updated: "2026-07-30T10:00:05Z"
+                    ts_clicked: null
+                    ts_seen: null
+                    ts_replied: null
+                    ts_optout: null
+                    sent: 1
+                    delivered: 1
+                    seen: 0
+                    clicked: 0
+                    replied: 0
+                    optout: 0
+                    nondelivered: 0
+                    body: "Hello world"
+                    flow: "sms"
+                    sender: "Mojefirma"
+                    phone_number: "420777123456"
+                    price_czk: "1.2"
+                    price_eur: "0.05"
+                next_cursor: null
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'date' or 'xapikey' in request data
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to read messages
+
+  /request:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Statistiky požadavku"
+      tags:
+        - status
+      summary: Získat statistiky požadavku
+      description: Vrací souhrnné statistiky jednoho odesílacího požadavku (`request_id`) pro zadané datum.
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Datum (`YYYY-MM-DD`).
+          example: "2026-07-30"
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Id požadavku.
+        - name: subid
+          in: query
+          required: false
+          schema:
+            type: string
+            default: default
+          description: Id podúčtu.
+      responses:
+        '200':
+          description: Statistiky požadavku
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  request:
+                    type:
+                      - object
+                      - 'null'
+                    description: '`null`, pokud pro zadané datum a id požadavku neexistují žádné statistiky.'
+                    properties:
+                      count_delivered:
+                        type: string
+                      count_nondelivered:
+                        type: string
+                      count_sent:
+                        type: string
+                      count_notsent:
+                        type: string
+                      count_replied:
+                        type: string
+                      count_optout:
+                        type: string
+                      msg_sent:
+                        type: string
+                      price_czk:
+                        type: string
+                      price_eur:
+                        type: string
+                      first_ts_sent:
+                        type:
+                          - string
+                          - 'null'
+                      last_ts_sent:
+                        type:
+                          - string
+                          - 'null'
+              example:
+                success: true
+                request:
+                  count_delivered: "120"
+                  count_nondelivered: "3"
+                  count_sent: "125"
+                  count_notsent: "2"
+                  count_replied: "5"
+                  count_optout: "1"
+                  msg_sent: "130"
+                  price_czk: "150.5"
+                  price_eur: "6.1"
+                  first_ts_sent: "2026-07-30T09:00:00Z"
+                  last_ts_sent: "2026-07-30T09:05:00Z"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'date' or 'request_id' in request data
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /requests:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Denní statistiky"
+      tags:
+        - status
+      summary: Získat agregované statistiky podle data
+      description: Vrací agregované statistiky odesílání seskupené podle data, pro jedno nebo více dat, volitelně filtrované podle tagu.
+      parameters:
+        - name: dates
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Seznam dat oddělených čárkou (`YYYY-MM-DD,YYYY-MM-DD,...`).
+          example: "2026-07-29,2026-07-30"
+        - name: subid
+          in: query
+          required: false
+          schema:
+            type: string
+            default: default
+          description: Id podúčtu.
+        - name: tag
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filtr podle tagu.
+      responses:
+        '200':
+          description: Agregované statistiky
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  requests:
+                    type: array
+                    description: Jedna položka za každé datum s daty (data bez záznamů jsou vynechána).
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                        tags:
+                          type: array
+                          items:
+                            type: string
+                          description: Tagy nalezené pro dané datum.
+                        stats:
+                          type: object
+                          properties:
+                            count_delivered:
+                              type: integer
+                            count_seen:
+                              type: integer
+                            count_clicked:
+                              type: integer
+                            count_nondelivered:
+                              type: integer
+                            count_sent:
+                              type: integer
+                            count_notsent:
+                              type: integer
+                            count_replied:
+                              type: integer
+                            count_optout:
+                              type: integer
+                            msg_sent:
+                              type: integer
+                            first_ts_sent:
+                              type:
+                                - string
+                                - 'null'
+                            last_ts_sent:
+                              type:
+                                - string
+                                - 'null'
+                            msg_mccmnc:
+                              type: object
+                              description: Počty zpráv podle mobilní sítě (MCC+MNC).
+                              additionalProperties:
+                                type: integer
+              example:
+                success: true
+                requests:
+                  - date: "2026-07-30"
+                    tags:
+                      - "newsletter"
+                      - "promo"
+                    stats:
+                      count_delivered: 120
+                      count_seen: 40
+                      count_clicked: 10
+                      count_nondelivered: 3
+                      count_sent: 125
+                      count_notsent: 2
+                      count_replied: 5
+                      count_optout: 1
+                      msg_sent: 130
+                      first_ts_sent: "2026-07-30T09:00:00Z"
+                      last_ts_sent: "2026-07-30T18:00:00Z"
+                      msg_mccmnc:
+                        "23001": 50
+                        "23002": 80
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'dates' or 'xapikey' in request data
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /inbox:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Přijaté zprávy"
+      tags:
+        - inbox
+      summary: Získat přijaté zprávy podle data
+      description: Vrací příchozí (přijaté) zprávy pro zadané datum.
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Datum (`YYYY-MM-DD`).
+          example: "2026-07-30"
+      responses:
+        '200':
+          description: Přijaté zprávy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  inbox:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ts_received:
+                          type: string
+                        body:
+                          type: string
+                        from:
+                          type: string
+                          description: Telefonní číslo odesílatele.
+                        to:
+                          type: string
+                          description: Vaše číslo příjemce/odesílatel.
+                        gateway:
+                          type: string
+                        payload:
+                          type:
+                            - object
+                            - 'null'
+                          description: Původní payload související odchozí zprávy, pokud existuje.
+              example:
+                success: true
+                inbox:
+                  - ts_received: "2026-07-30T11:22:33Z"
+                    body: "STOP"
+                    from: "420777123456"
+                    to: "Mojefirma"
+                    gateway: "sms"
+                    payload: null
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'date' or 'xapikey' in request data
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /blacklist:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Stáhnout blacklist"
+      tags:
+        - blacklist
+      summary: Stáhnout blacklist
+      description: Vrací předpodepsanou URL (platnou 60 sekund) pro stažení blacklistu ve formátu CSV.
+      parameters:
+        - name: subid
+          in: query
+          required: false
+          schema:
+            type: string
+            default: default
+          description: Id podúčtu.
+      responses:
+        '200':
+          description: URL ke stažení
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  url:
+                    type: string
+                    description: Předpodepsaná URL ke stažení, platná 60 sekund.
+              example:
+                success: true
+                url: "https://smsmngr-managed-contactlist.s3.amazonaws.com/...&X-Amz-Expires=60..."
+        '404':
+          description: Blacklist nenalezen (zatím nejsou uložena žádná čísla)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              example:
+                success: true
+                message: Blacklist not found
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              example:
+                success: false
+                message: Failed to generate download URL
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Přidat na blacklist"
+      tags:
+        - blacklist
+      summary: Přidat čísla na blacklist
+      description: |
+        Přidá telefonní čísla na blacklist účtu. Čísla jsou normalizována (českým 9místným mobilním číslům je předřazeno `420`) a zpracovávána asynchronně — volání vrací počet přijatých čísel.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - to
+              properties:
+                to:
+                  type: string
+                  description: Seznam telefonních čísel oddělených novým řádkem.
+                  example: "420777123456\n420777654321"
+                subid:
+                  type: string
+                  default: default
+                  description: Id podúčtu.
+            examples:
+              Add numbers:
+                value:
+                  to: "420777123456\n776654321"
+                  subid: "default"
+      responses:
+        '200':
+          description: Čísla přijata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  accepted:
+                    type: integer
+                    description: Počet přijatých unikátních platných čísel.
+                  invalid:
+                    type: array
+                    items:
+                      type: string
+                    description: Vstupní řádky, které se nepodařilo rozpoznat jako telefonní čísla.
+              example:
+                success: true
+                accepted: 2
+                invalid: []
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  invalid:
+                    type: array
+                    items:
+                      type: string
+              examples:
+                Missing to:
+                  value:
+                    success: false
+                    message: "Missing 'to'"
+                No valid numbers:
+                  value:
+                    success: false
+                    message: "No valid phone numbers"
+                    invalid:
+                      - "not-a-number"
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              example:
+                success: false
+                message: Enqueue failed
+    delete:
+      x-mint:
+        metadata:
+          sidebarTitle: "Odebrat z blacklistu"
+      tags:
+        - blacklist
+      summary: Odebrat čísla z blacklistu
+      description: 'Odebere konkrétní čísla z blacklistu, nebo pomocí `all: true` smaže celý seznam.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to:
+                  type: string
+                  description: Seznam čísel k odebrání oddělených novým řádkem. Povinné, pokud `all` není `true`.
+                all:
+                  type: boolean
+                  description: Pokud je `true`, smaže celý blacklist.
+                subid:
+                  type: string
+                  default: default
+                  description: Id podúčtu.
+            examples:
+              Remove numbers:
+                value:
+                  to: "420777123456"
+              Wipe list:
+                value:
+                  all: true
+      responses:
+        '200':
+          description: Čísla odebrána
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  blacklist:
+                    type: object
+                    properties:
+                      removed:
+                        type: integer
+                      remaining:
+                        type: integer
+                      invalid:
+                        type: array
+                        items:
+                          type: string
+                      wiped:
+                        type: boolean
+              examples:
+                Removed:
+                  value:
+                    success: true
+                    blacklist:
+                      removed: 1
+                      remaining: 5
+                      invalid: []
+                Wiped:
+                  value:
+                    success: true
+                    blacklist:
+                      wiped: true
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                blacklist:
+                  message: "Provide 'to' or 'all: true'"
+        '404':
+          description: Blacklist nenalezen
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                blacklist:
+                  message: Blacklist not found
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                blacklist:
+                  message: Delete failed
+
+  /optout:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Stáhnout opt-out"
+      tags:
+        - blacklist
+      summary: Stáhnout opt-out seznam
+      description: Vrací předpodepsanou URL (platnou 60 sekund) pro stažení opt-out seznamu ve formátu CSV. Opt-out seznam se uplatňuje na zprávy s tagem `promotional`.
+      parameters:
+        - name: subid
+          in: query
+          required: false
+          schema:
+            type: string
+            default: default
+          description: Id podúčtu.
+      responses:
+        '200':
+          description: URL ke stažení
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  url:
+                    type: string
+                    description: Předpodepsaná URL ke stažení, platná 60 sekund.
+              example:
+                success: true
+                url: "https://smsmngr-managed-contactlist.s3.amazonaws.com/...&X-Amz-Expires=60..."
+        '404':
+          description: Opt-out seznam nenalezen (zatím nejsou uložena žádná čísla)
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: true
+                message: Optout not found
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                message: Failed to generate download URL
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Přidat na opt-out"
+      tags:
+        - blacklist
+      summary: Přidat čísla na opt-out seznam
+      description: |
+        Přidá telefonní čísla na opt-out seznam účtu. Čísla jsou normalizována a zpracovávána asynchronně — volání vrací počet přijatých čísel.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - to
+              properties:
+                to:
+                  type: string
+                  description: Seznam telefonních čísel oddělených novým řádkem.
+                  example: "420777123456\n420777654321"
+                subid:
+                  type: string
+                  default: default
+                  description: Id podúčtu.
+            examples:
+              Add numbers:
+                value:
+                  to: "420777123456\n776654321"
+      responses:
+        '200':
+          description: Čísla přijata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  accepted:
+                    type: integer
+                  invalid:
+                    type: array
+                    items:
+                      type: string
+              example:
+                success: true
+                accepted: 2
+                invalid: []
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                type: object
+              examples:
+                Missing to:
+                  value:
+                    success: false
+                    message: "Missing 'to'"
+                No valid numbers:
+                  value:
+                    success: false
+                    message: "No valid phone numbers"
+                    invalid:
+                      - "not-a-number"
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                message: Enqueue failed
+    delete:
+      x-mint:
+        metadata:
+          sidebarTitle: "Odebrat z opt-out"
+      tags:
+        - blacklist
+      summary: Odebrat čísla z opt-out seznamu
+      description: 'Odebere konkrétní čísla z opt-out seznamu, nebo pomocí `all: true` smaže celý seznam.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to:
+                  type: string
+                  description: Seznam čísel k odebrání oddělených novým řádkem. Povinné, pokud `all` není `true`.
+                all:
+                  type: boolean
+                  description: Pokud je `true`, smaže celý opt-out seznam.
+                subid:
+                  type: string
+                  default: default
+                  description: Id podúčtu.
+            examples:
+              Remove numbers:
+                value:
+                  to: "420777123456"
+              Wipe list:
+                value:
+                  all: true
+      responses:
+        '200':
+          description: Čísla odebrána
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  optout:
+                    type: object
+                    properties:
+                      removed:
+                        type: integer
+                      remaining:
+                        type: integer
+                      invalid:
+                        type: array
+                        items:
+                          type: string
+                      wiped:
+                        type: boolean
+              examples:
+                Removed:
+                  value:
+                    success: true
+                    optout:
+                      removed: 1
+                      remaining: 5
+                      invalid: []
+                Wiped:
+                  value:
+                    success: true
+                    optout:
+                      wiped: true
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                optout:
+                  message: "Provide 'to' or 'all: true'"
+        '404':
+          description: Opt-out seznam nenalezen
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                optout:
+                  message: Optout not found
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                success: false
+                optout:
+                  message: Delete failed
+
+  /messaging/url:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "URL pro nahrání"
+      tags:
+        - messaging
+      summary: Získat URL pro hromadné nahrání
+      description: |
+        Vrací předpodepsanou URL pro nahrání (platnou 60 sekund) souboru s hromadnými zprávami. Soubor je JSONL (jedna JSON zpráva na řádek, stejný formát jako `Message` v JSON API v2) nebo gzipovaný JSONL. Soubor nahrajte metodou `PUT` s `Content-Type: application/jsonl` (pro `jsonl`) nebo `application/gzip` (pro `gz`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - bulk_id
+                - filetype
+              properties:
+                bulk_id:
+                  type: string
+                  description: Váš identifikátor hromadného nahrání.
+                filetype:
+                  type: string
+                  enum:
+                    - jsonl
+                    - gz
+                  description: Typ nahrávaného souboru.
+                datetime:
+                  type: string
+                  format: date-time
+                  description: Volitelný naplánovaný čas zpracování (UTC).
+            examples:
+              JSONL upload:
+                value:
+                  bulk_id: "batch-2026-07-30"
+                  filetype: "jsonl"
+              Scheduled gzip upload:
+                value:
+                  bulk_id: "batch-2026-07-31"
+                  filetype: "gz"
+                  datetime: "2026-07-31T08:00:00Z"
+      responses:
+        '200':
+          description: URL pro nahrání
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  url:
+                    type: string
+                    description: Předpodepsaná PUT URL, platná 60 sekund.
+              example:
+                success: true
+                url: "https://smsmngr-bulk-uploads.s3.amazonaws.com/...&X-Amz-Expires=60..."
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing fields:
+                  value:
+                    message: Missing 'bulk_id' or 'filetype' or 'datetime' in request data
+                Unsupported filetype:
+                  value:
+                    message: Unsupported filetype
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to generate upload URL
+
+  /messaging/cancel:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Zrušit plán"
+      tags:
+        - messaging
+      summary: Zrušit naplánovanou zprávu nebo hromadné nahrání
+      description: |
+        Zruší dříve naplánovanou jednotlivou zprávu (`message_id`) nebo naplánované hromadné nahrání (`bulk_id`). Uveďte právě jedno z obou polí.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message_id:
+                  type: string
+                  description: Id naplánované zprávy. Nekombinujte s `bulk_id`.
+                bulk_id:
+                  type: string
+                  description: Id naplánovaného hromadného nahrání. Nekombinujte s `message_id`.
+            examples:
+              Cancel message:
+                value:
+                  message_id: "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"
+              Cancel bulk:
+                value:
+                  bulk_id: "batch-2026-07-31"
+      responses:
+        '200':
+          description: Plán zrušen
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              example:
+                success: true
+                message: Schedule cancelled
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'message_id' or 'bulk_id' in request data
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to cancel schedule
+
+  /partner/signup:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Partnerská registrace"
+      tags:
+        - partner
+      summary: Zahájit partnerskou registraci
+      description: |
+        Zahájí onboarding v partnerském brandingu. Vrací podepsaný token (platný 1 hodinu) a hostovanou registrační URL, kde koncový uživatel dokončí registraci. Dostupné pouze pro partnerské účty.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                connector_name:
+                  type: string
+                  description: Název konektoru/integrace.
+                callback_url:
+                  type: string
+                  description: URL, kterou náš systém zavolá po dokončení registrace.
+                callback_data:
+                  type: string
+                  description: Neprůhledná data předaná zpět do callbacku.
+                final_url:
+                  type: string
+                  description: URL, na kterou je uživatel přesměrován po dokončení registrace.
+                partner_logo_url:
+                  type: string
+                  description: URL loga partnera zobrazeného na registrační stránce.
+                partner_client_id:
+                  type: string
+                  description: Váš identifikátor klienta.
+                partner_client_data:
+                  type: string
+                  description: Neprůhledná data klienta uložená k registraci.
+                language:
+                  type: string
+                  description: Jazyk registrační stránky.
+                partner_copyright:
+                  type: string
+                  description: Copyright/patičkový text zobrazený na registrační stránce.
+            examples:
+              Start signup:
+                value:
+                  connector_name: "My Shop"
+                  callback_url: "https://partner.example/callback"
+                  callback_data: "abc"
+                  final_url: "https://partner.example/done"
+                  partner_logo_url: "https://partner.example/logo.png"
+                  partner_client_id: "client-1"
+                  language: "en"
+                  partner_copyright: "© My Shop"
+      responses:
+        '200':
+          description: Registrace zahájena
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  token:
+                    type: string
+                    description: Podepsaný registrační token (platný 1 hodinu).
+                  domain:
+                    type: string
+                  redirect_url:
+                    type: string
+                    description: Hostovaná registrační URL pro koncového uživatele.
+              example:
+                success: true
+                token: "eyJhbGciOi..."
+                domain: "connect.smsmanager.com"
+                redirect_url: "https://connect.smsmanager.com/?configuration=eyJhbGciOi..."
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to new partner registration
+
+  /push/device:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Registrovat zařízení"
+      tags:
+        - partner
+      summary: Registrovat push zařízení
+      description: Registruje (nebo aktualizuje) zařízení pro push notifikace. Id zařízení již registrované jiným API klíčem nelze registrovat znovu.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - id
+                - token
+              properties:
+                id:
+                  type: string
+                  description: Id zařízení.
+                token:
+                  type: string
+                  description: Push token zařízení.
+            example:
+              id: "device-uuid-123"
+              token: "fcm-token-xyz"
+      responses:
+        '200':
+          description: Zařízení registrováno
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+              example:
+                success: true
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'id' or 'token' in request data
+        '403':
+          description: Zakázáno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Device is owned by another apikey
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /recipient/register:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Registrovat příjemce"
+      tags:
+        - partner
+      summary: Registrovat příjemce
+      description: |
+        Vytvoří nového příjemce (pokud je `id` vynecháno, vygeneruje se nové id) nebo aktualizuje telefonní číslo a push tokeny existujícího příjemce. Aktualizována jsou pouze zaslaná pole.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: Id příjemce. Vynechejte pro vytvoření nového příjemce.
+                phone_number:
+                  type: string
+                  description: Telefonní číslo příjemce.
+                fcm_token:
+                  type: string
+                  description: Push token pro Android (FCM).
+                apns_token:
+                  type: string
+                  description: Push token pro iOS (APNs).
+            examples:
+              New recipient:
+                value:
+                  phone_number: "420777123456"
+                  fcm_token: "fcm-abc"
+              Update recipient:
+                value:
+                  id: "b1f2c3d4-5678-90ab-cdef-1234567890ab"
+                  apns_token: "apns-xyz"
+      responses:
+        '200':
+          description: Příjemce registrován
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  recipient:
+                    type: string
+                    description: Id příjemce.
+              example:
+                success: true
+                recipient: "b1f2c3d4-5678-90ab-cdef-1234567890ab"
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to register recipient
+
+  /connect/{connector}/{action}:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Akce konektoru"
+      tags:
+        - partner
+      summary: Akce konektoru
+      description: |
+        Provede akci připojené integrace. Aktuálně je podporován konektor `klaviyo` s akcemi `segments`, `recipients`, `senders` a `me`.
+
+        - `segments` — vypíše segmenty účtu: `{ "success": true, "segments": [{ "id", "name" }] }`
+        - `recipients` — vypíše telefonní čísla v segmentu (vyžaduje pole `segment_id` v těle požadavku): `{ "success": true, "recipients": ["420777123456"] }`
+        - `senders` — vypíše dostupné odesílatele: `{ "success": true, "senders": [{ "type": "sms", "name": "info-sms" }] }`
+        - `me` — vrací informace o připojeném účtu: `{ "success": true, "account": { ... }, "currency": "eur" }`
+      parameters:
+        - name: connector
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - klaviyo
+          description: Název konektoru.
+        - name: action
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - segments
+              - recipients
+              - senders
+              - me
+          description: Akce konektoru.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - app_userid
+              properties:
+                app_userid:
+                  type: string
+                  description: Id uživatele aplikace připojeného účtu.
+                segment_id:
+                  type: string
+                  description: Id segmentu (povinné pro akci `recipients`).
+            examples:
+              List segments:
+                value:
+                  app_userid: "user-123"
+              List recipients of a segment:
+                value:
+                  app_userid: "user-123"
+                  segment_id: "SEG123"
+      responses:
+        '200':
+          description: Výsledek akce (tvar závisí na akci)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+              examples:
+                Segments:
+                  value:
+                    success: true
+                    segments:
+                      - id: "SEG123"
+                        name: "VIP customers"
+                Recipients:
+                  value:
+                    success: true
+                    recipients:
+                      - "420777123456"
+                      - "420777000111"
+                Not authenticated:
+                  value:
+                    success: false
+                    message: "Klaviyo request not authenticated"
+        '400':
+          description: Špatný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Invalid 'app_userid' in request data
+        '404':
+          description: Nepodporovaný konektor nebo akce
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Unsupported connector or action
+
+
+tags:
+  - name: api
+    x-displayName: API klíče
+    x-group: "API klíče"
+    description: |
+      Správa API klíčů: profil aktuálního klíče, vytváření a správa podřízených klíčů.
+  - name: credit
+    x-displayName: Kredit
+    x-group: "Kredit"
+    description: |
+      Stav kreditu, ceník, objednatelné služby a upozornění na nízký kredit.
+  - name: billing
+    x-displayName: Fakturace
+    x-group: "Fakturace"
+    description: |
+      Fakturační kontakt, faktury a dobití kreditu bankovním převodem.
+  - name: status
+    x-displayName: Stav zpráv
+    x-group: "Stav zpráv"
+    description: |
+      Stav odeslaných zpráv a agregované statistiky odesílání.
+  - name: inbox
+    x-displayName: Přijaté zprávy
+    x-group: "Přijaté zprávy"
+    description: |
+      Přijaté (příchozí) zprávy.
+  - name: blacklist
+    x-displayName: Blacklist a Opt-out
+    x-group: "Blacklist a Opt-out"
+    description: |
+      Spravované kontaktní seznamy. Blacklist blokuje všechny zprávy na uvedená čísla; opt-out seznam blokuje zprávy s tagem `promotional`.
+  - name: messaging
+    x-displayName: Hromadné odesílání
+    x-group: "Hromadné odesílání"
+    description: |
+      Podpůrné endpointy pro hromadné odesílání: URL pro nahrání hromadných souborů a rušení naplánovaných zpráv.
+  - name: partner
+    x-displayName: Partneři a integrace
+    x-group: "Partneři a integrace"
+    description: |
+      Partnerský onboarding, integrace konektorů a registrace push zařízení/příjemců.

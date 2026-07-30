@@ -8,7 +8,7 @@ SmsManager uses API key authentication for all requests. Every call to the JSON 
 
 ## Getting your API key
 
-Log in to your SmsManager account and go to the [API & Cloud](https://app.smsmanager.com/app/developers/apikeys) page. Your primary API key is displayed there. Copy it and store it somewhere secure — you'll use it in every request you make to the API.
+Log in to your SmsManager account and go to the [API & Cloud](https://app.smsmanager.com/api-cloud) page. Your primary API key is displayed there. Copy it and store it somewhere secure — you'll use it in every request you make to the API.
 
 <Tip>
   You can create additional sub-keys with isolated or shared credit through the REST API. See [Managing API keys](#managing-api-keys) below for details.
@@ -47,7 +47,7 @@ https://api.smsmngr.com/v2/simple/message?apikey=YOUR_API_KEY&phone_number=42077
 
 ## Managing API keys
 
-You can create and manage sub-keys programmatically through the [REST API](/en/api-reference/rest/overview). Sub-keys are useful when you run multiple integrations or services and want to track usage or revoke access independently.
+You can create and manage sub-keys programmatically through the [REST API](/api-reference/rest/overview). Sub-keys are useful when you run multiple integrations or services and want to track usage or revoke access independently.
 
 When creating a sub-key you can configure:
 
@@ -66,7 +66,7 @@ Follow these guidelines to keep your API keys and your users' data safe:
 
 - **Never hardcode API keys in client-side code** — keys embedded in browser JavaScript, mobile apps, or public repositories can be extracted and abused
 - **Use environment variables** — load keys from environment variables or a secrets manager (e.g. AWS Secrets Manager, HashiCorp Vault) rather than committing them to source control
-- **Rotate keys if compromised** — if you suspect a key has been leaked, create a new one immediately via [app.smsmanager.com/app/developers/apikeys](https://app.smsmanager.com/app/developers/apikeys) or the REST API, update your integrations, and delete the old key
+- **Rotate keys if compromised** — if you suspect a key has been leaked, create a new one immediately via [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud) or the REST API, update your integrations, and delete the old key
 - **Use sub-keys per integration** — assign a dedicated sub-key to each service or environment (production, staging, etc.) so you can revoke a single key without disrupting everything else
 
 ## Authentication errors

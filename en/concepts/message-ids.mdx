@@ -113,7 +113,7 @@ GET https://rest-api.smsmngr.com/v1/message?id=pppppppp-qqqq-rrrr-ssss-ttttttttt
 
 ### Correlating webhook events
 
-When SmsManager sends a delivery notification to your [webhook callback URL](/en/api-reference/json-v2/webhooks), the payload includes the `message_id` of the delivered message. Match this value against the IDs you stored at send time to update your own delivery records.
+When SmsManager sends a delivery notification to your [webhook callback URL](/api-reference/json-v2/webhooks), the payload includes the `message_id` of the delivered message. Match this value against the IDs you stored at send time to update your own delivery records.
 
 ```json
 {

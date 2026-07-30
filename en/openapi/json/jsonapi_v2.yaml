@@ -2,13 +2,13 @@ openapi: 3.1.0
 info:
   title: JSON API
   description: |
-    API for sending messages via SMS, Viber, WhatsApp and other communication channels.
+    API for sending messages via SMS, Viber, WhatsApp, RCS and other communication channels.
 
     ## JSON API v2
 
-    API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/app/developers/apikeys).
+    API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
 
-    API versions (http-api and xml-api) are deprecated also and you should use this JSON API v2 instead.
+    Older API versions (http-api and xml-api) are deprecated and you should use this JSON API v2 instead.
   version: v2
   contact:
     url: https://smsmanager.cz
@@ -23,13 +23,12 @@ components:
     Message:
       type: object
       required:
-        - body
         - to
       properties:
         body:
           type: string
           maxLength: 1000
-          description: The message body (if not defined in the flow).
+          description: The message body (if not defined in the flow). The body is required either here in the root object or in the flow step. Longer bodies are truncated to 1000 characters.
         to:
           type: array
           minItems: 1
@@ -44,24 +43,65 @@ components:
                 example: "420777123456"
             required:
               - phone_number
-        callback:
+        sender:
           type: string
-          format: uri
-          description: Callback URL for receiving delivery notifications (Webhook, see [Webhooks](#tag/Webhooks)).
+          description: Default sender for all flow steps. If a flow step defines its own `sender`, the flow step value has higher priority. Alphanumeric sender name (max. 11 characters, pre-registration may be required) or dedicated virtual number (without `+`).
+          examples:
+            - Mojefirma
+            - "420777123456"
+        callback:
+          oneOf:
+            - type: string
+              format: uri
+            - type: object
+          description: Callback URL for receiving delivery notifications (Webhook, see [Webhooks](#tag/Webhooks)). You can pass a plain URL string or an object with extended callback configuration.
         tag:
           type: string
           default: 'promotional'
-          description: 'Tag for the message. You can use it to group messages (e.g. by campaign id). There are also some special tags you can use: `priority` (for priority messages), `transactional` (for transactional messages).'
+          description: 'Tag for the message. You can use it to group messages (e.g. by campaign id). Multiple tags can be passed separated by comma. Tags are normalized to lowercase and only characters `a-z`, `0-9`, `-`, `.` and `_` are kept. There are also some special tags you can use: `priority` (for priority messages), `transactional` (for transactional messages). Messages with the default `promotional` tag are checked against the recipient opt-out list.'
+        messageTag:
+          type: string
+          deprecated: true
+          description: Deprecated alias of `tag`. Use `tag` instead.
         params:
           type: object
-          description: 'By providing this object, you can pass special parameters to the message. Ask us how to use this parameter for shortening links or other features.'
+          description: 'By providing this object, you can pass special parameters to the message, e.g. automatic link shortening via the `_url` object. Ask us how to use this parameter for other features.'
+          properties:
+            _url:
+              type: object
+              description: Automatic link shortening. Links found in the message body are replaced by short redirect links.
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - full
+                    - all
+                  default: full
+                  description: '`full` shortens only complete URLs including the protocol (e.g. `https://example.com/page`). `all` shortens all detected domains and addresses.'
+                domain:
+                  type: string
+                  description: Custom domain used for the shortened links (must be pre-configured for your account).
+                get_enhance:
+                  type: string
+                  enum:
+                    - id
+                  description: If set to `id`, the unique `message_id` is appended to the shortened link as a query parameter, so you can identify the recipient after the click.
+                get_name:
+                  type: string
+                  default: '_'
+                  description: Name of the query parameter used by `get_enhance`.
+                expires_at:
+                  type: integer
+                  description: Unix timestamp of the shortened link expiration. Defaults to 7 days from now. (Deprecated alias `expires` is still accepted.)
+                  example: 1736589600
         datetime:
           type: string
           format: date-time
-          description: Scheduled time for sending the message. Always in UTC timezone.
+          description: Scheduled time for sending the message. Always in UTC timezone. If the time is more than 1 minute in the future, the message is scheduled and processed at the given time. Times in the past are sent immediately.
           example: "2025-01-11T10:00:00Z"
         delivery_time:
           type: object
+          description: Allowed delivery window. If the current (or scheduled) time is outside the window, sending is moved to the nearest valid time.
           properties:
             days:
               type: array
@@ -75,23 +115,24 @@ components:
                   - friday
                   - saturday
                   - sunday
-              description: Days of the week for the scheduled time.
+              description: Days of the week when delivery is allowed.
             start:
               type: string
-              description: Start time for the scheduled time.
+              description: Start time of the delivery window.
               example: 08:00
             end:
               type: string
-              description: End time for the scheduled time.
+              description: End time of the delivery window.
               example: 21:00
             tz:
               type: string
-              description: Timezone for the scheduled time.
+              description: Timezone of the delivery window.
               example: Europe/Prague, Europe/London, Europe/Berlin, America/New_York
               default: UTC
         flow:
           type: array
-          description: A list of communication channels for the message flow. If defined, must not be empty. You can use multiple channels, the order of channels is important (first channel is the first to be used, if the first channel is not available or recipient does not accept it, the second channel is used, etc.).
+          description: |
+            A list of communication channels for the message flow. If defined, must not be empty. You can use multiple channels, the order of channels is important (first channel is the first to be used; when the step defines `ttl` and its `ttl_condition` is not met within the TTL, the next channel is used, etc.). If `flow` is not defined, the default `[{"sms": {"gateway": "high"}}]` is used.
           items:
             type: object
             additionalProperties: false
@@ -107,7 +148,7 @@ components:
                     description: This definition of message body here have higher priority than the one defined in the root object.
                   sender:
                     type: string
-                    description: Alphanumeric sender name (max. 11 characters, pre-registration may be required) or dedicated virtual number (without `+`).
+                    description: Alphanumeric sender name (max. 11 characters, pre-registration may be required) or dedicated virtual number (without `+`). If not set, the root object `sender` is used.
                     examples:
                       - Mojefirma
                       - 420777123456
@@ -115,13 +156,25 @@ components:
                     type: string
                     enum:
                       - high
+                      - lowcost
                       - direct
                       - custom
+                      - simhost
+                      - gsm
                     default: high
-                    description: Use `direct` if you use dedicated virtual number. Use `custom` if you use SIM hosting. 
+                    description: Use `high` for the default high-quality routing, `lowcost` for low-cost routing. Use `direct` if you use dedicated virtual number. Use `custom` or `simhost` if you use SIM hosting, `gsm` for your own GSM gateway.
                   ttl:
-                    type: integer
-                    description: Time to live in minutes.
+                    type: number
+                    minimum: 0.5
+                    description: Time to live in minutes. When the next flow step is defined and the `ttl_condition` is not met within the TTL, the message continues with the next flow step.
+                  ttl_condition:
+                    type: string
+                    enum:
+                      - sent
+                      - delivered
+                      - seen
+                    default: sent
+                    description: Condition evaluated after the TTL expires. If the message already reached this state, the next flow step is not used.
                   type:
                     type: string
                     enum:
@@ -156,8 +209,17 @@ components:
                           type: string
                           format: uri
                   ttl:
-                    type: integer
-                    description: Time to live in minutes.
+                    type: number
+                    minimum: 0.5
+                    description: Time to live in minutes. When the next flow step is defined and the `ttl_condition` is not met within the TTL, the message continues with the next flow step.
+                  ttl_condition:
+                    type: string
+                    enum:
+                      - sent
+                      - delivered
+                      - seen
+                    default: delivered
+                    description: Condition evaluated after the TTL expires. If the message already reached this state, the next flow step is not used.
                 required:
                   - body
                   - sender
@@ -210,19 +272,52 @@ components:
                       - cs
                     description: The language of the template (you can have multiple languages for the same template).
                   ttl:
-                    type: integer
-                    description: Time to live in minutes.
+                    type: number
+                    minimum: 0.5
+                    description: Time to live in minutes. When the next flow step is defined and the `ttl_condition` is not met within the TTL, the message continues with the next flow step.
+                  ttl_condition:
+                    type: string
+                    enum:
+                      - sent
+                      - delivered
+                      - seen
+                    default: delivered
+                    description: Condition evaluated after the TTL expires. If the message already reached this state, the next flow step is not used.
                 required:
                   - template_name
                   - language
                   - sender
+              rcs:
+                type: object
+                properties:
+                  body:
+                    type: string
+                    maxLength: 1000
+                    description: This definition of message body here have higher priority than the one defined in the root object.
+                  sender:
+                    type: string
+                    description: Use the RCS agent you have pre-registered for your account.
+                  ttl:
+                    type: number
+                    minimum: 0.5
+                    description: Time to live in minutes. When the next flow step is defined and the `ttl_condition` is not met within the TTL, the message continues with the next flow step.
+                  ttl_condition:
+                    type: string
+                    enum:
+                      - sent
+                      - delivered
+                      - seen
+                    default: delivered
+                    description: Condition evaluated after the TTL expires. If the message already reached this state, the next flow step is not used.
+                required:
+                  - body
         payload:
           type: object
           description: |
             You can send the message payload, where you can define any parameters for the message. This object is returned in the delivery notification and replies.
           example:
             user_id: "123456"
-    
+
     MessagesResponse:
       type: object
       properties:
@@ -248,7 +343,7 @@ components:
               key:
                 type: string
                 description: 'Index of the original request from the body array.'
-      
+
     MessageResponse:
       type: object
       properties:
@@ -303,13 +398,16 @@ components:
 paths:
   /message:
     post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Send message"
       security:
-        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/app/developers/apikeys).
+        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
       tags:
         - sending
       summary: Send a message
       description: |
-        Use this endpoint to send a message to one or more recipients (up to 10 recipients). If you want to use channels other than SMS (Viber, WhatsApp, etc.), you need to use the `flow` property.
+        Use this endpoint to send a message to one or more recipients (up to 10 recipients). If you want to use channels other than SMS (Viber, WhatsApp, RCS, etc.), you need to use the `flow` property.
       requestBody:
         required: true
         content:
@@ -332,12 +430,42 @@ paths:
                         sender: "SmsManager"
                         gateway: "high"
                         ttl: 10
+              Flow fallback Viber to SMS:
+                description: The message is first sent via Viber. If it is not delivered within 10 minutes, it is sent again as SMS.
+                value:
+                  to:
+                    - phone_number: "420777123456"
+                  flow:
+                    - viber:
+                        body: "Your order is ready for pickup"
+                        sender: "Mojefirma"
+                        ttl: 10
+                        ttl_condition: "delivered"
+                    - sms:
+                        body: "Your order is ready for pickup"
+                        sender: "Mojefirma"
               Scheduled message:
                 value:
                   body: "Meeting reminder"
                   to:
                     - phone_number: "420777123456"
                   datetime: "2025-01-11T10:00:00Z"
+              Message with delivery window:
+                description: The message is delivered only on workdays between 8:00 and 21:00 Prague time. Outside of this window the sending is moved to the nearest valid time.
+                value:
+                  body: "New products in our store!"
+                  to:
+                    - phone_number: "420777123456"
+                  delivery_time:
+                    days:
+                      - monday
+                      - tuesday
+                      - wednesday
+                      - thursday
+                      - friday
+                    start: "08:00"
+                    end: "21:00"
+                    tz: "Europe/Prague"
               Message with callback and payload:
                 value:
                   body: "Order shipped"
@@ -346,6 +474,18 @@ paths:
                   callback: "https://example.com/delivery"
                   payload:
                     order_id: "ORD-1001"
+              Message with link shortening:
+                description: The link in the body is replaced by a short redirect link with the `message_id` appended as the `c` query parameter.
+                value:
+                  body: "Rate your purchase at https://example.com/review"
+                  to:
+                    - phone_number: "420777123456"
+                  params:
+                    _url:
+                      type: "full"
+                      get_enhance: "id"
+                      get_name: "c"
+                      expires_at: 1736589600
               Unicode SMS with custom TTL:
                 value:
                   body: "Привет, Ваш код: 1234"
@@ -364,7 +504,83 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MessageResponse'
+              examples:
+                Accepted message:
+                  value:
+                    request_id: "66666666-6666-6666-6666-666666666666"
+                    accepted:
+                      - key: "0"
+                        message_id: "pppppppp-qqqq-rrrr-ssss-tttttttttttt"
+                    rejected: []
+                Partially rejected:
+                  value:
+                    request_id: "77777777-7777-7777-7777-777777777777"
+                    accepted:
+                      - key: "0"
+                        message_id: "pppppppp-qqqq-rrrr-ssss-tttttttttttt"
+                    rejected:
+                      - key: "1"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Message:
+                    type: string
+                    description: Error message.
+                    example: User is not authorized to access this resource with an explicit deny
 
+  /message/priority:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Priority message"
+      security:
+        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+      tags:
+        - sending
+      summary: Send a priority message
+      description: |
+        Same as `/message`, but the message is processed by the priority queue. Use it for time-critical messages (one-time passwords, transactional notifications). The request and response format is identical to `/message`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Message'
+            examples:
+              One-time password:
+                value:
+                  body: "Your verification code is 123456"
+                  to:
+                    - phone_number: "420777123456"
+                  tag: "transactional"
+              Transactional notification with flow:
+                value:
+                  to:
+                    - phone_number: "420777123456"
+                  tag: "transactional"
+                  flow:
+                    - sms:
+                        body: "Your payment was received."
+                        sender: "Mojefirma"
+      responses:
+        '200':
+          description: Messages sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                Accepted message:
+                  value:
+                    request_id: "66666666-6666-6666-6666-666666666666"
+                    accepted:
+                      - key: "0"
+                        message_id: "pppppppp-qqqq-rrrr-ssss-tttttttttttt"
+                    rejected: []
         '400':
           description: Bad request
           content:
@@ -379,8 +595,11 @@ paths:
 
   /messages:
     post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Send multiple"
       security:
-        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/app/developers/apikeys).
+        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
       tags:
         - sending
       summary: Send multiple messages
@@ -441,6 +660,7 @@ paths:
                       - whatsapp_template:
                           template_name: "order_update"
                           sender: "447700900123"
+                          language: "en"
                           params:
                             - "John"
                             - "12345"
@@ -450,6 +670,7 @@ paths:
                       - whatsapp_template:
                           template_name: "order_update"
                           sender: "447700900123"
+                          language: "en"
                           params:
                             - "Jane"
                             - "54321"
@@ -498,32 +719,70 @@ paths:
 
   /simple/message:
     get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Simple send (GET)"
       security:
-        - apikey: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/app/developers/apikeys).
+        - apikey: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
       tags:
         - sending
       summary: Send a simple message (GET request)
+      description: |
+        Simplified sending of a single SMS via query string parameters. Use `/message` for the full feature set (flows, multiple recipients, delivery window, ...).
       parameters:
         - name: apikey
           in: query
           required: true
           schema:
             type: string
+          description: Your API key.
         - name: phone_number
           in: query
           required: true
           schema:
             type: string
+          description: Recipient's phone number (alias `number` is also accepted).
+          example: "420777123456"
         - name: message
           in: query
           required: true
           schema:
             type: string
+          description: The message body (alias `body` is also accepted).
         - name: sender
           in: query
           required: true
           schema:
             type: string
+          description: Sender name or virtual number (pre-registration may be required).
+        - name: gateway
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - high
+              - lowcost
+              - direct
+              - custom
+              - simhost
+              - gsm
+            default: high
+          description: SMS gateway used for sending.
+        - name: datetime
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Scheduled time for sending the message, in UTC (alias `time` is also accepted).
+          example: "2025-01-11T10:00:00Z"
+        - name: customID
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Your custom identifier of the message. It is stored in the message `payload` (as `customID`) and returned in delivery notifications.
       responses:
         '200':
           description: Simple message sent successfully
@@ -559,11 +818,16 @@ paths:
           description: Invalid request
 
     post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Simple send (POST)"
       security:
-        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/app/developers/apikeys).
+        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
       tags:
         - sending
       summary: Send a simple message (POST request)
+      description: |
+        Simplified sending of a single SMS via form parameters. Use `/message` for the full feature set (flows, multiple recipients, delivery window, ...).
       requestBody:
         required: true
         content:
@@ -577,10 +841,51 @@ paths:
               properties:
                 phone_number:
                   type: string
+                  description: Recipient's phone number (alias `number` is also accepted).
+                  example: "420777123456"
                 message:
                   type: string
+                  description: The message body (alias `body` is also accepted).
                 sender:
                   type: string
+                  description: Sender name or virtual number (pre-registration may be required).
+                gateway:
+                  type: string
+                  enum:
+                    - high
+                    - lowcost
+                    - direct
+                    - custom
+                    - simhost
+                    - gsm
+                  default: high
+                  description: SMS gateway used for sending.
+                datetime:
+                  type: string
+                  format: date-time
+                  description: Scheduled time for sending the message, in UTC (alias `time` is also accepted).
+                  example: "2025-01-11T10:00:00Z"
+                customID:
+                  type: string
+                  description: Your custom identifier of the message. It is stored in the message `payload` (as `customID`) and returned in delivery notifications.
+            examples:
+              Basic message:
+                value:
+                  phone_number: "420777123456"
+                  message: "Test message"
+                  sender: "Mojefirma"
+              Message with customID:
+                value:
+                  phone_number: "420777123456"
+                  message: "Order confirmed"
+                  sender: "Mojefirma"
+                  customID: "ORD-1001"
+              Scheduled message:
+                value:
+                  phone_number: "420777123456"
+                  message: "Meeting reminder"
+                  sender: "Mojefirma"
+                  datetime: "2025-01-11T10:00:00Z"
       responses:
         '200':
           description: Simple message sent successfully
@@ -671,6 +976,7 @@ x-webhooks:
                       - viber
                       - whatsapp_text
                       - whatsapp_template
+                      - rcs
                     example: sms
                   timestamp:
                     type: integer
@@ -701,7 +1007,15 @@ x-webhooks:
                       - seen
                   result_info:
                     type: string
-                    description: Additional result code for the message in format "[code] Description". Code is optional, description is also optional. Result info can also contain only code inside square brackets or only description without code.
+                    description: |
+                      Additional result code for the message in format "[code] Description". Code is optional, description is also optional. Result info can also contain only code inside square brackets or only description without code.
+
+                      Common rejection codes:
+                      - `[302]` Invalid phone number format
+                      - `[303]` Phone number is not in allowed list
+                      - `[304]` Phone number is blacklisted or opted-out
+                      - `[306]` Too many identical messages for the same recipient
+                      - `[307]` Insufficient credit
                     examples:
                       - "[307] Insufficient credit"
                       - "[131042] There was an error related to your payment method"
@@ -808,6 +1122,17 @@ x-webhooks:
                       phone_number: "420777123456"
                     result: delivered
                     result_info: "[0] Delivered"
+              Message rejected insufficient credit:
+                value:
+                  - request_id: "bc36f3d1-d284-463a-921b-a3560c154649"
+                    message_id: "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"
+                    gateway: sms
+                    timestamp: 1700000000
+                    type: outgoing
+                    to:
+                      phone_number: "420777123456"
+                    result: rejected
+                    result_info: "[307] Insufficient credit"
   incomingReplyMessage:
     post:
       tags:
@@ -929,6 +1254,6 @@ tags:
     description: |
       For sending messages use one of the following endpoints.
       - `/message` for sending a message up to 10 recipients
+      - `/message/priority` for sending a priority message (processed by the priority queue)
       - `/messages` for sending multiple messages (up to 10 messages at once)
       - `/simple/message` for sending a simple message (GET and POST)
-

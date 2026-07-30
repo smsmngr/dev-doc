@@ -1,0 +1,158 @@
+---
+title: "Sending result webhook"
+sidebarTitle: "Sending result"
+description: "The sentMessage webhook — SmsManager pushes an HTTP POST to your callback URL whenever the status of an outbound message changes, from sent through to the final delivery result."
+---
+
+When you send a message through the JSON API v2, SmsManager reports back the outcome with the `sentMessage` webhook. It pushes an HTTP `POST` to your callback URL whenever the status of an outbound message changes — you typically receive an initial `sent` or `sending` event shortly after the API call, followed by a final delivery status such as `delivered` or `undelivered`.
+
+You set the destination either per message (via the `callback` field) or at the account level with a default callback URL.
+
+<Tip>
+  Webhook payloads are always arrays. Even a single-event delivery is wrapped in `[...]`, and SmsManager may batch multiple events into one POST. Make sure your handler loops over each item in the array, and always return `HTTP 200` to acknowledge receipt.
+</Tip>
+
+## Field reference
+
+<ResponseField name="request_id" type="string">
+  The unique identifier of the original API request that sent this message.
+
+  Example: `"bc36f3d1-d284-463a-921b-a3560c154649"`
+</ResponseField>
+
+<ResponseField name="message_id" type="string">
+  Unique identifier for this message. When the message was sent via `POST /messages`, this ID has the form `<base_id>-<recipient_index>` (e.g. `e27ff0ac-87b5-4e1d-b644-5fc6029e2a11-0`).
+
+  Example: `"e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"`
+</ResponseField>
+
+<ResponseField name="gateway" type="string">
+  The channel that delivered (or attempted to deliver) the message. One of: `sms`, `viber`, `whatsapp_text`, `whatsapp_template`, `rcs`.
+</ResponseField>
+
+<ResponseField name="timestamp" type="integer">
+  Unix timestamp of the status event.
+
+  Example: `1700000000`
+</ResponseField>
+
+<ResponseField name="payload" type="object">
+  The custom `payload` object you attached to the original message request, echoed back unchanged. Use this to correlate the event with your own records.
+
+  Example: `{ "campaign_id": "winter-sale" }`
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Always `"outgoing"` for `sentMessage` events.
+</ResponseField>
+
+<ResponseField name="to" type="object">
+  The recipient for this event.
+
+  <Expandable title="to fields">
+    <ResponseField name="phone_number" type="string">
+      The recipient's phone number in international format.
+
+      Example: `"420777123456"`
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="result" type="string">
+  The current delivery status of the message. Possible values:
+
+  | Value | Meaning |
+  | --- | --- |
+  | `sending` | The message is being transmitted to the carrier. |
+  | `sent` | The message has been accepted by the carrier. |
+  | `delivered` | The carrier confirmed delivery to the recipient's device. |
+  | `seen` | The recipient opened the message (Viber / WhatsApp only). |
+  | `undelivered` | Delivery failed after the message was sent. |
+  | `rejected` | The message was rejected before sending (e.g. invalid number, insufficient credit). |
+  | `failed` | An unexpected error occurred. |
+</ResponseField>
+
+<ResponseField name="result_info" type="string">
+  A human-readable description of the result, optionally prefixed with a numeric code in square brackets. Examples: `"[0] Delivered"`, `"[307] Insufficient credit"`, `"[131042] There was an error related to your payment method"`, `"Unauthorized error"`.
+</ResponseField>
+
+<ResponseField name="sms" type="object">
+  Present when `gateway` is `sms`. Contains billing and routing details for this SMS.
+
+  <Expandable title="sms fields">
+    <ResponseField name="gateway" type="string">
+      The specific gateway settings used (e.g. `high`, `direct`, `custom`).
+    </ResponseField>
+
+    <ResponseField name="sender" type="string">
+      The sender name or number used for this message.
+    </ResponseField>
+
+    <ResponseField name="country" type="integer">
+      The destination country identified by its official MCC (Mobile Country Code).
+    </ResponseField>
+
+    <ResponseField name="operator" type="integer">
+      The destination operator identified by its official MNC (Mobile Network Code). `0` means unknown or a general operator.
+    </ResponseField>
+
+    <ResponseField name="price_czk" type="number">
+      Price of this message in Czech Koruna (CZK).
+    </ResponseField>
+
+    <ResponseField name="price_eur" type="number">
+      Price of this message in Euro (EUR).
+    </ResponseField>
+
+    <ResponseField name="count" type="integer">
+      Number of billing segments sent (a long SMS is split into multiple segments).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="viber" type="object">
+  Present when `gateway` is `viber`. Contains the same sub-fields as the `sms` object: `sender`, `country`, `operator`, `price_czk`, `price_eur`, `count`.
+</ResponseField>
+
+<ResponseField name="whatsapp_template" type="object">
+  Present when `gateway` is `whatsapp_template`. Contains the same sub-fields as the `sms` object: `sender`, `country`, `operator`, `price_czk`, `price_eur`, `count`.
+</ResponseField>
+
+<ResponseField name="whatsapp_body" type="object">
+  Present when `gateway` is `whatsapp_text`. Contains the same sub-fields as the `sms` object: `sender`, `country`, `operator`, `price_czk`, `price_eur`, `count`.
+</ResponseField>
+
+## Example payload
+
+```json
+[
+  {
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+    "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+    "gateway": "sms",
+    "timestamp": 1700000000,
+    "payload": {
+      "campaign_id": "winter-sale"
+    },
+    "type": "outgoing",
+    "to": {
+      "phone_number": "420777123456"
+    },
+    "result": "delivered",
+    "result_info": "[0] Delivered",
+    "sms": {
+      "gateway": "high",
+      "sender": "MySender",
+      "country": 230,
+      "operator": 2,
+      "price_czk": 0.85,
+      "price_eur": 0.034,
+      "count": 1
+    }
+  }
+]
+```
+
+<Note>
+  Looking for inbound webhooks? The `incomingReplyMessage` and `incomingMessage` events are documented in the [Webhooks reference](/api-reference/json-v2/webhooks) and the [Webhooks guide](/guides/webhooks).
+</Note>

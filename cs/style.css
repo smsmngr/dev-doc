@@ -117,3 +117,13 @@ body {
   letter-spacing: 0.09em;
   white-space: nowrap;
 }
+
+/* ── Wider left navigation (desktop) ───────────────────────────
+   The endpoint/nav column is Mintlify's w-56 (14rem) by default, which
+   truncates longer endpoint labels. Widen it to 18rem. Desktop only
+   (≥1024px); on mobile the sidebar is a hidden drawer. */
+@media (min-width: 1024px) {
+  #sidebar-content {
+    width: 18rem !important;
+  }
+}

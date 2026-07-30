@@ -27,6 +27,9 @@ security:
 paths:
   /v1/verify-proof:
     post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Verify proof"
       summary: Verify HMAC proof
       description: |
         Verifies an HMAC proof for phone validation without storing any state.
@@ -125,6 +128,9 @@ paths:
 
   /v1/validations:
     post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Start validation"
       summary: Start phone validation
       description: |
         Initiates a new phone number validation by sending an message with a verification code.
@@ -184,6 +190,9 @@ paths:
 
   /v1/validations/{token}/verify:
     post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Verify code"
       summary: Verify code
       description: |
         Verifies the code entered by the user. On successful verification, returns all data needed
@@ -256,6 +265,9 @@ paths:
 
   /v1/validations/{token}:
     patch:
+      x-mint:
+        metadata:
+          sidebarTitle: "Proof (optional)"
       summary: Verify proof (optional)
       description: |
         Optional endpoint to verify a proof hash from a previous successful validation.

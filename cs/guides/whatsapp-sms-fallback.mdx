@@ -6,13 +6,13 @@ description: "Odešlete WhatsApp zprávu, která automaticky přejde na SMS, pok
 
 Tento návod ukazuje, jak odeslat WhatsApp zprávu s automatickou SMS zálohou pomocí pole `flow` v JSON API v2. SmsManager se nejprve pokusí doručit přes WhatsApp a v případě selhání automaticky přejde na SMS — bez psaní vlastní logiky pro opakování.
 
-Návod předpokládá, že už umíte odeslat základní zprávu a máte API klíč. Pokud teprve začínáte s WhatsAppem, projděte nejdřív [Odeslání WhatsApp zprávy](/cs/guides/send-whatsapp).
+Návod předpokládá, že už umíte odeslat základní zprávu a máte API klíč. Pokud teprve začínáte s WhatsAppem, projděte nejdřív [Odeslání WhatsApp zprávy](/guides/send-whatsapp).
 
 ## Jak fallback funguje
 
 Pole `flow` je seřazený seznam kanálů. SmsManager je zkouší postupně od prvního k poslednímu a zastaví se u prvního, který zprávu doručí. Jakmile uvedete `whatsapp_template` (nebo `whatsapp_text`) jako první a `sms` jako druhý, získáte přesně fallback z WhatsAppu na SMS.
 
-Podrobnosti o řazení kanálů a podmínkách selhání najdete v konceptu [Tok zpráv](/cs/concepts/message-flow) a [Kanály](/cs/concepts/channels).
+Podrobnosti o řazení kanálů a podmínkách selhání najdete v konceptu [Tok zpráv](/concepts/message-flow) a [Kanály](/concepts/channels).
 
 <Note>
   Vždy uvádějte SMS jako **poslední** kanál ve `flow`. SMS funguje na každém mobilním telefonu bez instalace aplikace, takže je nejspolehlivější finální zálohou.
@@ -20,8 +20,8 @@ Podrobnosti o řazení kanálů a podmínkách selhání najdete v konceptu [Tok
 
 ## Předpoklady
 
-- Připojený **WhatsApp Business účet** a jeho **Phone Number ID** — viz [Odeslání WhatsApp zprávy](/cs/guides/send-whatsapp).
-- Pro proaktivní oslovení **předschválená šablona** s přesným názvem a kódem jazyka. Rozdíl mezi šablonou a volným textem popisuje [Typy WhatsApp zpráv](/cs/concepts/whatsapp-message-types).
+- Připojený **WhatsApp Business účet** a jeho **Phone Number ID** — viz [Odeslání WhatsApp zprávy](/guides/send-whatsapp).
+- Pro proaktivní oslovení **předschválená šablona** s přesným názvem a kódem jazyka. Rozdíl mezi šablonou a volným textem popisuje [Typy WhatsApp zpráv](/concepts/whatsapp-message-types).
 
 ## Sestavte požadavek s fallbackem
 
@@ -106,14 +106,14 @@ curl -X POST https://api.smsmngr.com/v2/message \
 </CodeGroup>
 
 <Note>
-  Chcete-li fallback z **volného textu** (v otevřeném 24hodinovém okně) na SMS, nahraďte první krok kanálem `whatsapp_text` s vlastním `body`. Kompletní pole obou kanálů popisuje [Kanály](/cs/concepts/channels).
+  Chcete-li fallback z **volného textu** (v otevřeném 24hodinovém okně) na SMS, nahraďte první krok kanálem `whatsapp_text` s vlastním `body`. Kompletní pole obou kanálů popisuje [Kanály](/concepts/channels).
 </Note>
 
 ## Jak zjistit, který kanál doručil
 
 Odpověď API potvrdí přijetí požadavku, ale samotné doručení proběhne asynchronně. Který kanál nakonec zprávu doručil, zjistíte z **doručovacích webhooků**: SmsManager pošle POST na vaši `callback` URL při každé změně stavu a payload obsahuje kanál, přes který byla zpráva odeslána.
 
-Nastavení příjemce webhooků a strukturu payloadu popisuje [Doručovací webhooky](/cs/guides/webhooks). Sekvenci pokusů napříč kanály detailně vysvětluje [Tok zpráv](/cs/concepts/message-flow).
+Nastavení příjemce webhooků a strukturu payloadu popisuje [Doručovací webhooky](/guides/webhooks). Sekvenci pokusů napříč kanály detailně vysvětluje [Tok zpráv](/concepts/message-flow).
 
 ## Poznámky a řešení potíží
 
@@ -122,17 +122,17 @@ Nastavení příjemce webhooků a strukturu payloadu popisuje [Doručovací webh
 - **`whatsapp_text` mimo 24hodinové okno** — volný text lze odeslat jen v aktivním zákaznickém okně. Mimo něj kanál selže a flow přejde na SMS. Pro proaktivní oslovení použijte `whatsapp_template`.
 
 <Warning>
-  Kanály `whatsapp_template` a `whatsapp_text` mají odlišná pravidla doručitelnosti. Před sestavením flow ověřte, který typ odpovídá vašemu scénáři — viz [Typy WhatsApp zpráv](/cs/concepts/whatsapp-message-types).
+  Kanály `whatsapp_template` a `whatsapp_text` mají odlišná pravidla doručitelnosti. Před sestavením flow ověřte, který typ odpovídá vašemu scénáři — viz [Typy WhatsApp zpráv](/concepts/whatsapp-message-types).
 </Warning>
 
 ## Další kroky
 
 <CardGroup cols={2}>
-  <Card title="Doručovací webhooky" icon="webhook" href="/cs/guides/webhooks">
+  <Card title="Doručovací webhooky" icon="webhook" href="/guides/webhooks">
     Přijímejte stav doručení a zjistěte, který kanál zprávu doručil.
   </Card>
 
-  <Card title="Tok zpráv" icon="diagram-project" href="/cs/concepts/message-flow">
+  <Card title="Tok zpráv" icon="diagram-project" href="/concepts/message-flow">
     Pochopte řazení kanálů a podmínky, za kterých flow přechází dál.
   </Card>
 </CardGroup>

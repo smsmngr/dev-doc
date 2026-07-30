@@ -1,10 +1,10 @@
 ---
 title: "REST API — Account and Message Management Reference"
 sidebarTitle: "Overview"
-description: "SmsManager REST API for account management: manage API keys, check credit balance, query message delivery status, and read inbound messages."
+description: "SmsManager REST API for account management: manage API keys and child keys, handle credit and billing, track message status, read your inbox, maintain blacklist and opt-out lists, run bulk messaging, and integrate partner platforms."
 ---
 
-The SmsManager REST API is a separate API from the JSON API v2 (the sending API). While the JSON API v2 handles outbound message delivery, the REST API covers account management tasks: creating and updating API keys, checking your credit balance, querying individual message status, listing sent messages, and reading inbound messages in your inbox.
+The SmsManager REST API is a separate API from the JSON API v2 (the sending API). While the JSON API v2 handles outbound message delivery, the REST API covers everything around your account. You can create and manage API keys (including child keys), work with credit — browse the service catalog and price list, set low-credit alerts, and order or cancel paid services — and handle billing, from your billing contact and invoices (including PDF downloads) to bank-transfer top-ups. It also lets you track message status and sending statistics, read inbound messages in your inbox, maintain your blacklist and opt-out lists, run bulk and high-volume messaging, and connect partner accounts and platform integrations.
 
 ## Base URL
 
@@ -26,16 +26,81 @@ You can find and manage your API keys in the [SmsManager Dashboard](https://app.
 
 ## Endpoints
 
+### API keys
+
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | `GET` | `/apikey/me` | Get current API key info |
-| `POST` | `/apikey/add` | Create a new sub-key |
-| `POST` | `/apikey/update` | Update API key settings |
-| `GET` | `/credit` | Check credit balance |
-| `GET` | `/message` | Get single message status |
-| `GET` | `/messages` | List messages by date |
-| `GET` | `/requests` | Get sending statistics |
-| `GET` | `/inbox` | Read incoming messages |
+| `POST` | `/apikey/add` | Create a child API key |
+| `POST` | `/apikey/update` | Update current API key |
+| `GET` | `/apikey/list` | List child API keys |
+| `POST` | `/apikey/change` | Change a child API key |
+
+### Credit
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/credit` | Get credit balance |
+| `GET` | `/credit/services` | Get service catalog |
+| `GET` | `/credit/prices` | Get price list |
+| `GET` | `/credit/notify` | Get low-credit notification settings |
+| `POST` | `/credit/notify` | Set low-credit notification |
+| `POST` | `/credit/order` | Order a paid service |
+| `POST` | `/credit/cancel` | Cancel a paid service |
+
+### Billing
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/billing/get` | Get billing contact |
+| `POST` | `/billing/set` | Set billing contact |
+| `POST` | `/billing/invoices/list` | List invoices |
+| `POST` | `/billing/invoices/pdf` | Download invoice PDF |
+| `GET` | `/billing/topup` | Get bank transfer top-up details |
+
+### Message status
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/message` | Get message status |
+| `GET` | `/messages` | List sent messages by date |
+| `GET` | `/request` | Get request statistics |
+| `GET` | `/requests` | Get aggregated statistics per date |
+
+### Inbox
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/inbox` | Get inbox messages by date |
+
+### Blacklist & opt-out
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/blacklist` | Download blacklist |
+| `POST` | `/blacklist` | Add numbers to blacklist |
+| `DELETE` | `/blacklist` | Remove numbers from blacklist |
+| `GET` | `/optout` | Download opt-out list |
+| `POST` | `/optout` | Add numbers to opt-out list |
+| `DELETE` | `/optout` | Remove numbers from opt-out list |
+
+### Bulk messaging
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/messaging/url` | Get bulk upload URL |
+| `POST` | `/messaging/cancel` | Cancel a scheduled message or bulk upload |
+
+### Partner & integrations
+
+These endpoints are intended for partner accounts and platform integrations — partner signup, device push registration, recipient registration, and third-party connector actions (such as Klaviyo).
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/partner/signup` | Start partner signup flow |
+| `POST` | `/push/device` | Register push device |
+| `POST` | `/recipient/register` | Register recipient |
+| `POST` | `/connect/{connector}/{action}` | Connector action |
 
 ## Explore the endpoints
 

@@ -7,14 +7,14 @@ description: "Send your first SMS with SmsManager's JSON API v2. Learn how to au
 This guide walks you through sending your first SMS with SmsManager's JSON API v2. By the end, you'll have made a successful API call, received a `message_id`, and know where to go next to explore advanced features like multi-channel flows and delivery webhooks.
 
 <Note>
-  **Prerequisites:** You need an SmsManager account and an API key before you begin. Retrieve your key from [app.smsmanager.com/app/developers/apikeys](https://app.smsmanager.com/app/developers/apikeys).
+  **Prerequisites:** You need an SmsManager account and an API key before you begin. Retrieve your key from [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud).
 </Note>
 
 <Steps>
   <Step title="Get your API key">
-    Log in to your SmsManager account and navigate to [API & Cloud](https://app.smsmanager.com/app/developers/apikeys). Your primary API key is displayed on that page. Copy it — you'll pass it as the `x-api-key` header in every request.
+    Log in to your SmsManager account and navigate to [API & Cloud](https://app.smsmanager.com/api-cloud). Your primary API key is displayed on that page. Copy it — you'll pass it as the `x-api-key` header in every request.
 
-    If you need a scoped key for a specific integration (for example, to isolate credits or simplify revocation), you can create sub-keys through the [REST API](/en/api-reference/rest/overview).
+    If you need a scoped key for a specific integration (for example, to isolate credits or simplify revocation), you can create sub-keys through the [REST API](/api-reference/rest/overview).
   </Step>
   <Step title="Send your first message">
     Send a POST request to `https://api.smsmngr.com/v2/message` with a JSON body containing the message text and at least one recipient phone number in international E.164 format (without a leading `+` or `00`).
@@ -69,7 +69,7 @@ This guide walks you through sending your first SMS with SmsManager's JSON API v
     }
     ```
 
-    See the [Webhooks guide](/en/guides/webhooks) for the full event payload schema and verification details.
+    See the [Webhooks guide](/guides/webhooks) for the full event payload schema and verification details.
   </Step>
 </Steps>
 
@@ -150,15 +150,15 @@ echo $response;
 ## Next steps
 
 <CardGroup cols={3}>
-  <Card title="Message flow" icon="arrow-right-arrow-left" href="/en/concepts/message-flow">
+  <Card title="Message flow" icon="arrow-right-arrow-left" href="/concepts/message-flow">
     Learn how to build multi-channel fallback chains with the `flow` property.
   </Card>
 
-  <Card title="Channels overview" icon="layer-group" href="/en/concepts/channels">
+  <Card title="Channels overview" icon="layer-group" href="/concepts/channels">
     Explore the differences between SMS, Viber, and WhatsApp sending.
   </Card>
 
-  <Card title="Webhooks" icon="webhook" href="/en/guides/webhooks">
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
     Receive delivery receipts and inbound messages in real time.
   </Card>
 </CardGroup>

@@ -1,0 +1,1486 @@
+openapi: 3.1.0
+info:
+  title: WhatsApp Business Partner API
+  description: |
+    API for onboarding and managing WhatsApp Business Accounts (WABA): embedded signup, phone numbers, message templates and analytics.
+
+    ## Authentication
+
+    Requests are authenticated either by your API key in the `x-api-key` HTTP header, or — for the hosted signup flow — by the short-lived `token` field in the request body (obtained from `/whatsapp/signup`, valid 1 hour).
+
+    ## Response convention
+
+    Business-level failures (unknown WABA, Meta rejection, not authenticated) are returned as HTTP `200` with `{ "success": false, "message": "..." }`. HTTP error status codes (`400`, `401`, `500`) are used only for missing required fields and unexpected errors.
+  version: v1
+  contact:
+    url: https://smsmanager.com
+    email: cc@smsmanager.com
+
+servers:
+  - url: 'https://rest-api.smsmngr.com/v1'
+    description: Production server
+
+security:
+  - x-api-key: []
+
+components:
+  securitySchemes:
+    x-api-key:
+      type: apiKey
+      in: header
+      name: x-api-key
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Error message.
+    Failure:
+      type: object
+      description: Business-level failure (returned with HTTP 200).
+      properties:
+        success:
+          type: boolean
+          const: false
+        message:
+          type: string
+
+paths:
+  /whatsapp/signup:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Start signup"
+      tags:
+        - waba
+      summary: Start WhatsApp embedded signup
+      description: |
+        Starts the WhatsApp embedded signup flow. Creates a short-lived signup token (valid 1 hour) bound to your API key and returns it together with the hosted signup URL. Redirect the user to `redirect_url` with the returned `token`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                partner_name:
+                  type: string
+                  description: Partner name displayed in the signup flow.
+                partner_logo:
+                  type: string
+                  description: URL of the partner logo.
+                partner_callback_url:
+                  type: string
+                  description: URL called after the signup finishes.
+                partner_client_id:
+                  type: string
+                  description: Your identifier of the client.
+                partner_finish_url:
+                  type: string
+                  description: URL where the user is redirected after finishing.
+                wa_name:
+                  type: string
+                  description: WhatsApp business name.
+                wa_email:
+                  type: string
+                  description: Contact e-mail of the business (used for number verification e-mails when a number is pre-assigned).
+                wa_website:
+                  type: string
+                  description: Website of the business.
+                phone_number:
+                  type: string
+                  enum:
+                    - manual
+                    - preassign
+                    - assigned
+                  description: |
+                    Phone number mode: `manual` — the user connects their own number via the WhatsApp Business app; `preassign` — a number from our pool is pre-assigned to your account; `assigned` — an already assigned number is used. Any other value starts a plain WABA-sharing signup.
+                country:
+                  type: string
+                  description: Country of the assigned phone number (for `preassign` / `assigned` modes).
+            examples:
+              Signup with pre-assigned number:
+                value:
+                  partner_name: "Acme Messaging"
+                  partner_logo: "https://partner.example/logo.png"
+                  partner_callback_url: "https://partner.example/wa/callback"
+                  partner_finish_url: "https://partner.example/wa/done"
+                  partner_client_id: "client-42"
+                  wa_name: "Acme Store"
+                  wa_email: "owner@acme.example"
+                  wa_website: "https://acme.example"
+                  phone_number: "preassign"
+                  country: "cz"
+              Signup with own number:
+                value:
+                  partner_name: "Acme Messaging"
+                  partner_client_id: "client-42"
+                  wa_name: "Acme Store"
+                  phone_number: "manual"
+      responses:
+        '200':
+          description: Signup started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  token:
+                    type: string
+                    description: Signup token (valid 1 hour). Pass it to the hosted signup UI and to `/whatsapp/registration`.
+                  redirect_url:
+                    type: string
+                    description: Hosted signup URL.
+              example:
+                success: true
+                token: "eyJhbGciOi..."
+                redirect_url: "https://waba.smsmanager.com/"
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to whatsapp registration
+
+  /whatsapp/registration:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Complete registration"
+      tags:
+        - waba
+      summary: Complete WhatsApp registration
+      description: |
+        Completes the signup: exchanges the Meta OAuth `code` for a business token, connects the WABA to your account, registers the phone number and optionally sets the business profile. Provide either `phone_number_id` (an existing number connected in the signup flow) or `country` (a new number from our pool is allocated).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - waba_id
+                - code
+              properties:
+                token:
+                  type: string
+                  description: Signup token from `/whatsapp/signup`.
+                waba_id:
+                  type: string
+                  description: WhatsApp Business Account ID.
+                code:
+                  type: string
+                  description: Meta OAuth authorization code from the embedded signup.
+                phone_number_id:
+                  type: string
+                  description: Phone Number ID of an existing number. Required unless `country` is provided.
+                country:
+                  type: string
+                  description: Country for allocating a new number from our pool. Required unless `phone_number_id` is provided.
+                client_id:
+                  type: string
+                  description: Your identifier of the client.
+                description:
+                  type: string
+                  description: Business profile description.
+                logo:
+                  type: string
+                  description: Business profile picture as a base64 data URL (`data:image/...;base64,...`).
+                email:
+                  type: string
+                  description: Business profile e-mail.
+                website:
+                  type: string
+                  description: Business profile website.
+            examples:
+              Existing number:
+                value:
+                  token: "eyJhbGciOi..."
+                  waba_id: "1234567890"
+                  code: "AQD...meta-oauth-code"
+                  phone_number_id: "109876543210987"
+                  client_id: "client-42"
+                  description: "Official Acme Store WhatsApp"
+                  email: "support@acme.example"
+                  website: "https://acme.example"
+              New number from pool:
+                value:
+                  token: "eyJhbGciOi..."
+                  waba_id: "1234567890"
+                  code: "AQD...meta-oauth-code"
+                  country: "cz"
+      responses:
+        '200':
+          description: Registration result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  phone_number_id:
+                    type: string
+                  phone_number:
+                    type: string
+                  message:
+                    type: string
+                    description: Failure reason when `success` is `false`.
+              examples:
+                Registered:
+                  value:
+                    success: true
+                    phone_number_id: "109876543210987"
+                    phone_number: "420226633283"
+                Failed:
+                  value:
+                    success: false
+                    message: "Whatsapp phone number not registered"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing required fields (phone_number_id or country) in request data
+        '401':
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing required fields (token, waba_id, code) in request data
+
+  /whatsapp/phone_numbers/verify:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Verify number"
+      tags:
+        - waba-numbers
+      summary: Forward phone number verification code
+      description: |
+        Forwards a verification code for a pre-assigned phone number to the e-mail configured during signup.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone_number
+                - code
+              properties:
+                phone_number:
+                  type: string
+                  description: The phone number (digits only).
+                  example: "420226633283"
+                code:
+                  type: string
+                  description: Verification code.
+            example:
+              phone_number: "420226633283"
+              code: "123456"
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              examples:
+                Verified:
+                  value:
+                    success: true
+                    message: "Whatsapp phone number verified"
+                Not found:
+                  value:
+                    success: false
+                    message: "Whatsapp phone number not found"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'phone_number' or 'code' in request data
+
+  /whatsapp/phone_numbers/check:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Check number"
+      tags:
+        - waba-numbers
+      summary: Check phone number availability
+      description: Checks whether a pre-provisioned WhatsApp phone number exists and is verified.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone_number
+              properties:
+                phone_number:
+                  type: string
+                  example: "420226633283"
+            example:
+              phone_number: "420226633283"
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              examples:
+                Available:
+                  value:
+                    success: true
+                Not exist:
+                  value:
+                    success: false
+                    message: "Whatsapp phone number not exist"
+                Not verified:
+                  value:
+                    success: false
+                    message: "Whatsapp phone number not verified"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'phone_number' in request data
+
+  /whatsapp/phone_numbers/list:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "List numbers"
+      tags:
+        - waba-numbers
+      summary: List phone numbers of a WABA
+      description: Lists the phone numbers registered on a WhatsApp Business Account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+              properties:
+                waba_id:
+                  type: string
+                  description: WhatsApp Business Account ID.
+                token:
+                  type: string
+                  description: Signup token (alternative authentication when `x-api-key` is not used).
+            example:
+              waba_id: "1234567890"
+      responses:
+        '200':
+          description: Phone numbers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  phone_numbers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          description: Verified business name.
+                        phone_number_id:
+                          type: string
+                        phone_number:
+                          type: string
+                          description: Phone number (digits only).
+                        phone_number_formated:
+                          type: string
+                          description: Formatted phone number.
+                        phone_number_status:
+                          type: string
+                          description: Status of the number (e.g. `CONNECTED`).
+                        phone_number_quality:
+                          type: string
+                          description: Quality rating (e.g. `GREEN`).
+              examples:
+                Numbers:
+                  value:
+                    success: true
+                    phone_numbers:
+                      - name: "Acme Store"
+                        phone_number_id: "109876543210987"
+                        phone_number: "420226633283"
+                        phone_number_formated: "+420 226 633 283"
+                        phone_number_status: "CONNECTED"
+                        phone_number_quality: "GREEN"
+                Account not found:
+                  value:
+                    success: false
+                    message: "Whatsapp account not found"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'waba_id' in request data
+
+  /whatsapp/accounts/list:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "List accounts"
+      tags:
+        - waba
+      summary: List connected WhatsApp accounts
+      description: Lists WhatsApp Business Accounts connected to your API key, optionally filtered by `client_id`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                client_id:
+                  type: string
+                  description: Filter accounts by your client identifier.
+                waba_id:
+                  type: string
+                  description: Only used together with `token` authentication.
+                token:
+                  type: string
+                  description: Signup token (alternative authentication when `x-api-key` is not used; requires `waba_id`).
+            examples:
+              All accounts:
+                value: {}
+              Filter by client:
+                value:
+                  client_id: "client-42"
+      responses:
+        '200':
+          description: Accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  accounts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        client_id:
+                          type: string
+                        whatsapp_name:
+                          type: string
+                        whatsapp_id:
+                          type: string
+                          description: WABA ID.
+                        whatsapp_currency:
+                          type: string
+                        whatsapp_owner_name:
+                          type: string
+                        whatsapp_owner_id:
+                          type: string
+                        country:
+                          type: string
+              examples:
+                Accounts:
+                  value:
+                    success: true
+                    accounts:
+                      - client_id: "client-42"
+                        whatsapp_name: "Acme Store"
+                        whatsapp_id: "1234567890"
+                        whatsapp_currency: "CZK"
+                        whatsapp_owner_name: "Acme s.r.o."
+                        whatsapp_owner_id: "9988776655"
+                        country: "cz"
+                No accounts:
+                  value:
+                    success: false
+                    message: "No whatsapp accounts found"
+
+  /whatsapp/templates/list:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "List templates"
+      tags:
+        - waba-templates
+      summary: List message templates
+      description: Lists all message templates of the WABA (Meta template objects are passed through verbatim).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+              properties:
+                waba_id:
+                  type: string
+                token:
+                  type: string
+                  description: Signup token (alternative authentication).
+            example:
+              waba_id: "1234567890"
+      responses:
+        '200':
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  templates:
+                    type: array
+                    items:
+                      type: object
+                      description: Meta message template object.
+              example:
+                success: true
+                templates:
+                  - name: "order_update"
+                    language: "cs"
+                    status: "APPROVED"
+                    category: "UTILITY"
+                    id: "9876543210"
+                    components:
+                      - type: "BODY"
+                        text: "Ahoj {{1}}, objednávka {{2}} byla odeslána."
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing waba_id:
+                  value:
+                    message: Missing 'waba_id' in request data
+                Missing auth:
+                  value:
+                    message: Missing 'xapikey' or 'token' in request data
+
+  /whatsapp/templates/create:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Create template"
+      tags:
+        - waba-templates
+      summary: Create message template
+      description: |
+        Creates a message template on the WABA. The `template` object follows the Meta message-template model (`name`, `language`, `category`, `components`). An image header can be submitted as a base64 data URL in `components[].example.base64_image` — it is uploaded to Meta automatically and replaced by a `header_handle`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+                - template
+              properties:
+                waba_id:
+                  type: string
+                token:
+                  type: string
+                  description: Signup token (alternative authentication).
+                template:
+                  type: object
+                  required:
+                    - name
+                    - language
+                    - category
+                    - components
+                  properties:
+                    name:
+                      type: string
+                    language:
+                      type: string
+                      description: Template language code (e.g. `cs`, `en_US`).
+                    category:
+                      type: string
+                      enum:
+                        - MARKETING
+                        - UTILITY
+                        - AUTHENTICATION
+                    components:
+                      type: array
+                      description: Meta template components (`HEADER`, `BODY`, `FOOTER`, `BUTTONS`). Variable placeholders are positional (`{{1}}` + `example.body_text`) or named (`{{name}}` + `example.body_text_named_params`).
+                      items:
+                        type: object
+            examples:
+              Marketing template with image header:
+                value:
+                  waba_id: "1234567890"
+                  template:
+                    name: "autumn_sale"
+                    language: "en_US"
+                    category: "MARKETING"
+                    components:
+                      - type: "HEADER"
+                        format: "IMAGE"
+                        example:
+                          base64_image: "data:image/jpeg;base64,/9j/4AAQSk..."
+                      - type: "BODY"
+                        text: "Hi {{1}}, use code {{2}} for {{3}} off."
+                        example:
+                          body_text:
+                            - - "Alex"
+                              - "25OFF"
+                              - "25%"
+                      - type: "FOOTER"
+                        text: "Reply STOP to opt out"
+                      - type: "BUTTONS"
+                        buttons:
+                          - type: "QUICK_REPLY"
+                            text: "Shop now"
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  template_id:
+                    type: string
+                  message:
+                    type: string
+                    description: Failure reason when `success` is `false`.
+              examples:
+                Created:
+                  value:
+                    success: true
+                    template_id: "9876543210"
+                Failed:
+                  value:
+                    success: false
+                    message: "Whatsapp template creation failed"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'waba_id' in request data
+
+  /whatsapp/templates/library/create:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Create from library"
+      tags:
+        - waba-templates
+      summary: Create template from Meta library
+      description: Creates a template based on a template from the Meta Template Library.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+                - template
+              properties:
+                waba_id:
+                  type: string
+                token:
+                  type: string
+                  description: Signup token (alternative authentication).
+                template:
+                  type: object
+                  required:
+                    - name
+                    - language
+                    - library_template_name
+                  properties:
+                    name:
+                      type: string
+                    language:
+                      type: string
+                    library_template_name:
+                      type: string
+                      description: Identifier of the library template.
+                    category:
+                      type: string
+                      default: UTILITY
+                    library_template_button_inputs:
+                      type: array
+                      items:
+                        type: object
+                    library_template_body_inputs:
+                      type: object
+            examples:
+              Delivery update:
+                value:
+                  waba_id: "1234567890"
+                  template:
+                    name: "delivery_update_1"
+                    language: "en_US"
+                    category: "UTILITY"
+                    library_template_name: "delivery_update"
+                    library_template_button_inputs:
+                      - type: "URL"
+                        url:
+                          base_url: "https://acme.example/track/{{1}}"
+                          url_suffix_example: "ABC123"
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  template_id:
+                    type: string
+                  status:
+                    type: string
+                  category:
+                    type: string
+                  message:
+                    type: string
+                    description: Failure reason when `success` is `false`.
+              examples:
+                Created:
+                  value:
+                    success: true
+                    template_id: "9876543210"
+                    status: "PENDING"
+                    category: "UTILITY"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing waba_id:
+                  value:
+                    message: Missing 'waba_id' in request data
+                Missing template:
+                  value:
+                    message: Missing 'template' in request data
+
+  /whatsapp/templates/edit:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Edit template"
+      tags:
+        - waba-templates
+      summary: Edit message template
+      description: |
+        Edits an existing template by its Meta `template_id` (not the name). Only `template.category` and/or `template.components` are applied. Each included component **replaces** the existing component of the same `type`; omitted components stay untouched. To change an image header, include a `HEADER` component with `format: IMAGE` and a new `example.base64_image` data URL — a fresh media handle is uploaded automatically. Note Meta's limits: an approved template can be edited at most 10 times in 30 days and once in 24 hours.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+                - template_id
+              properties:
+                waba_id:
+                  type: string
+                template_id:
+                  type: string
+                  description: Meta template id.
+                token:
+                  type: string
+                  description: Signup token (alternative authentication).
+                template:
+                  type: object
+                  properties:
+                    category:
+                      type: string
+                      enum:
+                        - MARKETING
+                        - UTILITY
+                        - AUTHENTICATION
+                    components:
+                      type: array
+                      items:
+                        type: object
+            examples:
+              Edit body:
+                value:
+                  waba_id: "1234567890"
+                  template_id: "9876543210"
+                  template:
+                    components:
+                      - type: "BODY"
+                        text: "Hi {{1}}, our Autumn Sale is on! Use code {{2}}."
+                        example:
+                          body_text:
+                            - - "Alex"
+                              - "25OFF"
+              Change category only:
+                value:
+                  waba_id: "1234567890"
+                  template_id: "9876543210"
+                  template:
+                    category: "MARKETING"
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              examples:
+                Updated:
+                  value:
+                    success: true
+                    message: "Whatsapp template updated"
+                Failed:
+                  value:
+                    success: false
+                    message: "Whatsapp template edit failed"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing waba_id:
+                  value:
+                    message: Missing 'waba_id' in request data
+                Missing template_id:
+                  value:
+                    message: Missing 'template_id' in request data
+
+  /whatsapp/templates/delete:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Delete template"
+      tags:
+        - waba-templates
+      summary: Delete message template
+      description: Deletes a template by its name (all language versions of the name are deleted).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+                - template_name
+              properties:
+                waba_id:
+                  type: string
+                template_name:
+                  type: string
+                  description: Name of the template to delete.
+                token:
+                  type: string
+                  description: Signup token (alternative authentication).
+            example:
+              waba_id: "1234567890"
+              template_name: "autumn_sale"
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              examples:
+                Deleted:
+                  value:
+                    success: true
+                    message: "Whatsapp template deleted"
+                Failed:
+                  value:
+                    success: false
+                    message: "Whatsapp template deletion failed"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'waba_id' in request data
+
+  /whatsapp/templates/test:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Test template"
+      tags:
+        - waba-templates
+      summary: Send a test template message
+      description: |
+        Sends a live template message to a recipient to test the template. The payload is built from the template definition — `HEADER` and `BODY` example values are used as the parameters; `FOOTER` and `BUTTONS` components are skipped.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+                - sender
+                - phone_number
+                - template
+              properties:
+                waba_id:
+                  type: string
+                sender:
+                  type: string
+                  description: Phone Number ID used for sending.
+                phone_number:
+                  type: string
+                  description: Recipient phone number.
+                token:
+                  type: string
+                  description: Signup token (alternative authentication).
+                template:
+                  type: object
+                  required:
+                    - name
+                    - language
+                    - components
+                  properties:
+                    name:
+                      type: string
+                    language:
+                      type: string
+                    components:
+                      type: array
+                      items:
+                        type: object
+            examples:
+              Test send:
+                value:
+                  waba_id: "1234567890"
+                  sender: "109876543210987"
+                  phone_number: "420777000000"
+                  template:
+                    name: "autumn_sale"
+                    language: "en_US"
+                    components:
+                      - type: "HEADER"
+                        format: "IMAGE"
+                        example:
+                          header_handle:
+                            - "4::aW..."
+                      - type: "BODY"
+                        example:
+                          body_text:
+                            - - "Alex"
+                              - "25OFF"
+                              - "25%"
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  wamid:
+                    type: string
+                    description: WhatsApp message id of the sent test message.
+              examples:
+                Sent:
+                  value:
+                    success: true
+                    message: "Whatsapp template tested"
+                    wamid: "wamid.HBgMNDIw...=="
+                Failed:
+                  value:
+                    success: false
+                    message: "Whatsapp template test failed"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'waba_id' in request data
+
+  /whatsapp/analytics/messages:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Message analytics"
+      tags:
+        - waba-analytics
+      summary: Get messaging analytics
+      description: Returns messaging analytics (sent / delivered counts) of the WABA. Timestamps are Unix epoch seconds; the default range is the last 30 days.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+              properties:
+                waba_id:
+                  type: string
+                token:
+                  type: string
+                  description: Signup token (alternative authentication).
+                start:
+                  type: integer
+                  description: Start of the range (Unix seconds). Default 30 days ago.
+                end:
+                  type: integer
+                  description: End of the range (Unix seconds). Default now.
+                granularity:
+                  type: string
+                  enum:
+                    - HALF_HOUR
+                    - DAY
+                    - MONTH
+                  default: DAY
+                phone_numbers:
+                  type: array
+                  items:
+                    type: string
+                  description: Filter by phone numbers.
+                country_codes:
+                  type: array
+                  items:
+                    type: string
+                  description: Filter by country codes.
+            example:
+              waba_id: "1234567890"
+              start: 1719792000
+              end: 1722384000
+              granularity: "DAY"
+              phone_numbers:
+                - "420226633283"
+      responses:
+        '200':
+          description: Analytics data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  granularity:
+                    type: string
+                  phone_numbers:
+                    type: array
+                    items:
+                      type: string
+                  country_codes:
+                    type: array
+                    items:
+                      type: string
+                  data_points:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        start:
+                          type: integer
+                        end:
+                          type: integer
+                        sent:
+                          type: integer
+                        delivered:
+                          type: integer
+              example:
+                success: true
+                granularity: "DAY"
+                phone_numbers:
+                  - "420226633283"
+                country_codes:
+                  - "CZ"
+                data_points:
+                  - start: 1719792000
+                    end: 1719878400
+                    sent: 120
+                    delivered: 118
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing waba_id:
+                  value:
+                    message: Missing 'waba_id' in request data
+                Missing auth:
+                  value:
+                    message: Missing 'xapikey' or 'token' in request data
+
+  /whatsapp/analytics/conversations:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Conversation analytics"
+      tags:
+        - waba-analytics
+      summary: Get conversation analytics
+      description: Returns conversation analytics (counts and costs) of the WABA. Timestamps are Unix epoch seconds; the default range is the last 30 days.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+              properties:
+                waba_id:
+                  type: string
+                token:
+                  type: string
+                  description: Signup token (alternative authentication).
+                start:
+                  type: integer
+                  description: Start of the range (Unix seconds). Default 30 days ago.
+                end:
+                  type: integer
+                  description: End of the range (Unix seconds). Default now.
+                granularity:
+                  type: string
+                  enum:
+                    - HALF_HOUR
+                    - DAILY
+                    - MONTHLY
+                  default: DAILY
+                phone_numbers:
+                  type: array
+                  items:
+                    type: string
+                country_codes:
+                  type: array
+                  items:
+                    type: string
+                metric_types:
+                  type: array
+                  items:
+                    type: string
+                  description: Metrics to return.
+                  default:
+                    - COST
+                    - CONVERSATION
+                conversation_categories:
+                  type: array
+                  items:
+                    type: string
+                  description: 'Filter by category: `MARKETING`, `UTILITY`, `AUTHENTICATION`, `SERVICE`.'
+                conversation_types:
+                  type: array
+                  items:
+                    type: string
+                  description: 'Filter by type: `FREE_ENTRY`, `FREE_TIER`, `REGULAR`.'
+                conversation_directions:
+                  type: array
+                  items:
+                    type: string
+                  description: 'Filter by direction: `BUSINESS_INITIATED`, `USER_INITIATED`.'
+                dimensions:
+                  type: array
+                  items:
+                    type: string
+                  default:
+                    - CONVERSATION_CATEGORY
+                    - CONVERSATION_TYPE
+            example:
+              waba_id: "1234567890"
+              granularity: "DAILY"
+              conversation_categories:
+                - "MARKETING"
+      responses:
+        '200':
+          description: Analytics data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data_points:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        start:
+                          type: integer
+                        end:
+                          type: integer
+                        conversation:
+                          type: integer
+                        cost:
+                          type: number
+                        conversation_category:
+                          type: string
+                        conversation_type:
+                          type: string
+                        conversation_direction:
+                          type: string
+              example:
+                success: true
+                data_points:
+                  - start: 1719792000
+                    end: 1719878400
+                    conversation: 42
+                    cost: 12.5
+                    conversation_category: "MARKETING"
+                    conversation_type: "REGULAR"
+                    conversation_direction: "BUSINESS_INITIATED"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'waba_id' in request data
+
+  /whatsapp/analytics/templates:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Template analytics"
+      tags:
+        - waba-analytics
+      summary: Get template analytics
+      description: |
+        Returns per-template analytics (sent, delivered, read, clicked). Template insights must be enabled first via `/whatsapp/analytics/templates/enable`. Timestamps are Unix epoch seconds; the default range is the last 30 days.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+                - template_ids
+              properties:
+                waba_id:
+                  type: string
+                token:
+                  type: string
+                  description: Signup token (alternative authentication).
+                start:
+                  type: integer
+                  description: Start of the range (Unix seconds). Default 30 days ago.
+                end:
+                  type: integer
+                  description: End of the range (Unix seconds). Default now.
+                granularity:
+                  type: string
+                  default: DAILY
+                metric_types:
+                  type: array
+                  items:
+                    type: string
+                  default:
+                    - SENT
+                    - DELIVERED
+                    - READ
+                    - CLICKED
+                template_ids:
+                  type: array
+                  items:
+                    type: string
+                  description: Meta template ids to report on.
+            example:
+              waba_id: "1234567890"
+              template_ids:
+                - "9876543210"
+              granularity: "DAILY"
+      responses:
+        '200':
+          description: Analytics data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        template_id:
+                          type: string
+                        granularity:
+                          type: string
+                        data_points:
+                          type: array
+                          items:
+                            type: object
+                  paging:
+                    type: object
+              example:
+                success: true
+                data:
+                  - template_id: "9876543210"
+                    granularity: "DAILY"
+                    data_points:
+                      - start: 1719792000
+                        end: 1719878400
+                        sent: 100
+                        delivered: 98
+                        read: 80
+                        clicked:
+                          - type: "quick_reply_button"
+                            button_content: "Shop now"
+                            count: 12
+                paging:
+                  cursors:
+                    before: "..."
+                    after: "..."
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'waba_id' in request data
+
+  /whatsapp/analytics/templates/enable:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Enable insights"
+      tags:
+        - waba-analytics
+      summary: Enable template insights
+      description: Enables template analytics (insights) on the WABA. Must be enabled before template analytics data starts to accrue.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - waba_id
+              properties:
+                waba_id:
+                  type: string
+                token:
+                  type: string
+                  description: Signup token (alternative authentication).
+            example:
+              waba_id: "1234567890"
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  result:
+                    type: object
+                    description: Raw result from Meta.
+              example:
+                success: true
+                result:
+                  success: true
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Missing 'waba_id' in request data
+
+tags:
+  - name: waba
+    x-displayName: WhatsApp accounts
+    x-group: "WhatsApp accounts"
+    description: |
+      Embedded signup and management of connected WhatsApp Business Accounts.
+  - name: waba-numbers
+    x-displayName: Phone numbers
+    x-group: "Phone numbers"
+    description: |
+      WhatsApp phone number management and verification.
+  - name: waba-templates
+    x-displayName: Message templates
+    x-group: "Message templates"
+    description: |
+      Creating, editing, deleting and testing WhatsApp message templates.
+  - name: waba-analytics
+    x-displayName: Analytics
+    x-group: "Analytics"
+    description: |
+      Messaging, conversation and template analytics of the WABA.

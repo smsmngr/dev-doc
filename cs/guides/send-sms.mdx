@@ -59,8 +59,11 @@ SmsManager JSON API v2 vám umožňuje odesílat SMS zprávy na jakékoli telefo
     | Brána | Popis |
     | --- | --- |
     | `high` | Výchozí. Nejlepší míra doručení přes agregátorskou síť. |
-    | `direct` | Vyžadována při použití virtuálního čísla jako odesílatele. Směruje přes přímé spojení operatorů. |
-    | `simhost` | Pro SIM hostování, kdy poskytujete vlastní SIM hardware. |
+    | `lowcost` | Nízkonákladové směrování. |
+    | `direct` | Vyžadována při použití dedikovaného virtuálního čísla jako odesílatele. Směruje přes přímé spojení operátorů. |
+    | `custom` | SIM hostování, kdy poskytujete vlastní SIM hardware. |
+    | `simhost` | SIM hostování (alternativa k `custom`). |
+    | `gsm` | Směrování přes vlastní GSM bránu. |
 
     ```json Tělo požadavku
     {
@@ -253,19 +256,19 @@ console.log(data);
 ## Další kroky
 
 <CardGroup cols={2}>
-  <Card title="Hromadné odesílání" icon="layer-group" href="/cs/guides/batch-sending">
+  <Card title="Hromadné odesílání" icon="layer-group" href="/guides/batch-sending">
     Odešlete až 100 zpráv v jednom API volání pomocí endpointu /messages.
   </Card>
 
-  <Card title="Webhooky" icon="webhook" href="/cs/guides/webhooks">
+  <Card title="Webhooky" icon="webhook" href="/guides/webhooks">
     Přijímejte aktualizace stavu doručení v reálném čase na vaši callback URL.
   </Card>
 
-  <Card title="Odeslat Viber" icon="message" href="/cs/guides/send-viber">
+  <Card title="Odeslat Viber" icon="message" href="/guides/send-viber">
     Přidejte Viber Business Messages s bohatým obsahem a SMS zálohou.
   </Card>
 
-  <Card title="Ověření telefonu" icon="shield-check" href="/cs/guides/phone-verification">
+  <Card title="Ověření telefonu" icon="shield-check" href="/guides/phone-verification">
     Ověřte telefonní čísla pomocí OTP přes SmsManager Verify API.
   </Card>
 </CardGroup>

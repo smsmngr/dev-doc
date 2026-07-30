@@ -1,0 +1,359 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "SmsManager Developers",
+  "theme": "mint",
+  "colors": {
+    "primary": "#a81943",
+    "light": "#da2157",
+    "dark": "#76122f"
+  },
+  "fonts": {
+    "heading": {
+      "family": "GothamRounded",
+      "weight": 700,
+      "source": "/fonts/GothamRounded.woff2",
+      "format": "woff2"
+    }
+  },
+  "favicon": "https://media.brand.dev/2f15212a-f2c6-4af0-9244-b9677cd91943.png",
+  "logo": {
+    "light": "https://media.brand.dev/ed8f86be-eb0f-4b70-973d-6b2d55ff3aa2.svg",
+    "dark": "https://media.brand.dev/ed8f86be-eb0f-4b70-973d-6b2d55ff3aa2.svg"
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "assistant",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode",
+      "download-spec"
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "English",
+        "href": "https://smsmanager.com/docs"
+      },
+      {
+        "label": "Support",
+        "href": "mailto:cc@smsmanager.com"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Dashboard",
+      "href": "https://app.smsmanager.com"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Začínáme",
+        "groups": [
+          {
+            "group": "Začínáme",
+            "pages": [
+              "index",
+              "quickstart",
+              "tutorials/whatsapp-business-registration"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Návody",
+        "groups": [
+          {
+            "group": "Odesílání zpráv",
+            "pages": [
+              "guides/send-sms",
+              "guides/send-viber",
+              "guides/send-whatsapp",
+              "guides/whatsapp-sms-fallback",
+              "guides/batch-sending"
+            ]
+          },
+          {
+            "group": "Příjem a ověření",
+            "pages": [
+              "guides/phone-verification",
+              "guides/webhooks"
+            ]
+          },
+          {
+            "group": "Testování",
+            "pages": [
+              "guides/testing"
+            ]
+          },
+          {
+            "group": "Přístup a klíče",
+            "pages": [
+              "authentication"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API reference",
+        "groups": [
+          {
+            "group": "JSON API v2",
+            "openapi": "/openapi/json/jsonapi_v2.yaml",
+            "pages": [
+              "api-reference/json-v2/overview",
+              "POST /message",
+              "POST /message/priority",
+              "POST /messages",
+              "GET /simple/message",
+              "POST /simple/message",
+              "api-reference/json-v2/sent-message-webhook"
+            ]
+          },
+          {
+            "group": "HTTP/XML API",
+            "pages": [
+              "api-reference/http-api/send",
+              "api-reference/xml-api/send"
+            ]
+          },
+          {
+            "group": "REST API",
+            "openapi": "/openapi/rest/restapi_v1.yaml",
+            "pages": [
+              "api-reference/rest/overview",
+              {
+                "group": "API klíče",
+                "expanded": true,
+                "pages": [
+                  "GET /apikey/me",
+                  "POST /apikey/add",
+                  "POST /apikey/update",
+                  "GET /apikey/list",
+                  "POST /apikey/change"
+                ]
+              },
+              {
+                "group": "Kredit",
+                "expanded": true,
+                "pages": [
+                  "GET /credit",
+                  "GET /credit/services",
+                  "GET /credit/prices",
+                  "GET /credit/notify",
+                  "POST /credit/notify",
+                  "POST /credit/order",
+                  "POST /credit/cancel"
+                ]
+              },
+              {
+                "group": "Fakturace",
+                "expanded": true,
+                "pages": [
+                  "POST /billing/get",
+                  "POST /billing/set",
+                  "POST /billing/invoices/list",
+                  "POST /billing/invoices/pdf",
+                  "GET /billing/topup"
+                ]
+              },
+              {
+                "group": "Stav zpráv",
+                "expanded": true,
+                "pages": [
+                  "GET /message",
+                  "GET /messages",
+                  "GET /request",
+                  "GET /requests"
+                ]
+              },
+              {
+                "group": "Přijaté zprávy",
+                "expanded": true,
+                "pages": [
+                  "GET /inbox"
+                ]
+              },
+              {
+                "group": "Blacklist a opt-out",
+                "expanded": true,
+                "pages": [
+                  "GET /blacklist",
+                  "POST /blacklist",
+                  "DELETE /blacklist",
+                  "GET /optout",
+                  "POST /optout",
+                  "DELETE /optout"
+                ]
+              },
+              {
+                "group": "Hromadné odesílání",
+                "expanded": true,
+                "pages": [
+                  "POST /messaging/url",
+                  "POST /messaging/cancel"
+                ]
+              },
+              {
+                "group": "Partneři a integrace",
+                "expanded": true,
+                "pages": [
+                  "POST /partner/signup",
+                  "POST /push/device",
+                  "POST /recipient/register",
+                  "POST /connect/{connector}/{action}"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Verify API",
+            "openapi": "/openapi/verify/verifyapi_v1.yaml",
+            "pages": [
+              "api-reference/verify/overview",
+              "POST /v1/verify-proof",
+              "POST /v1/validations",
+              "POST /v1/validations/{token}/verify",
+              "PATCH /v1/validations/{token}"
+            ]
+          },
+          {
+            "group": "WhatsApp Partner API",
+            "openapi": "/openapi/waba_rest/waba_restapi_v1.yaml",
+            "pages": [
+              "api-reference/waba/overview",
+              {
+                "group": "WhatsApp účty",
+                "expanded": true,
+                "pages": [
+                  "POST /whatsapp/signup",
+                  "POST /whatsapp/registration",
+                  "POST /whatsapp/accounts/list"
+                ]
+              },
+              {
+                "group": "Telefonní čísla",
+                "expanded": true,
+                "pages": [
+                  "POST /whatsapp/phone_numbers/list",
+                  "POST /whatsapp/phone_numbers/verify",
+                  "POST /whatsapp/phone_numbers/check"
+                ]
+              },
+              {
+                "group": "Šablony zpráv",
+                "expanded": true,
+                "pages": [
+                  "POST /whatsapp/templates/list",
+                  "POST /whatsapp/templates/create",
+                  "POST /whatsapp/templates/library/create",
+                  "POST /whatsapp/templates/edit",
+                  "POST /whatsapp/templates/delete",
+                  "POST /whatsapp/templates/test"
+                ]
+              },
+              {
+                "group": "Analytika",
+                "expanded": true,
+                "pages": [
+                  "POST /whatsapp/analytics/messages",
+                  "POST /whatsapp/analytics/conversations",
+                  "POST /whatsapp/analytics/templates",
+                  "POST /whatsapp/analytics/templates/enable"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Referenční tabulky",
+            "pages": [
+              "reference/errors",
+              "reference/rate-limits",
+              "reference/phone-numbers",
+              "reference/whatsapp-templates",
+              "reference/whatsapp-text",
+              "reference/rcs",
+              "api-reference/json-v2/webhooks"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Koncepty",
+        "groups": [
+          {
+            "group": "Základní pojmy",
+            "pages": [
+              "introduction",
+              "concepts/message-flow",
+              "concepts/request-acceptance",
+              "concepts/sending-queues",
+              "concepts/channels",
+              "concepts/message-ids",
+              "concepts/phone-normalization",
+              "concepts/scheduling",
+              "concepts/whatsapp-message-types"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/smsmanager"
+    }
+  },
+  "redirects": [
+    {
+      "source": "/api-reference/json-v2/send-messages",
+      "destination": "/api-reference/json-v2/overview"
+    },
+    {
+      "source": "/api-reference/json-v2/send-simple-message",
+      "destination": "/api-reference/json-v2/overview"
+    },
+    {
+      "source": "/api-reference/rest/api-keys",
+      "destination": "/api-reference/rest/overview"
+    },
+    {
+      "source": "/api-reference/rest/credit",
+      "destination": "/api-reference/rest/overview"
+    },
+    {
+      "source": "/api-reference/rest/inbox",
+      "destination": "/api-reference/rest/overview"
+    },
+    {
+      "source": "/api-reference/rest/message-status",
+      "destination": "/api-reference/rest/overview"
+    },
+    {
+      "source": "/api-reference/verify/start-validation",
+      "destination": "/api-reference/verify/overview"
+    },
+    {
+      "source": "/api-reference/verify/verify-code",
+      "destination": "/api-reference/verify/overview"
+    },
+    {
+      "source": "/api-reference/verify/verify-proof",
+      "destination": "/api-reference/verify/overview"
+    },
+    {
+      "source": "/api-reference/waba/signup",
+      "destination": "/api-reference/waba/overview"
+    },
+    {
+      "source": "/api-reference/waba/manage",
+      "destination": "/api-reference/waba/overview"
+    }
+  ]
+}

@@ -37,7 +37,7 @@ Až po přijetí požadavku SmsManager každou zprávu jednotlivě zpracuje. Tep
 - **Blacklist / opt-out** — zda příjemce není na blacklistu nebo se neodhlásil z odběru.
 - **Další pravidla směrování** — kontroly specifické pro odesílatele, bránu a destinaci.
 
-Zpráva, která touto fází projde, je předána k doručení a dál sledujete její stav běžnou [sekvencí doručenek](/cs/guides/webhooks) (`sending` → `sent` → `delivered`).
+Zpráva, která touto fází projde, je předána k doručení a dál sledujete její stav běžnou [sekvencí doručenek](/guides/webhooks) (`sending` → `sent` → `delivered`).
 
 ---
 
@@ -54,7 +54,7 @@ Pokud zpráva neprojde některou kontrolou ve fázi 2 (neplatné číslo, nedost
 ```
 
 <Note>
-  Aby vám tyto informace dorazily, nastavte pole `callback` na požadavku (nebo výchozí callback URL na API klíči). Bez nastavené callback URL se o zamítnutí zprávy ve fázi 2 nedozvíte. Podrobnosti najdete v návodu [Webhooky](/cs/guides/webhooks).
+  Aby vám tyto informace dorazily, nastavte pole `callback` na požadavku (nebo výchozí callback URL na API klíči). Bez nastavené callback URL se o zamítnutí zprávy ve fázi 2 nedozvíte. Podrobnosti najdete v návodu [Webhooky](/guides/webhooks).
 </Note>
 
 ---
@@ -113,19 +113,19 @@ Ne každé volání skončí `200 OK`. Chybové kódy vyžadují odlišnou reakc
 ## Další kroky
 
 <CardGroup cols={2}>
-  <Card title="Životní cyklus zprávy" icon="timeline" href="/cs/concepts/message-flow">
+  <Card title="Životní cyklus zprávy" icon="timeline" href="/concepts/message-flow">
     Jak flow prochází kanály a kdy přejde na zálohu.
   </Card>
 
-  <Card title="Webhooky" icon="webhook" href="/cs/guides/webhooks">
+  <Card title="Webhooky" icon="webhook" href="/guides/webhooks">
     Formát doručenky, sekvence stavů a pole `result_info`.
   </Card>
 
-  <Card title="message_id a request_id" icon="fingerprint" href="/cs/concepts/message-ids">
+  <Card title="message_id a request_id" icon="fingerprint" href="/concepts/message-ids">
     Jak spárovat odpověď API s doručenkami z webhooku.
   </Card>
 
-  <Card title="Testování napojení" icon="flask" href="/cs/guides/testing">
+  <Card title="Testování napojení" icon="flask" href="/guides/testing">
     Otestujte celý tok bez odesílání skutečných zpráv.
   </Card>
 </CardGroup>

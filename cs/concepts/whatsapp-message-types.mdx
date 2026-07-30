@@ -4,7 +4,7 @@ sidebarTitle: "Typy WhatsApp zpráv"
 description: "Vysvětlení dvou typů WhatsApp zpráv na SmsManageru a pravidel, která určují, kdy který z nich použít."
 ---
 
-SmsManager rozlišuje dva druhy WhatsApp zpráv: **šablonové zprávy** (`whatsapp_template`) a **textové zprávy** (`whatsapp_text`). Nejde o dvě varianty téže věci — každá vychází z jiné části pravidel WhatsApp Business platformy a hodí se na jiný okamžik konverzace. Tato stránka vysvětluje, proč tyto dva typy existují, jaká pravidla je oddělují a jak podle nich zvolit ten správný. Praktické kroky odesílání najdete v průvodci [Odeslat WhatsApp](/cs/guides/send-whatsapp).
+SmsManager rozlišuje dva druhy WhatsApp zpráv: **šablonové zprávy** (`whatsapp_template`) a **textové zprávy** (`whatsapp_text`). Nejde o dvě varianty téže věci — každá vychází z jiné části pravidel WhatsApp Business platformy a hodí se na jiný okamžik konverzace. Tato stránka vysvětluje, proč tyto dva typy existují, jaká pravidla je oddělují a jak podle nich zvolit ten správný. Praktické kroky odesílání najdete v průvodci [Odeslat WhatsApp](/guides/send-whatsapp).
 
 ## Proč vůbec dva typy
 
@@ -49,7 +49,7 @@ Zákaznické okno je časový úsek, po který vám WhatsApp dovolí posílat vo
 Jakmile okno vyprší, volný text už odeslat nelze — jediným způsobem, jak konverzaci znovu zahájit, je šablona. Právě tady se oba typy potkávají: šablona okno **otevírá**, textová zpráva jej **využívá**.
 
 <Note>
-  Pokud odešlete `whatsapp_text` mimo otevřené okno, kanál selže a SmsManager přejde na další krok ve vašem [flow](/cs/concepts/channels) — typicky na SMS zálohu. Okno tedy nemusíte hlídat na milisekundu, ale při proaktivním oslovení se na volný text nikdy nespoléhejte.
+  Pokud odešlete `whatsapp_text` mimo otevřené okno, kanál selže a SmsManager přejde na další krok ve vašem [flow](/concepts/channels) — typicky na SMS zálohu. Okno tedy nemusíte hlídat na milisekundu, ale při proaktivním oslovení se na volný text nikdy nespoléhejte.
 </Note>
 
 ## Jak mezi nimi volit
@@ -65,13 +65,13 @@ Rozhodovací kritérium je jediné a vždy stejné: **kdo konverzaci zahajuje**.
 V praxi se oba typy často doplňují: šablonou zahájíte kontakt (a tím otevřete okno), a jakmile zákazník odpoví, přejdete na volný text. Pro maximální doručitelnost pak k WhatsApp kroku přidáváte SMS zálohu, takže i příjemce bez WhatsApp dostane zprávu.
 
 <CardGroup cols={2}>
-  <Card title="Odeslat WhatsApp" icon="whatsapp" href="/cs/guides/send-whatsapp">
+  <Card title="Odeslat WhatsApp" icon="whatsapp" href="/guides/send-whatsapp">
     Praktický průvodce odesíláním obou typů WhatsApp zpráv přes API.
   </Card>
-  <Card title="SMS záloha pro WhatsApp" icon="message-sms" href="/cs/guides/whatsapp-sms-fallback">
+  <Card title="SMS záloha pro WhatsApp" icon="message-sms" href="/guides/whatsapp-sms-fallback">
     Jak nastavit automatický přechod na SMS, když WhatsApp selže.
   </Card>
-  <Card title="Kanály" icon="layer-group" href="/cs/concepts/channels">
+  <Card title="Kanály" icon="layer-group" href="/concepts/channels">
     Přehled všech kanálů SmsManageru a jejich polí v jednom flow.
   </Card>
 </CardGroup>

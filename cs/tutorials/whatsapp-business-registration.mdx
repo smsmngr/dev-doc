@@ -32,7 +32,7 @@ https://rest-api.smsmngr.com/v1
 
 <Step title="Zahajte registrační session">
 
-Zavolejte `POST /whatsapp/signup` a předejte údaje o svém klientovi. V tomto tutoriálu necháte SmsManager přiřadit telefonní číslo automaticky (`phone_number: "automatic"`), takže stačí uvést zemi klienta.
+Zavolejte `POST /whatsapp/signup` a předejte údaje o svém klientovi. V tomto tutoriálu necháte SmsManager přidělit telefonní číslo z poolu (`phone_number: "preassign"`), takže stačí uvést zemi klienta. (Hodnoty `phone_number` jsou nově `manual`, `preassign` a `assigned` — dřívější `automatic` už není platná.)
 
 ```bash cURL
 curl -X POST https://rest-api.smsmngr.com/v1/whatsapp/signup \
@@ -44,7 +44,7 @@ curl -X POST https://rest-api.smsmngr.com/v1/whatsapp/signup \
     "partner_callback_url": "https://acme.com/webhooks/waba",
     "partner_client_id": "client-789",
     "partner_finish_url": "https://acme.com/dashboard",
-    "phone_number": "automatic",
+    "phone_number": "preassign",
     "wa_name": "Acme Support",
     "wa_email": "support@acme.com",
     "wa_website": "https://acme.com",
@@ -141,15 +141,15 @@ Právě jste poprvé onboardovali klienta přes WhatsApp Partner API: zahájili 
 ## Co dál
 
 <CardGroup cols={2}>
-  <Card title="Přehled Partner API" icon="book" href="/cs/api-reference/waba/overview">
+  <Card title="Přehled Partner API" icon="book" href="/api-reference/waba/overview">
     Kompletní reference endpointů, polí a callbacků.
   </Card>
 
-  <Card title="Odeslat WhatsApp zprávu" icon="paper-plane" href="/cs/guides/send-whatsapp">
+  <Card title="Odeslat WhatsApp zprávu" icon="paper-plane" href="/guides/send-whatsapp">
     Použijte získané WABA ID a pošlete klientovi první zprávu.
   </Card>
 
-  <Card title="Typy WhatsApp zpráv" icon="messages" href="/cs/concepts/whatsapp-message-types">
+  <Card title="Typy WhatsApp zpráv" icon="messages" href="/concepts/whatsapp-message-types">
     Pochopte rozdíl mezi zprávami `whatsapp_text` a `whatsapp_template`.
   </Card>
 </CardGroup>

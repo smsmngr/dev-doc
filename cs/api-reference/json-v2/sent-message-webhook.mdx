@@ -1,0 +1,158 @@
+---
+title: "Webhook výsledku odesílání"
+sidebarTitle: "Výsledek odesílání"
+description: "Webhook sentMessage — SmsManager posílá HTTP POST na vaši callback URL při každé změně stavu odchozí zprávy, od odeslání až po finální výsledek doručení."
+---
+
+Když odešlete zprávu přes JSON API v2, SmsManager vám o výsledku dá vědět webhookem `sentMessage`. Při každé změně stavu odchozí zprávy pošle HTTP `POST` na vaši callback URL — obvykle obdržíte počáteční událost `sent` nebo `sending` krátce po API volání a následně finální stav doručení, například `delivered` nebo `undelivered`.
+
+Cíl nastavíte buď pro každou zprávu (polem `callback`), nebo na úrovni účtu výchozí callback URL.
+
+<Tip>
+  Webhook payloady jsou vždy pole. I doručení jediné události je zabaleno v `[...]` a SmsManager může více událostí sloučit do jednoho POST. Zajistěte, aby váš handler procházel každou položku pole, a vždy vracejte `HTTP 200` jako potvrzení přijetí.
+</Tip>
+
+## Reference polí
+
+<ResponseField name="request_id" type="string">
+  Jedinečný identifikátor původního API požadavku, který tuto zprávu odeslal.
+
+  Příklad: `"bc36f3d1-d284-463a-921b-a3560c154649"`
+</ResponseField>
+
+<ResponseField name="message_id" type="string">
+  Jedinečný identifikátor této zprávy. Když byla zpráva odeslána přes `POST /messages`, toto ID má tvar `<base_id>-<index_příjemce>` (např. `e27ff0ac-87b5-4e1d-b644-5fc6029e2a11-0`).
+
+  Příklad: `"e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"`
+</ResponseField>
+
+<ResponseField name="gateway" type="string">
+  Kanál, který doručil (nebo se pokoušel doručit) zprávu. Jedna z: `sms`, `viber`, `whatsapp_text`, `whatsapp_template`, `rcs`.
+</ResponseField>
+
+<ResponseField name="timestamp" type="integer">
+  Unix timestamp události stavu.
+
+  Příklad: `1700000000`
+</ResponseField>
+
+<ResponseField name="payload" type="object">
+  Vlastní objekt `payload`, který jste připojili k původnímu požadavku zprávy, vrácený nezměněn. Použijte to k propojení události s vašimi vlastními záznamy.
+
+  Příklad: `{ "campaign_id": "winter-sale" }`
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Vždy `"outgoing"` pro události `sentMessage`.
+</ResponseField>
+
+<ResponseField name="to" type="object">
+  Příjemce této události.
+
+  <Expandable title="pole to">
+    <ResponseField name="phone_number" type="string">
+      Telefonní číslo příjemce v mezinárodním formátu.
+
+      Příklad: `"420777123456"`
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="result" type="string">
+  Aktuální stav doručení zprávy. Možné hodnoty:
+
+  | Hodnota | Význam |
+  | --- | --- |
+  | `sending` | Zpráva je přenášena operatérovi. |
+  | `sent` | Zpráva byla přijata operatérem. |
+  | `delivered` | Operatér potvrdil doručení na zařízení příjemce. |
+  | `seen` | Příjemce zprávu otevřel (pouze Viber / WhatsApp). |
+  | `undelivered` | Doručení selhalo po odeslání zprávy. |
+  | `rejected` | Zpráva byla odmítnuta před odesláním (např. neplatné číslo, nedostatečný kredit). |
+  | `failed` | Došlo k neočekávané chybě. |
+</ResponseField>
+
+<ResponseField name="result_info" type="string">
+  Čitelný popis výsledku, volitelně s předponou číselného kódu v hranatých závorkách. Příklady: `"[0] Delivered"`, `"[307] Insufficient credit"`, `"[131042] There was an error related to your payment method"`, `"Unauthorized error"`.
+</ResponseField>
+
+<ResponseField name="sms" type="object">
+  Přítomné, když `gateway` je `sms`. Obsahuje detaily fakturace a směrování pro tuto SMS.
+
+  <Expandable title="pole sms">
+    <ResponseField name="gateway" type="string">
+      Konkrétní použitá nastavení brány (např. `high`, `direct`, `custom`).
+    </ResponseField>
+
+    <ResponseField name="sender" type="string">
+      Jméno nebo číslo odesílatele použité pro tuto zprávu.
+    </ResponseField>
+
+    <ResponseField name="country" type="integer">
+      Cílová země identifikovaná svým oficiálním MCC (Mobile Country Code).
+    </ResponseField>
+
+    <ResponseField name="operator" type="integer">
+      Cílový operatér identifikovaný svým oficiálním MNC (Mobile Network Code). `0` znamená neznámý nebo obecný operatér.
+    </ResponseField>
+
+    <ResponseField name="price_czk" type="number">
+      Cena této zprávy v českých korunách (CZK).
+    </ResponseField>
+
+    <ResponseField name="price_eur" type="number">
+      Cena této zprávy v Eurech (EUR).
+    </ResponseField>
+
+    <ResponseField name="count" type="integer">
+      Počet odeslaných fakturacích segmentů (dlouhá SMS se dělí do více segmentů).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="viber" type="object">
+  Přítomné, když `gateway` je `viber`. Obsahuje stejná podpole jako objekt `sms`: `sender`, `country`, `operator`, `price_czk`, `price_eur`, `count`.
+</ResponseField>
+
+<ResponseField name="whatsapp_template" type="object">
+  Přítomné, když `gateway` je `whatsapp_template`. Obsahuje stejná podpole jako objekt `sms`.
+</ResponseField>
+
+<ResponseField name="whatsapp_body" type="object">
+  Přítomné, když `gateway` je `whatsapp_text`. Obsahuje stejná podpole jako objekt `sms`.
+</ResponseField>
+
+## Příkladový payload
+
+```json
+[
+  {
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+    "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+    "gateway": "sms",
+    "timestamp": 1700000000,
+    "payload": {
+      "campaign_id": "winter-sale"
+    },
+    "type": "outgoing",
+    "to": {
+      "phone_number": "420777123456"
+    },
+    "result": "delivered",
+    "result_info": "[0] Delivered",
+    "sms": {
+      "gateway": "high",
+      "sender": "MujSender",
+      "country": 230,
+      "operator": 2,
+      "price_czk": 0.85,
+      "price_eur": 0.034,
+      "count": 1
+    }
+  }
+]
+```
+
+<Note>
+  Hledáte příchozí webhooky? Události `incomingReplyMessage` a `incomingMessage` jsou popsány v [referenci webhooků](/api-reference/json-v2/webhooks) a v [průvodci webhooky](/guides/webhooks).
+</Note>

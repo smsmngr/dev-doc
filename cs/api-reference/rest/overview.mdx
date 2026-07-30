@@ -1,4 +1,10 @@
-SmsManager REST API je samostatné API oddelené od JSON API v2 (odesílací API). Zatímco JSON API v2 zpracovává doručování odchozích zpráv, REST API pokrývá úkoly správy účtu: vytváření a aktualizace API klíčů, kontrolu kreditního zůstatku, dotazování stavu jednotlivých zpráv, listing odeslaných zpráv a čtení příchozích zpráv ve vaší schránce.
+---
+title: "REST API — Referenční příručka správy účtu a zpráv"
+sidebarTitle: "Overview"
+description: "SmsManager REST API pro správu účtu: správa API klíčů a podřízených klíčů, práce s kreditem a fakturací, sledování stavu zpráv, čtení přijatých zpráv, správa blacklistu a opt-out seznamů, hromadné odesílání a integrace partnerských platforem."
+---
+
+SmsManager REST API je samostatné API oddělené od JSON API v2 (odesílací API). Zatímco JSON API v2 zpracovává doručování odchozích zpráv, REST API pokrývá vše kolem vašeho účtu. Můžete vytvářet a spravovat API klíče (včetně podřízených klíčů), pracovat s kreditem — procházet katalog služeb a ceník, nastavovat upozornění na nízký kredit a objednávat nebo rušit placené služby — a řešit fakturaci, od fakturačního kontaktu a faktur (včetně stahování PDF) až po dobití bankovním převodem. Dále umožňuje sledovat stav zpráv a statistiky odesílání, číst příchozí zprávy ve vaší schránce, spravovat blacklist a opt-out seznamy, spouštět hromadné odesílání a propojovat partnerské účty a platformové integrace.
 
 ## Základní URL
 
@@ -20,16 +26,81 @@ Své API klíče můžete najít a spravovat v [SmsManager Dashboardu](https://a
 
 ## Endpointy
 
+### API klíče
+
 | Metoda | Endpoint | Popis |
 | --- | --- | --- |
 | `GET` | `/apikey/me` | Získat informace o aktuálním API klíči |
-| `POST` | `/apikey/add` | Vytvořit nový sub-klíč |
-| `POST` | `/apikey/update` | Aktualizovat nastavení API klíče |
-| `GET` | `/credit` | Zkontrolovat kreditní zůstatek |
-| `GET` | `/message` | Získat stav jednotlivé zprávy |
-| `GET` | `/messages` | Vypsat zprávy podle data |
-| `GET` | `/requests` | Získat statistiku odesílání |
-| `GET` | `/inbox` | Číst příchozí zprávy |
+| `POST` | `/apikey/add` | Vytvořit podřízený API klíč |
+| `POST` | `/apikey/update` | Upravit aktuální API klíč |
+| `GET` | `/apikey/list` | Vypsat podřízené API klíče |
+| `POST` | `/apikey/change` | Změnit podřízený API klíč |
+
+### Kredit
+
+| Metoda | Endpoint | Popis |
+| --- | --- | --- |
+| `GET` | `/credit` | Získat stav kreditu |
+| `GET` | `/credit/services` | Získat katalog služeb |
+| `GET` | `/credit/prices` | Získat ceník |
+| `GET` | `/credit/notify` | Získat nastavení upozornění na nízký kredit |
+| `POST` | `/credit/notify` | Nastavit upozornění na nízký kredit |
+| `POST` | `/credit/order` | Objednat placenou službu |
+| `POST` | `/credit/cancel` | Zrušit placenou službu |
+
+### Fakturace
+
+| Metoda | Endpoint | Popis |
+| --- | --- | --- |
+| `POST` | `/billing/get` | Získat fakturační kontakt |
+| `POST` | `/billing/set` | Nastavit fakturační kontakt |
+| `POST` | `/billing/invoices/list` | Vypsat faktury |
+| `POST` | `/billing/invoices/pdf` | Stáhnout fakturu v PDF |
+| `GET` | `/billing/topup` | Získat údaje pro dobití bankovním převodem |
+
+### Stav zpráv
+
+| Metoda | Endpoint | Popis |
+| --- | --- | --- |
+| `GET` | `/message` | Získat stav zprávy |
+| `GET` | `/messages` | Vypsat odeslané zprávy podle data |
+| `GET` | `/request` | Získat statistiky požadavku |
+| `GET` | `/requests` | Získat agregované statistiky podle data |
+
+### Přijaté zprávy
+
+| Metoda | Endpoint | Popis |
+| --- | --- | --- |
+| `GET` | `/inbox` | Získat přijaté zprávy podle data |
+
+### Blacklist a opt-out
+
+| Metoda | Endpoint | Popis |
+| --- | --- | --- |
+| `GET` | `/blacklist` | Stáhnout blacklist |
+| `POST` | `/blacklist` | Přidat čísla na blacklist |
+| `DELETE` | `/blacklist` | Odebrat čísla z blacklistu |
+| `GET` | `/optout` | Stáhnout opt-out seznam |
+| `POST` | `/optout` | Přidat čísla na opt-out seznam |
+| `DELETE` | `/optout` | Odebrat čísla z opt-out seznamu |
+
+### Hromadné odesílání
+
+| Metoda | Endpoint | Popis |
+| --- | --- | --- |
+| `POST` | `/messaging/url` | Získat URL pro hromadné nahrání |
+| `POST` | `/messaging/cancel` | Zrušit naplánovanou zprávu nebo hromadné nahrání |
+
+### Partneři a integrace
+
+Tyto endpointy jsou určené pro partnerské účty a platformové integrace — partnerská registrace, registrace push zařízení, registrace příjemce a akce konektorů třetích stran (například Klaviyo).
+
+| Metoda | Endpoint | Popis |
+| --- | --- | --- |
+| `POST` | `/partner/signup` | Zahájit partnerskou registraci |
+| `POST` | `/push/device` | Registrovat push zařízení |
+| `POST` | `/recipient/register` | Registrovat příjemce |
+| `POST` | `/connect/{connector}/{action}` | Akce konektoru |
 
 ## Prozkoumejte endpointy
 

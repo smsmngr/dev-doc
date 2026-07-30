@@ -1,14 +1,18 @@
 ---
 title: "HTTP API — odeslání SMS"
-sidebarTitle: "Odeslání SMS"
+sidebarTitle: "HTTP API"
 description: "Jednoduché odeslání SMS přes GET/POST. API klíč se předává jako parametr (ne hlavička) — ideální pro služby, které umí jen GET/POST bez vlastní hlavičky."
 ---
 
 HTTP API je nejjednodušší způsob, jak odeslat SMS — stačí jeden **GET** nebo **POST** požadavek. API klíč se předává jako **parametr**, ne jako hlavička, takže rozhraní funguje i tam, kde platforma umožňuje jen GET/POST a neumí nastavit vlastní HTTP hlavičku.
 
-<Note>
-  HTTP API je **trvale podporované** — jeho podporu neukončujeme. Pro nové integrace, které potřebují více kanálů (Viber/WhatsApp), záložní `flow` nebo strukturovanou odpověď, doporučujeme [JSON API v2](/cs/api-reference/json-v2/overview).
-</Note>
+<Info>
+  HTTP API je **trvale podporované** — jeho podporu neukončujeme.
+</Info>
+
+<Danger>
+  Pro nové integrace doporučujeme [JSON API v2](/api-reference/json-v2/overview), zejména pokud potřebujete více kanálů (Viber/WhatsApp), záložní `flow` nebo strukturovanou odpověď.
+</Danger>
 
 ## Endpoint
 
@@ -25,7 +29,7 @@ Pro zpěnou kompatibilitu se starší verzí API jsou přípustné také tyto al
 
 | Parametr | Povinný | Popis |
 | --- | --- | --- |
-| `apikey` | Ano | Váš API klíč z [administrace](https://app.smsmanager.com/app/developers/apikeys). |
+| `apikey` | Ano | Váš API klíč z [administrace](https://app.smsmanager.com/api-cloud). |
 | `to` nebo `number` | Ano | Telefonní číslo příjemce v mezinárodním formátu; úvodní `+` je povolen. Více příjemců oddělte středníkem: `420777111222;420777333444`. |
 | `body` nebo `message` | Ano | Text zprávy. |
 | `sender` | Ne | Odesílatel (jméno nebo číslo). |
@@ -85,4 +89,4 @@ curl -X POST https://http-api-lts.smsmanager.cz \
 
 ## Doručenky
 
-Základní doručovací webhook nastavíte parametrem `callback` s URL. Pokud potřebujete request formátovat přesně dle cílové platformy (metoda, hlavičky, tělo), použijte objektový `callback` v [JSON API v2](/cs/api-reference/json-v2/overview).
+Základní doručovací webhook nastavíte parametrem `callback` s URL. Pokud potřebujete request formátovat přesně dle cílové platformy (metoda, hlavičky, tělo), použijte objektový `callback` v [JSON API v2](/api-reference/json-v2/overview).

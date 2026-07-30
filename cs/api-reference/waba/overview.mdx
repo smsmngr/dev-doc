@@ -1,8 +1,21 @@
-WhatsApp Business Partner API SmsManageru vám dává programový způsob, jak registrovat vaše klienty pro WhatsApp Business messaging, sledovat jejich pokrok při onboardingu a získávat telefonní čísla a šablony zpráv spojené s jejich účty — vše spravované pod vašimi partnerskými přihlašovacími údaji.
+---
+title: "WhatsApp Business Partner API — Přehled"
+sidebarTitle: "Overview"
+description: "WhatsApp Business Partner API SmsManageru umožňuje registrovat klienty do WhatsApp Business účtů, spravovat jejich telefonní čísla a šablony zpráv a číst analytiku zpráv, konverzací i šablon."
+---
+
+WhatsApp Business Partner API SmsManageru vám dává programový způsob, jak registrovat vaše klienty pro WhatsApp Business messaging, sledovat jejich pokrok při onboardingu a poté kompletně spravovat jejich WhatsApp Business účty — získávat telefonní čísla, řídit celý životní cyklus šablon zpráv a číst analytiku zpráv — vše pod vašimi partnerskými přihlašovacími údaji.
 
 ## Pro koho je toto API?
 
-Pokud jste ISV, reseller nebo tvůrce platformy integrující WhatsApp messaging do produktu, který nabízíte vlastním zákazníkům, toto API je pro vás. Místo směrování každého klienta manuálním procesem registrace zahájíte registraci jejich jménem, přesměrujete je do SmsManagerem hostovaného toku, kde dokončí registraci WhatsApp Business Account (WABA), a poté použijete management endpointy k dohledaní detailů jejich účtu po dokončení onboardingu. Všechno běží pod vaším partnerským účtem — vaši klienti nikdy nepotřebují přímý přístup k SmsManageru.
+Pokud jste ISV, reseller nebo tvůrce platformy integrující WhatsApp messaging do produktu, který nabízíte vlastním zákazníkům, toto API je pro vás. Zahájíte registraci jménem klienta, přesměrujete jej do SmsManagerem hostovaného toku (nebo onboarding dokončíte programově), kde zaregistruje svůj WhatsApp Business Account (WABA), a poté použijete management endpointy k jeho správě.
+
+API již není určeno pouze pro onboarding. Kromě registrace a dohledání účtu nyní pokrývá také:
+
+- **Správu šablon zpráv** — vytváření šablon, jejich vytváření z knihovny Meta Template Library, úpravu, mazání a odesílání ostrých testovacích zpráv.
+- **Analytiku** — analytiku zpráv (odesláno / doručeno), analytiku konverzací (počty a náklady) a výkonnost jednotlivých šablon (odesláno, doručeno, přečteno, kliknuto).
+
+Všechno běží pod vaším partnerským účtem — vaši klienti nikdy nepotřebují přímý přístup k SmsManageru.
 
 ## Základní URL
 
@@ -18,23 +31,57 @@ Všechny endpointy vyžadují váš API klíč v hlavičce požadavku `x-api-key
 x-api-key: <your-api-key>
 ```
 
+Několik management endpointů (telefonní čísla, šablony, analytika) přijímá jako alternativní autentizaci také krátkodobý `token` v těle požadavku — tentýž registrační token vrácený z `POST /whatsapp/signup` (platný 1 hodinu). Použijte jej, když tato volání řídíte z hostovaného registračního toku místo svého API klíče.
+
 ## Onboardingový tok
 
 1. **POST /whatsapp/signup** — Odešlete detaily vašeho klienta SmsManageru. Obdržíte `redirect_url` a krátkodobý JWT `token`.
 2. **Přesměrujte klienta** — Přidejte token jako query parametr a pošlete prohlížeč klienta na `redirect_url?token=<JWT>`. SmsManager slouží hostovanou registrační UI.
 3. **Klient dokončí registraci** — Klient sleduje kroky registrace WhatsApp Business v hostovaném toku SmsManageru. Žádné kódování na jeho straně není nutné.
-4. **Přijme te callback** — SmsManager POSTuje oznámení o stavu onboardingu na `partner_callback_url`, které jste zadali v kroku 1. Poslouchejte na událost dokončení.
-5. **Získejte WABA ID** — Zavolejte `POST /whatsapp/accounts/list` pro získání `whatsapp_id` (WABA ID) nového účtu.
-6. **Spravujte telefonní čísla a šablony** — Použijte WABA ID s `POST /whatsapp/phone_numbers/list` a `POST /whatsapp/templates/list` k získání zdrojů potřebných k odesílání zpráv.
+4. **Dokončení registrace** — Onboarding lze dokončit také programově pomocí `POST /whatsapp/registration`, které vymění Meta OAuth `code`, připojí WABA a zaregistruje telefonní číslo.
+5. **Přijměte callback** — SmsManager POSTuje oznámení o stavu onboardingu na `partner_callback_url`, které jste zadali v kroku 1. Poslouchejte na událost dokončení.
+6. **Získejte WABA ID** — Zavolejte `POST /whatsapp/accounts/list` pro získání `whatsapp_id` (WABA ID) nového účtu.
+7. **Spravujte telefonní čísla a šablony** — Použijte WABA ID s `POST /whatsapp/phone_numbers/list` a `POST /whatsapp/templates/list` k získání zdrojů potřebných k odesílání zpráv.
+
+Režim `phone_number`, který při registraci požadujete, je nyní jeden z `manual` (klient připojí vlastní číslo), `preassign` (číslo z našeho poolu je předpřiřazeno) nebo `assigned` (použije se již přiřazené číslo). Původní hodnota `automatic` byla odstraněna.
 
 ## Souhrn endpointů
 
+### WhatsApp účty
+
 | Metoda | Cesta | Popis |
 | --- | --- | --- |
-| `POST` | `/whatsapp/signup` | Zahájit WABA onboardingovou session pro klienta. |
-| `POST` | `/whatsapp/accounts/list` | Vypsat WABA účty spojené s vaším partnerským účtem. |
-| `POST` | `/whatsapp/phone_numbers/list` | Vypsat telefonní čísla registrovaná pod WABA. |
-| `POST` | `/whatsapp/templates/list` | Vypsat schválené šablony zpráv pro WABA. |
+| `POST` | `/whatsapp/signup` | Zahájení vestavěné registrace WhatsApp |
+| `POST` | `/whatsapp/registration` | Dokončení registrace WhatsApp |
+| `POST` | `/whatsapp/accounts/list` | Seznam připojených WhatsApp účtů |
+
+### Telefonní čísla
+
+| Metoda | Cesta | Popis |
+| --- | --- | --- |
+| `POST` | `/whatsapp/phone_numbers/verify` | Přeposlání ověřovacího kódu telefonního čísla |
+| `POST` | `/whatsapp/phone_numbers/check` | Kontrola dostupnosti telefonního čísla |
+| `POST` | `/whatsapp/phone_numbers/list` | Seznam telefonních čísel WABA |
+
+### Šablony zpráv
+
+| Metoda | Cesta | Popis |
+| --- | --- | --- |
+| `POST` | `/whatsapp/templates/list` | Seznam šablon zpráv |
+| `POST` | `/whatsapp/templates/create` | Vytvoření šablony zprávy |
+| `POST` | `/whatsapp/templates/library/create` | Vytvoření šablony z knihovny Meta |
+| `POST` | `/whatsapp/templates/edit` | Úprava šablony zprávy |
+| `POST` | `/whatsapp/templates/delete` | Smazání šablony zprávy |
+| `POST` | `/whatsapp/templates/test` | Odeslání testovací zprávy ze šablony |
+
+### Analytika
+
+| Metoda | Cesta | Popis |
+| --- | --- | --- |
+| `POST` | `/whatsapp/analytics/messages` | Získání analytiky zpráv |
+| `POST` | `/whatsapp/analytics/conversations` | Získání analytiky konverzací |
+| `POST` | `/whatsapp/analytics/templates` | Získání analytiky šablon |
+| `POST` | `/whatsapp/analytics/templates/enable` | Povolení statistik šablon |
 
 <Note>
   Jednotlivé endpointy — s parametry, těly požadavků a příklady — najdete v postranním panelu této sekce. Jsou generovány přímo z OpenAPI specifikace.

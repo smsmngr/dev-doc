@@ -17,19 +17,19 @@ Klíčové možnosti zahrnují:
 SmsManager nabízí čtyři API, každé vytvořené pro jinou část vaší integrace.
 
 <CardGroup cols={2}>
-  <Card title="JSON API v2" href="/cs/api-reference/json-v2/overview">
+  <Card title="JSON API v2" href="/api-reference/json-v2/overview">
     Hlavní API pro odesílání zpráv. Podporuje SMS, Viber a WhatsApp (text i šablony). Základní URL: `https://api.smsmngr.com/v2`
   </Card>
 
-  <Card title="REST API" href="/cs/api-reference/rest/overview">
+  <Card title="REST API" href="/api-reference/rest/overview">
     Správa účtu a klíčů. Vytvářejte sub-klíče, nastavujte callback URL a získávejte informace o účtu. Základní URL: `https://rest-api.smsmngr.com/v1`
   </Card>
 
-  <Card title="Verify API" href="/cs/api-reference/verify/overview">
+  <Card title="Verify API" href="/api-reference/verify/overview">
     Generujte a validujte jednorázové kódy pro ověření telefonních čísel a 2FA scénáře.
   </Card>
 
-  <Card title="WhatsApp Partner API" href="/cs/api-reference/waba/overview">
+  <Card title="WhatsApp Partner API" href="/api-reference/waba/overview">
     Programově registrujte a spravujte WhatsApp Business účty pro vaši platformu nebo koncové zákazníky.
   </Card>
 </CardGroup>
@@ -38,18 +38,18 @@ SmsManager nabízí čtyři API, každé vytvořené pro jinou část vaší int
 
 Začátek se SmsManagerem trvá tři kroky:
 
-1. **Získejte svůj API klíč** — přihlaste se na [app.smsmanager.com/app/developers/apikeys](https://app.smsmanager.com/app/developers/apikeys) a zkopírujte svůj klíč. Přes REST API si také můžete vytvořit omezené sub-klíče.
+1. **Získejte svůj API klíč** — přihlaste se na [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud) a zkopírujte svůj klíč. Přes REST API si také můžete vytvořit omezené sub-klíče.
 2. **Odešlete zprávu** — proveďte POST požadavek na `https://api.smsmngr.com/v2/message` s telefonním číslem příjemce a textem zprávy. Přidejte pole `flow` pro povolení doručení přes Viber nebo WhatsApp.
 3. **Přijměte webhook** — volitelně předejte URL `callback` v těle požadavku. SmsManager pošle POST oznámení o doručení na tuto URL při změně stavu zprávy.
 
 ## Další kroky
 
 <CardGroup cols={2}>
-  <Card title="Rychlý start" icon="rocket" href="/cs/quickstart">
+  <Card title="Rychlý start" icon="rocket" href="/quickstart">
     Sledujte podrobného průvodce a odešlete první zprávu za méně než 5 minut.
   </Card>
 
-  <Card title="Autentizace" icon="lock" href="/cs/authentication">
+  <Card title="Autentizace" icon="lock" href="/authentication">
     Zjistěte, jak získat a bezpečně používat svůj API klíč v každém požadavku.
   </Card>
 </CardGroup>
