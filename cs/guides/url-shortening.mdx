@@ -1,0 +1,82 @@
+---
+title: "Zkracování URL ve zprávách"
+sidebarTitle: "Zkracování URL"
+description: "Zkracujte dlouhé URL adresy ve zprávách pomocí atributu params._url — vlastní doména, sledování prokliků a expirace odkazů."
+---
+
+Pomocí atributu `params` v JSON API můžete ovlivnit obsah zprávy na základě definovaných pravidel. Nejčastějším využitím je automatické **zkrácení dlouhých URL adres** pomocí objektu `_url` — ušetříte znaky ve zprávě a získáte možnost měřit prokliky.
+
+## Objekt `_url`
+
+Do těla požadavku vložte atribut `params` s objektem `_url`:
+
+```json
+{
+  "params": {
+    "_url": {
+      "domain": "vase-domena.link",
+      "type": "full",
+      "get_enhance": false,
+      "get_name": "_"
+    }
+  }
+}
+```
+
+| Parametr | Popis | Výchozí |
+| --- | --- | --- |
+| `domain` | Doména použitá pro zkrácenou URL. Lze použít systémovou i vlastní doménu. | Systémová doména — pro nastavení tvaru domény nás [kontaktujte](mailto:support@smsmanager.cz) |
+| `type` | Typ zkrácení: `full` (vyžaduje kompletní URL včetně protokolu) nebo `all` (zkrátí i zápisy typu `mojedomena.cz` bez protokolu). | `full` |
+| `get_enhance` | `code` přidá ke zkrácené URL GET parametr (název dle `get_name`) s alfanumerickým kódem; `id` do GET parametru vloží `message_id`. | `false` |
+| `get_name` | Název GET parametru použitého pro `get_enhance`. | `_` |
+| `expires_at` | Unix timestamp expirace zkráceného odkazu. Nedoporučujeme nastavovat delší než 30 dní. | 7 dní |
+
+<Note>
+Zkrácené odkazy umožňují měřit prokliky a díky `get_enhance` předat identifikátor zprávy zpět do vaší aplikace při rozkliknutí odkazu.
+</Note>
+
+## Příklad: předání ID zprávy (`get_enhance: "id"`)
+
+```json
+{
+  "params": {
+    "_url": {
+      "domain": "exa.link",
+      "type": "full",
+      "get_enhance": "id",
+      "get_name": "original_id"
+    }
+  }
+}
+```
+
+| | |
+| --- | --- |
+| **Text v požadavku** | `Pro pokračování se přihlašte na https://www.example.com/login/` |
+| **Text v odeslané SMS** | `Pro pokračování se přihlašte na https://exa.link/3SDF23` |
+| **Cílová URL po rozkliknutí** | `https://www.example.com/login/?original_id=0ab5a46f-8f6c-46ac-8ab0-074573d3c8fb` |
+
+## Příklad: přidání zkráceného kódu (`get_enhance: "code"`)
+
+```json
+{
+  "params": {
+    "_url": {
+      "domain": "exa.link",
+      "type": "full",
+      "get_enhance": "code",
+      "get_name": "code"
+    }
+  }
+}
+```
+
+| | |
+| --- | --- |
+| **Text v požadavku** | `Pro pokračování se přihlašte na https://www.example.com/login/` |
+| **Text v odeslané SMS** | `Pro pokračování se přihlašte na https://exa.link/3SDF23` |
+| **Cílová URL po rozkliknutí** | `https://www.example.com/login/?code=3SDF23` |
+
+<Tip>
+Kratší odkaz šetří znaky a často udrží zprávu v jedné SMS. Při [odesílání SMS](/guides/send-sms) tak snížíte počet účtovaných částí zprávy.
+</Tip>

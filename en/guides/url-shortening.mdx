@@ -1,0 +1,82 @@
+---
+title: "URL shortening in messages"
+sidebarTitle: "URL shortening"
+description: "Shorten long URLs in your messages with the params._url attribute — custom domain, click tracking, and link expiry."
+---
+
+The `params` attribute in the JSON API lets you shape the message content based on defined rules. Its most common use is automatically **shortening long URLs** with the `_url` object — you save characters in the message and gain click tracking.
+
+## The `_url` object
+
+Add the `params` attribute with a `_url` object to your request body:
+
+```json
+{
+  "params": {
+    "_url": {
+      "domain": "your-domain.link",
+      "type": "full",
+      "get_enhance": false,
+      "get_name": "_"
+    }
+  }
+}
+```
+
+| Parameter | Description | Default |
+| --- | --- | --- |
+| `domain` | Domain used for the shortened URL. You can use the system domain or your own. | System domain — [contact us](mailto:cc@smsmanager.com) to set up the domain form |
+| `type` | Shortening type: `full` (requires the complete URL including protocol) or `all` (also shortens forms like `mydomain.com` without a protocol). | `full` |
+| `get_enhance` | `code` appends a GET parameter (named per `get_name`) with the alphanumeric code to the shortened URL; `id` puts the `message_id` into the GET parameter. | `false` |
+| `get_name` | Name of the GET parameter used for `get_enhance`. | `_` |
+| `expires_at` | Unix timestamp for when the shortened link expires. We recommend no longer than 30 days. | 7 days |
+
+<Note>
+Shortened links let you measure clicks and, via `get_enhance`, pass the message identifier back to your application when the link is opened.
+</Note>
+
+## Example: passing the message ID (`get_enhance: "id"`)
+
+```json
+{
+  "params": {
+    "_url": {
+      "domain": "exa.link",
+      "type": "full",
+      "get_enhance": "id",
+      "get_name": "original_id"
+    }
+  }
+}
+```
+
+| | |
+| --- | --- |
+| **Text in the request** | `To continue, sign in at https://www.example.com/login/` |
+| **Text in the sent SMS** | `To continue, sign in at https://exa.link/3SDF23` |
+| **Target URL after clicking** | `https://www.example.com/login/?original_id=0ab5a46f-8f6c-46ac-8ab0-074573d3c8fb` |
+
+## Example: appending the short code (`get_enhance: "code"`)
+
+```json
+{
+  "params": {
+    "_url": {
+      "domain": "exa.link",
+      "type": "full",
+      "get_enhance": "code",
+      "get_name": "code"
+    }
+  }
+}
+```
+
+| | |
+| --- | --- |
+| **Text in the request** | `To continue, sign in at https://www.example.com/login/` |
+| **Text in the sent SMS** | `To continue, sign in at https://exa.link/3SDF23` |
+| **Target URL after clicking** | `https://www.example.com/login/?code=3SDF23` |
+
+<Tip>
+A shorter link saves characters and often keeps the message within a single SMS. When [sending SMS](/guides/send-sms) this reduces the number of billed message parts.
+</Tip>

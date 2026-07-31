@@ -80,7 +80,8 @@
               "guides/send-viber",
               "guides/send-whatsapp",
               "guides/whatsapp-sms-fallback",
-              "guides/batch-sending"
+              "guides/batch-sending",
+              "guides/url-shortening"
             ]
           },
           {
