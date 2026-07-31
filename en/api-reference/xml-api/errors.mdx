@@ -1,0 +1,29 @@
+---
+title: "HTTP/XML API — error codes"
+sidebarTitle: "Error codes"
+description: "Reference table of SmsManager HTTP and XML API error codes: what the 1xx–2xx and 9xx codes mean and whether the request is worth retrying."
+---
+
+Nearly every response from the HTTP and XML API carries a numeric error code that helps you identify why a request was not processed.
+
+| Code | HTTP status | Meaning | Retry? |
+| --- | --- | --- | --- |
+| `101` | 400 | Missing request data (the `XMLDATA` parameter is absent for the XML API) | No |
+| `102` | 400 | The submitted data is not in the correct format | No |
+| `103` | 401 | Invalid username or password | No |
+| `104` | 400 | Invalid `gateway` parameter | No |
+| `105` | 402 | Insufficient credit for a prepaid account | No |
+| `109` | 400 | The request does not contain all required data | No |
+| `201` | 400 | No valid phone numbers in the request | No |
+| `202` | 400 | The message text is missing or too long | No |
+| `203` | 400 | Invalid `sender` parameter (set the sender in the web interface first) | No |
+| `9xx` | 500 | System error (contact [cc@smsmanager.com](mailto:cc@smsmanager.com)) | Yes |
+| `503` | 503 | The request could not be accepted due to a server error | Yes |
+
+## HTTP 40x codes
+
+Errors 1xx–2xx (HTTP status 4xx) indicate an invalid request on the client side — there is no point retrying with the same data.
+
+## HTTP 50x codes
+
+Errors 9xx indicate a server-side error and can usually be resolved by resending the same request.

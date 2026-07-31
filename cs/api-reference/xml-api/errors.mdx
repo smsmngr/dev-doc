@@ -1,0 +1,29 @@
+---
+title: "HTTP/XML API — chybové kódy"
+sidebarTitle: "Chybové kódy"
+description: "Referenční tabulka chybových kódů HTTP a XML API SmsManageru: význam kódů 1xx–2xx a 9xx a zda má smysl požadavek opakovat."
+---
+
+Prakticky každá odpověď z HTTP a XML API je opatřena číselným kódem chyby, který pomáhá rozpoznat důvod, proč nebyl požadavek zpracován.
+
+| Kód | HTTP status | Význam | Opakovat? |
+| --- | --- | --- | --- |
+| `101` | 400 | Neexistující data požadavku (u XML API chybí parametr `XMLDATA`) | Ne |
+| `102` | 400 | Zaslaná data nejsou ve správném formátu | Ne |
+| `103` | 401 | Neplatné uživatelské jméno nebo heslo | Ne |
+| `104` | 400 | Neplatný parametr `gateway` | Ne |
+| `105` | 402 | Nedostatek kreditu pro prepaid | Ne |
+| `109` | 400 | Požadavek neobsahuje všechna vyžadovaná data | Ne |
+| `201` | 400 | Žádná platná telefonní čísla v požadavku | Ne |
+| `202` | 400 | Text zprávy neexistuje nebo je příliš dlouhý | Ne |
+| `203` | 400 | Neplatný parametr `sender` (odesílatele nejprve nastavte ve webovém rozhraní) | Ne |
+| `9xx` | 500 | Systémová chyba (kontaktujte [support@smsmanager.cz](mailto:support@smsmanager.cz)) | Ano |
+| `503` | 503 | Požadavek nemohl být přijat kvůli chybě na serveru | Ano |
+
+## HTTP kódy 40x
+
+Chyby 1xx–2xx (HTTP status 4xx) souvisejí s neplatným požadavkem na straně klienta a nemá smysl je opakovat se stejnými daty.
+
+## HTTP kódy 50x
+
+Chyby 9xx souvisejí s chybou na serveru a pravděpodobně je lze vyřešit opakovaným zasláním stejného požadavku.

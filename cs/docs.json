@@ -124,7 +124,8 @@
             "group": "HTTP/XML API",
             "pages": [
               "api-reference/http-api/send",
-              "api-reference/xml-api/send"
+              "api-reference/xml-api/send",
+              "api-reference/xml-api/errors"
             ]
           },
           {
