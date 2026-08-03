@@ -1,0 +1,82 @@
+---
+title: "Credit and billing"
+sidebarTitle: "Credit and billing"
+description: "When SmsManager deducts credit. Credit is charged only when a message is sent — not when it is scheduled or prepared in the admin — and what happens when credit runs out (error 307)."
+---
+
+SmsManager deducts credit **only at the moment a message is sent**. It is not charged when you schedule a message for later, nor when you prepare a message in the admin interface. Understanding this is important for knowing when your account balance actually changes, and why a send can be scheduled even without sufficient credit.
+
+---
+
+## When credit is deducted
+
+Credit is charged at **a single moment — when the message is sent**. At the very same time, SmsManager runs the final check that the message may be sent (for example, that the recipient is not on the blacklist or has not opted out).
+
+Credit is **not** deducted:
+
+- **when a send is scheduled** — a message with a future `datetime` is queued regardless of your current balance,
+- **while preparing a message in the admin interface** — until the message is actually sent, your credit stays untouched.
+
+<Note>
+  Because credit is only reserved at send time, **a send is scheduled even if you don't have enough credit at that moment.** It is enough to top up any time before the message is sent.
+</Note>
+
+---
+
+## The credit check at send time
+
+Only at the moment of sending does SmsManager verify that you have enough credit for the given message, and if so, deducts it. The other send-time rules (blacklist, opt-out, etc.) are evaluated at the same point.
+
+The amount deducted follows the message price based on destination, channel, and number of segments. For details on how SmsManager accepts and then processes a request, see the [Request acceptance](/concepts/request-acceptance) concept.
+
+---
+
+## Insufficient credit — error 307
+
+If there isn't enough credit on the account at send time, the message is **rejected with error `[307] Insufficient credit`**. The message ends in the `rejected` state, and you receive the information at your callback URL:
+
+```json Webhook event (excerpt)
+{
+  "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+  "result": "rejected",
+  "result_info": "[307] Insufficient credit"
+}
+```
+
+<Warning>
+  **The send is not retried after error 307.** The message stays permanently in the `rejected` state — topping up credit does not automatically resend it. To deliver it, send it again as a new request once your credit is topped up.
+</Warning>
+
+---
+
+## What this means for your integration
+
+- **Scheduling does not guarantee sending.** Even a scheduled message must be covered by credit right up to the moment it is sent.
+- **Watch your balance.** Especially for sends scheduled into the future, make sure there is enough credit before that time.
+- **Handle the `rejected` state with code 307.** Listen on your callback URL and distinguish `[307] Insufficient credit` from other rejection causes in the `result_info` field. Resend rejected messages after topping up if needed.
+
+<Tip>
+  You can monitor your current balance and set up low-credit notifications via the REST API [Credit](/api-reference/rest/overview) section.
+</Tip>
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Request acceptance" icon="inbox" href="/concepts/request-acceptance">
+    Why `200 OK` means only accepted for processing, and which validation happens afterward.
+  </Card>
+
+  <Card title="Scheduling" icon="calendar" href="/concepts/scheduling">
+    How to schedule a message for a specific future time with the `datetime` field.
+  </Card>
+
+  <Card title="Error codes" icon="triangle-exclamation" href="/reference/errors">
+    The meaning of `[307] Insufficient credit` and other `result_info` states.
+  </Card>
+
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    The delivery-report format, status sequence, and the `result_info` field.
+  </Card>
+</CardGroup>

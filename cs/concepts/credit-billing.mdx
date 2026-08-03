@@ -1,0 +1,82 @@
+---
+title: "Kredit a účtování"
+sidebarTitle: "Kredit a účtování"
+description: "Kdy SmsManager odečítá kredit. Kredit se strhává až při odeslání zprávy — nikoli při naplánování ani před odesláním v administraci — a co se stane, když kredit nestačí (chyba 307)."
+---
+
+Kredit se v SmsManageru odečítá **až v okamžiku odeslání** konkrétní zprávy. Neodečítá se při naplánování zprávy k odeslání ani ve chvíli, kdy zprávu připravíte v administraci. Tento princip je důležitý pro správné pochopení toho, kdy se stav vašeho účtu skutečně změní a proč lze odeslání naplánovat i bez dostatečného kreditu.
+
+---
+
+## Kdy se kredit odečítá
+
+Kredit se strhává **v jediném okamžiku — při odeslání zprávy**. Ve stejnou chvíli probíhá i závěrečná kontrola, že zprávu lze odeslat (např. že příjemce není na blacklistu nebo se neodhlásil z odběru).
+
+Kredit se naopak **neodečítá**:
+
+- **při naplánování odeslání** — zpráva s polem `datetime` do budoucna se zařadí bez ohledu na aktuální stav kreditu,
+- **při přípravě zprávy v administraci** — dokud nedojde ke skutečnému odeslání, kredit zůstává nedotčen.
+
+<Note>
+  Protože se kredit rezervuje až při odeslání, **odeslání se naplánuje i tehdy, když v daný moment nemáte dostatek kreditu.** Kredit stačí doplnit kdykoli před okamžikem odeslání.
+</Note>
+
+---
+
+## Kontrola kreditu při odeslání
+
+Až ve chvíli odeslání SmsManager ověří, že máte na danou zprávu dostatek kreditu, a pokud ano, kredit odečte. Tehdy se také vyhodnotí ostatní pravidla pro odeslání (blacklist, opt-out apod.).
+
+Výše odečteného kreditu se řídí cenou zprávy podle destinace, kanálu a počtu segmentů. Podrobnosti o tom, jak SmsManager požadavek přijímá a následně zpracovává, najdete v konceptu [Příjem a zpracování požadavku](/concepts/request-acceptance).
+
+---
+
+## Nedostatek kreditu — chyba 307
+
+Pokud v okamžiku odeslání není na účtu dostatek kreditu, zpráva je **odmítnuta s chybou `[307] Insufficient credit`**. Zpráva skončí ve stavu `rejected` a informaci obdržíte na vaší callback URL:
+
+```json Webhook událost (výňatek)
+{
+  "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+  "result": "rejected",
+  "result_info": "[307] Insufficient credit"
+}
+```
+
+<Warning>
+  **Odeslání se po chybě 307 už znovu neopakuje.** Zpráva zůstane trvale ve stavu `rejected` — doplnění kreditu ji automaticky znovu neodešle. Chcete-li ji doručit, po dobití kreditu ji odešlete znovu jako nový požadavek.
+</Warning>
+
+---
+
+## Praktický důsledek pro vaši integraci
+
+- **Naplánování nezaručuje odeslání.** I naplánovanou zprávu je potřeba pokrýt kreditem až do okamžiku jejího odeslání.
+- **Hlídejte si stav kreditu.** Zejména u odesílání naplánovaného na budoucnost zajistěte dostatek kreditu před daným časem.
+- **Zpracujte stav `rejected` s kódem 307.** Naslouchejte na callback URL a v poli `result_info` rozlišujte `[307] Insufficient credit` od ostatních příčin zamítnutí. Zamítnuté zprávy po dobití kreditu v případě potřeby odešlete znovu.
+
+<Tip>
+  Aktuální stav kreditu i automatická upozornění na jeho vyčerpání lze sledovat přes REST API v sekci [Kredit](/api-reference/rest/overview).
+</Tip>
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Příjem a zpracování požadavku" icon="inbox" href="/concepts/request-acceptance">
+    Proč `200 OK` znamená jen přijetí ke zpracování a která validace probíhá až následně.
+  </Card>
+
+  <Card title="Plánování odeslání" icon="calendar" href="/concepts/scheduling">
+    Jak polem `datetime` naplánovat zprávu na konkrétní čas v budoucnu.
+  </Card>
+
+  <Card title="Chybové kódy" icon="triangle-exclamation" href="/reference/errors">
+    Význam kódu `[307] Insufficient credit` a dalších stavů `result_info`.
+  </Card>
+
+  <Card title="Webhooky" icon="webhook" href="/guides/webhooks">
+    Formát doručenky, sekvence stavů a pole `result_info`.
+  </Card>
+</CardGroup>
