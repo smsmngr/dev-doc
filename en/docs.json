@@ -90,6 +90,13 @@
             ]
           },
           {
+            "group": "AI assistants",
+            "pages": [
+              "ai/skills",
+              "ai/mcp-server"
+            ]
+          },
+          {
             "group": "Access & keys",
             "pages": [
               "authentication"
@@ -370,6 +377,14 @@
           {
             "label": "Code examples",
             "href": "https://github.com/smsmngr/dev-examples"
+          },
+          {
+            "label": "AI skills",
+            "href": "https://smsmanager.com/docs/ai/skills"
+          },
+          {
+            "label": "MCP server",
+            "href": "https://smsmanager.com/docs/ai/mcp-server"
           }
         ]
       },

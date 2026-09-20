@@ -1,0 +1,218 @@
+---
+title: "SmsManager MCP server"
+sidebarTitle: "MCP server"
+description: "Připojte Claude, Claude Code, Cursor, ChatGPT nebo jiného MCP klienta k účtu SmsManager. Hostovaný MCP server s OAuth přihlášením — bez API klíčů — umožňuje AI asistentovi posílat zprávy, kontrolovat doručení, spravovat klíče, kredit a odesílatele."
+---
+
+**SmsManager MCP server** je hostovaný server protokolu [Model Context Protocol](https://modelcontextprotocol.io), díky kterému AI asistent (Claude, Cursor, ChatGPT a další) pracuje s vaším účtem SmsManager přímo v konverzaci — pošle zprávu, ověří doručení, vytvoří API klíč, zjistí stav kreditu nebo objedná odesílatele.
+
+| | |
+| --- | --- |
+| **Endpoint** | `https://app-api.smsmanager.com/functions/v1/mcp` |
+| **Transport** | Streamable HTTP |
+| **Autentizace** | OAuth 2.1 s dynamickou registrací klienta — **žádné API klíče ke konfiguraci** |
+| **Rozsah** | Jeden přihlášený uživatel SmsManager a jeden workspace, který vyberete při připojení |
+
+MCP server je **vrstva akcí**: operuje reálný účet. Pokud chcete, aby váš coding agent uměl správně **psát kód** proti SmsManager API, nainstalujte navíc [AI skills](/ai/skills) — vrstvu znalostí. Obě vrstvy se doplňují.
+
+<Warning>
+  Nástroje `send_message` a `order_service` **odečítají kredit** z vybraného workspace. Asistent by měl před jejich voláním vždy získat vaše potvrzení; u objednávek služeb navíc server nabízí náhled ceny nanečisto (`confirm: false`).
+</Warning>
+
+Dokumentace serveru je udržována v repozitáři [github.com/smsmngr/smsmanager-mcp](https://github.com/smsmngr/smsmanager-mcp).
+
+---
+
+## Připojení
+
+<Tabs>
+  <Tab title="Claude (desktop / web)">
+    V nastavení Claude přidejte **vlastní konektor** (custom connector) s URL serveru:
+
+    ```text
+    https://app-api.smsmanager.com/functions/v1/mcp
+    ```
+
+    Claude si nastavení OAuth zjistí sám. Ponechte výchozí volby:
+
+    - **Authentication:** *Sign in now* — server vyžaduje přihlášení.
+    - **OAuth client:** *Register automatically* (Dynamic Client Registration).
+  </Tab>
+  <Tab title="Claude Code">
+    Přidejte server jedním příkazem:
+
+    ```bash
+    claude mcp add --transport http smsmanager https://app-api.smsmanager.com/functions/v1/mcp
+    ```
+
+    Poté spusťte `/mcp` a zvolte přihlášení k serveru `smsmanager`.
+  </Tab>
+  <Tab title="Cursor">
+    Nejjednodušší cesta je oficiální [plugin pro Cursor](https://github.com/smsmngr/smsmanager-cursor-plugin), který server zaregistruje automaticky a přidá i [skills](/ai/skills). Alternativně použijte odkaz [Add to Cursor](cursor://anysphere.cursor-deeplink/mcp/install?name=smsmanager&config=eyJ1cmwiOiJodHRwczovL2FwcC1hcGkuc21zbWFuYWdlci5jb20vZnVuY3Rpb25zL3YxL21jcCJ9) nebo server přidejte ručně do `mcp.json`:
+
+    ```json
+    {
+      "mcpServers": {
+        "smsmanager": {
+          "url": "https://app-api.smsmanager.com/functions/v1/mcp"
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="ChatGPT / Codex">
+    V nastavení ChatGPT zapněte **Developer mode** a přidejte plugin s URL serveru. Přihlaste se, vyberte workspace a plugin v konverzaci vyvolejte napsáním `@`.
+
+    Oficiální [SmsManager plugin pro ChatGPT](https://github.com/smsmngr/smsmanager-chatgpt-plugin) přidává nad server čtyři workflow skills (odeslání s ověřením doručení, nastavení účtu, objednání odesílatele, denní report kampaně) včetně bezpečnostních pravidel — potvrzení před odesláním i objednávkou a cenový náhled nanečisto.
+  </Tab>
+  <Tab title="Ostatní klienti">
+    Připojí se každý MCP klient, který podporuje **Streamable HTTP** a **OAuth 2.1** s dynamickou registrací klienta. Stačí zadat URL endpointu — server vrátí metadata OAuth automaticky.
+  </Tab>
+</Tabs>
+
+### Co se stane při připojení
+
+<Steps>
+  <Step title="Přihlášení">
+    Klient otevře prohlížeč s přihlášením do SmsManageru. Použijte stejný účet jako v [dashboardu](https://app.smsmanager.com).
+  </Step>
+  <Step title="Souhlas a výběr workspace">
+    Obrazovka souhlasu ukáže, která aplikace žádá o přístup, a nechá vás **vybrat workspace**. Připojení je k tomuto workspace pevně vázané.
+  </Step>
+  <Step title="Nástroje jsou k dispozici">
+    Po schválení je klient připojený a asistent může volat nástroje popsané níže. Začněte třeba dotazem „Kolik mám kreditu?“.
+  </Step>
+</Steps>
+
+<Note>
+  **Změna workspace:** v MCP klientovi odpojte (revokujte) aplikaci a připojte se znovu — na obrazovce souhlasu pak vyberte jiný workspace.
+</Note>
+
+---
+
+## Jak funguje přístup
+
+- Token identifikuje **vás** jako uživatele SmsManageru. Workspace zvolený při souhlasu si server pamatuje a každé volání nástroje pracuje s ním.
+- Server vidí jen data, ke kterým máte přístup i v dashboardu. Členství ve workspace se **ověřuje při každém požadavku** — po jeho ztrátě přístup okamžitě končí.
+- Odesílání zpráv a objednávky služeb **čerpají kredit workspace** a používají jeho API klíč na straně serveru. **Samotný klíč se AI nikdy nepředává.**
+- Žádný API klíč nikde nekonfigurujete; přístup odvoláte v MCP klientovi (odpojením aplikace).
+
+---
+
+## Nástroje
+
+Legenda: 🔎 pouze čtení · ✏️ zapisuje / mění stav · 💸 odečítá kredit
+
+### Identita a účet
+
+| Nástroj | Typ | Popis |
+| --- | --- | --- |
+| `whoami` | 🔎 | Kdo jste a který workspace toto připojení používá. Obsahuje krátký blok o účtu (aktivován?, stav kontroly, ověřený telefon?, měna). Bez vstupu. |
+| `get_account_status` | 🔎 | Podrobný stav aktivace a konkrétní další krok: `review_status` (`not_submitted` / `pending` / `approved` / `denied`), ověření telefonu, uložený popis využití a ukázková zpráva. Bez vstupu. |
+
+<Note>
+  **Aktivace účtu se dokončuje v prohlížeči.** Ověření telefonu vyžaduje widget s kódem, který nelze automatizovat. Nástroj proto jen hlásí stav a požadavky; asistent vám pomůže *připravit* popis využití (min. 11 znaků) a ukázkovou zprávu (min. 6 znaků) a aktivaci dokončíte na [app.smsmanager.com/app/account-verify](https://app.smsmanager.com/app/account-verify).
+</Note>
+
+### Zprávy
+
+| Nástroj | Typ | Popis |
+| --- | --- | --- |
+| `send_message` | ✏️💸 | Odešle skutečnou SMS až 10 příjemcům. Parametry: `to` (pole čísel v E.164 **bez** `+`, např. `420777123456`, 1–10 položek), `text` (1–1000 znaků), volitelně `sender` (registrované ID odesílatele; bez něj se použije výchozí odesílatel workspace). Vrací `request_id` a `message_id` pro každého příjemce. Příjemce v poli `rejected` **nebyl** odeslán (špatné číslo nebo nedostatek kreditu). |
+| `get_message_status` | 🔎 | Stav doručení jedné zprávy podle `message_id`. `delivery_code` `201` = doručeno, `202` = přečteno. Neznámé ID vrací `message: null` (není to chyba). |
+| `list_messages` | 🔎 | Odeslané zprávy za jeden den (`date` ve formátu `YYYY-MM-DD`), volitelně filtr `tag` a `phone_number`. Stránkuje se kurzorem — vrácený `next_cursor` předejte jako `cursor`. |
+| `list_inbox` | 🔎 | Přijaté (příchozí) zprávy za jeden den (`date`). |
+
+### API klíče
+
+| Nástroj | Typ | Popis |
+| --- | --- | --- |
+| `list_apikeys` | 🔎 | Seznam podřízených API klíčů („aplikací“) workspace s poznámkou, rozsahem a stavem. |
+| `create_child_apikey` | ✏️ | Vytvoří nový podřízený klíč pro integraci a vrátí ho. Parametry: `note` (název aplikace / integrace), volitelně `scope` (`api` = jen odesílání a čtení, výchozí; `full` = všechna oprávnění), `share_senders` (smí klíč používat odesílatele workspace; výchozí `true`), `currency` (`CZK` nebo `EUR`; výchozí měna workspace). |
+
+<Tip>
+  Vrácený klíč je živý přihlašovací údaj. Použijte ho v integraci a nesdílejte hlavní klíč workspace. Podrobnosti o sub-klíčích najdete v [Autentizaci](/authentication#sprava-api-klicu).
+</Tip>
+
+### Kredit a fakturace
+
+| Nástroj | Typ | Popis |
+| --- | --- | --- |
+| `get_credit` | 🔎 | Aktuální zůstatek kreditu a měna účtu. Bez vstupu. |
+| `get_billing_details` | 🔎 | Fakturační údaje (název, adresa, IČO, DIČ). Prázdná pole znamenají, že fakturace ještě není nastavená. **Bez vyplněné fakturace nelze dobít kredit.** |
+| `set_billing_details` | ✏️ | Vyplní nebo upraví fakturační údaje. Předejte jen pole, která chcete změnit — ostatní zůstanou zachována. Pole: `name`, `email`, `street`, `city`, `zip`, `country` (ISO 3166-1 alpha-2, např. `CZ`), `company_id` (IČO), `company_vat` (DIČ). |
+| `get_topup_details` | 🔎 | Platební instrukce pro dobití bankovním převodem — číslo účtu, IBAN, variabilní symbol. Převod provedete sami; kredit se připíše po zpracování platby. Dobití kartou je v dashboardu. Bez vstupu. |
+
+### Služby (odesílatelé, čísla)
+
+| Nástroj | Typ | Popis |
+| --- | --- | --- |
+| `list_services` | 🔎 | Katalog placených služeb k objednání (alfanumerické ID odesílatele, vyhrazená virtuální čísla, SIM hosting…) se zřizovacím a měsíčním poplatkem v jednotlivých měnách. Slouží k nalezení `service_id`. Bez vstupu. |
+| `order_service` | ✏️💸 | Objedná placenou službu. Parametry: `service_id` (z `list_services`, např. `sender_sms_420_alnum`), volitelně `period` (`once` / `month` / `quarter` / `year`; minimum služby může mít přednost), `subject` (u „definovaných“ služeb text odesílatele nebo číslo; u služeb přidělovaných z poolu vynechte), `payload` (pole specifická pro službu, např. `{ "country": "CZ", "proofName": "…" }`) a `confirm` (výchozí `false` = **náhled ceny nanečisto bez platby**; `true` = skutečná objednávka). |
+| `cancel_service` | ✏️ | Označí placenou službu ke zrušení na konci předplaceného období (bez vrácení peněz; zůstává aktivní do `active_until`). Idempotentní. Parametry: `service_id` a přesný `subject`, se kterým byla služba objednána. |
+
+<Warning>
+  `order_service` volejte vždy nejdřív s `confirm: false`, zkontrolujte vrácený `total_fee` a teprve potom zopakujte volání s `confirm: true`.
+</Warning>
+
+---
+
+## Typické scénáře
+
+**Odeslat a ověřit doručení**
+`send_message` → uložte `message_id` → `get_message_status` (nebo `list_messages` pro přehled celého dne).
+
+**Dobít kredit bankovním převodem**
+`get_billing_details` → pokud jsou údaje prázdné, `set_billing_details` → `get_topup_details` → proveďte převod s uvedeným variabilním symbolem.
+
+**Objednat alfanumerického odesílatele**
+`list_services` (najděte `service_id`) → `order_service` s `confirm: false` (zkontrolujte cenu) → `order_service` s `confirm: true`.
+
+**Aktivovat účet**
+`get_account_status` → asistent pomůže sepsat popis využití a ukázkovou zprávu → ověření telefonu a odeslání ke kontrole dokončíte na [app.smsmanager.com/app/account-verify](https://app.smsmanager.com/app/account-verify).
+
+**Připojit novou integraci**
+`create_child_apikey` → vrácený klíč použijte v integraci (a kód k ní vám pomohou napsat [AI skills](/ai/skills)).
+
+---
+
+## Omezení
+
+- Jedno připojení = jeden workspace. Změna workspace znamená opětovné připojení.
+- Aktivaci účtu (ověření telefonu, odeslání ke kontrole) dokončíte v prohlížeči — nástroje čtou stav a pomáhají s přípravou, ale nemohou ji odeslat.
+- `get_topup_details` vrací pouze instrukce pro bankovní převod; dobití kartou je v dashboardu.
+- `send_message` odesílá pouze SMS. Pro Viber, WhatsApp, RCS, omnikanálový `flow`, plánování nebo hromadné kampaně použijte [JSON API v2](/api-reference/json-v2/overview) — kód k tomu vám pomohou napsat [AI skills](/ai/skills).
+
+---
+
+## MCP server, nebo skills?
+
+| | MCP server | [Skills](/ai/skills) |
+| --- | --- | --- |
+| Co to je | Nástroje, kterými asistent operuje reálný účet | Znalosti API pro coding agenty |
+| Typický úkol | „Pošli zprávu, zkontroluj kredit, vytvoř klíč…“ | „Napiš integraci, která…“ |
+| Přihlášení | OAuth přihlášení do SmsManageru, bez API klíčů | Není potřeba (API klíč až pro spuštění kódu) |
+| Kde běží | Hostovaný server SmsManager | Lokálně ve vašem agentovi |
+| Vhodné pro | Provozní práci s účtem v konverzaci | Vývojáře píšící vlastní integraci |
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="AI skills" icon="wand-magic-sparkles" href="/ai/skills">
+    Naučte svého coding agenta správně psát kód proti SmsManager API.
+  </Card>
+
+  <Card title="Autentizace" icon="key" href="/authentication">
+    Jak fungují API klíče a sub-klíče, které přes MCP vytvoříte.
+  </Card>
+
+  <Card title="Kredit a účtování" icon="coins" href="/concepts/credit-billing">
+    Kdy se kredit odečítá a co se stane, když nestačí.
+  </Card>
+
+  <Card title="REST API" icon="code" href="/api-reference/rest/overview">
+    Stejné operace (klíče, kredit, služby, stav zpráv) přímo přes HTTP.
+  </Card>
+</CardGroup>

@@ -54,6 +54,10 @@ Při vytváření sub-klíče můžete nastavit:
   API klíče jsou vázány na účet. Sub-klíče vytvořené pod vaším účtem mohou sdílet vaši kreditní linku nebo mít vlastní zůstatek podle toho, jak nastavíte příznak `shared` při volání REST API.
 </Note>
 
+<Tip>
+  Sub-klíč pro novou integraci vám vytvoří i AI asistent připojený přes [MCP server](/ai/mcp-server) (nástroj `create_child_apikey`) — bez toho, aby kdy viděl hlavní klíč workspace. Kód generovaný pomocí [AI skills](/ai/skills) načítá klíč z proměnné prostředí `SMSMANAGER_API_KEY`, v souladu s doporučeními níže.
+</Tip>
+
 ## Bezpečnostní doporučení
 
 Dodržujte tato doporučení pro ochranu vašich API klíčů a dat uživatelů:

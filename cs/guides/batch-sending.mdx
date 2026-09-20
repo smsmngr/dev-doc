@@ -1,5 +1,9 @@
 Endpoint `/messages` vám umožňuje sbalit až **10 objektů zpráv**, každý s až **10 příjemci**, do jednoho API volání — to je až 100 doručení příjemcům na požadavek. Je to nejefektivnější způsob pro zvýšení propustnosti odesílání.
 
+<Note>
+  Potřebujete odeslat **více než 100 příjemců najednou**? Použijte hromadné nahrání JSONL souboru přes REST API (`POST /messaging/url`, viz [REST API](/api-reference/rest/overview)). Skill `smsmanager-bulk-messaging` z balíčku [SmsManager skills](/ai/skills) umí soubor vygenerovat, nahrát a naplánovat za vás.
+</Note>
+
 ---
 
 ## Kdy použít hromadné odesílání

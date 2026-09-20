@@ -56,7 +56,7 @@ If there isn't enough credit on the account at send time, the message is **rejec
 - **Handle the `rejected` state with code 307.** Listen on your callback URL and distinguish `[307] Insufficient credit` from other rejection causes in the `result_info` field. Resend rejected messages after topping up if needed.
 
 <Tip>
-  You can monitor your current balance and set up low-credit notifications via the REST API [Credit](/api-reference/rest/overview) section.
+  You can monitor your current balance and set up low-credit notifications via the REST API [Credit](/api-reference/rest/overview) section. An AI assistant connected through the [MCP server](/ai/mcp-server) can read the balance with the `get_credit` tool and prepare bank-transfer top-up details (`get_topup_details`).
 </Tip>
 
 ---

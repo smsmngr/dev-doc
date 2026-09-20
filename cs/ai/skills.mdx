@@ -1,0 +1,167 @@
+---
+title: "Skills pro AI coding agenty"
+sidebarTitle: "AI skills"
+description: "Nainstalujte oficiální SmsManager skills do Claude Code, Cursoru, Codexu nebo jiného AI agenta. Agent získá ověřené znalosti JSON API v2 a REST API v1 — flow, odesílatelé, Unicode, plánování, webhooky, stav zpráv, opt-out i objednávání služeb."
+---
+
+**SmsManager skills** jsou balíček znalostí pro AI coding agenty (Claude Code, Cursor, Codex a další). Po instalaci váš agent ví, jak správně používat SmsManager API — rozumí omnikanálovému `flow`, ID odesílatelů a aliasům, rozdílu mezi Unicode a GSM kódováním, plánování, dávkovému odesílání, doručenkám, dotazování na stav zpráv i chytákům, ve kterých se jazykové modely jinak běžně pletou.
+
+Skills jsou **vrstva znalostí**: učí agenta psát kód proti vašemu API. Pokud chcete, aby AI asistent za vás přímo **pracoval s účtem** (posílal zprávy, kontroloval doručení, spravoval klíče a kredit), připojte [MCP server](/ai/mcp-server) — vrstvu akcí. Obě vrstvy lze používat současně.
+
+<Note>
+  K instalaci nepotřebujete žádné přihlašovací údaje. API klíč potřebujete až ve chvíli, kdy chcete agentem vygenerovaný kód skutečně spustit a odeslat zprávu.
+</Note>
+
+Zdrojový kód a aktuální verze katalogu: [github.com/smsmngr/smsmanager-skills](https://github.com/smsmngr/smsmanager-skills) (licence Apache-2.0).
+
+---
+
+## Instalace
+
+<Tabs>
+  <Tab title="Claude Code">
+    Nainstalujte skills jako plugin z oficiálního marketplace SmsManager. V Claude Code spusťte:
+
+    ```text
+    /plugin marketplace add smsmngr/smsmanager-skills
+    /plugin install smsmanager-skills@smsmanager
+    ```
+
+    Plugin se aktualizuje přes `/plugin` stejně jako ostatní pluginy.
+  </Tab>
+  <Tab title="skills CLI (Cursor, Codex, …)">
+    Každý agent, který podporuje [skills CLI](https://www.npmjs.com/package/skills), si skills stáhne jedním příkazem:
+
+    ```bash
+    npx skills add smsmngr/smsmanager-skills
+    ```
+
+    Příkaz funguje i v Claude Code, pokud nechcete používat plugin marketplace.
+  </Tab>
+  <Tab title="Cursor plugin">
+    Pro Cursor existuje oficiální plugin [smsmngr/smsmanager-cursor-plugin](https://github.com/smsmngr/smsmanager-cursor-plugin), který obsahuje všech 7 skills **a zároveň registruje [MCP server](/ai/mcp-server)**. Nainstalujte plugin `smsmanager` z tohoto marketplace a získáte obě vrstvy najednou.
+  </Tab>
+  <Tab title="Ručně">
+    Zkopírujte složky z adresáře [`skills/`](https://github.com/smsmngr/smsmanager-skills/tree/main/skills) do adresáře skills vašeho agenta, například `~/.claude/skills/`. Každá složka obsahuje `SKILL.md` a volitelné podsložky `references/` a `scripts/`.
+  </Tab>
+</Tabs>
+
+<Tip>
+  Používáte **ChatGPT nebo Codex**? Plugin [smsmngr/smsmanager-chatgpt-plugin](https://github.com/smsmngr/smsmanager-chatgpt-plugin) přidává čtyři workflow skills (odeslání s ověřením doručení, nastavení účtu, objednání odesílatele, denní report kampaně) nad [MCP server](/ai/mcp-server). Je určený spíš pro práci s účtem v konverzaci než pro psaní kódu.
+</Tip>
+
+---
+
+## Co skills obsahují
+
+Katalog má sedm skills. Každý pokrývá jednu část API a odkazuje na ostatní, takže agent si načte jen to, co pro daný úkol potřebuje.
+
+| Skill | Kategorie | Co agenta naučí |
+| --- | --- | --- |
+| `smsmanager-authentication` | Základ | Práce s API klíčem, základní URL JSON API v2 a REST API v1, hlavička `x-api-key` vs. query parametr `apikey`, řešení chyb autentizace. Sdílený základ pro všechny ostatní skills. |
+| `smsmanager-messaging-api` | Zprávy | Odesílání SMS, Viber, WhatsApp a RCS přes `/message`, `/message/priority`, `/messages` a `/simple/message` — omnikanálový `flow`, ID odesílatelů a aliasy, Unicode, plánování, dávky, štítky, vlastní `payload`. |
+| `smsmanager-delivery-reports` | Zprávy | Webhooky pro stav doručení, příchozí zprávy a odpovědi (`callback` URL), stavové kódy, kódy zamítnutí, obousměrné SMS. |
+| `smsmanager-message-status` | Zprávy | Dotazování na stav zpráv, seznam odeslaných zpráv, statistiky za požadavek či den a schránka přes REST API v1 (`/message`, `/messages`, `/request`, `/requests`, `/inbox`). |
+| `smsmanager-optout-blacklist` | Zprávy | Správa opt-out seznamu a blacklistu — přidání a odebrání čísel, export do CSV (`/optout`, `/blacklist`). |
+| `smsmanager-services` | Účet | Objednání placených služeb — alfanumerických odesílatelů, vyhrazených čísel, SIM hostingu — s náhledem ceny nanečisto; stav kreditu; zrušení služby (`/credit/services`, `/credit/order`, `/credit/cancel`). |
+| `smsmanager-bulk-messaging` | Zprávy | Hromadné odeslání z JSONL souboru přes předpodepsaný upload, validace zpráv bez odeslání, zrušení naplánovaných zpráv a hromadných uploadů (`/messaging/url`, `/messaging/validate`, `/messaging/cancel`). |
+
+### Struktura jednoho skillu
+
+```text
+skills/smsmanager-<oblast>/
+├─ SKILL.md        # vstupní bod — krátký, do 500 řádků
+├─ references/     # podrobné podklady načítané až na vyžádání
+└─ scripts/        # spustitelné Node.js skripty bez závislostí (.cjs)
+```
+
+`SKILL.md` je záměrně stručný a odkazuje na `references/` (například přehled endpointů, popis jednotlivých kanálů nebo ukázky v Node.js, PHP a Pythonu). Agent tak nezahltí kontext a načte podrobnosti až ve chvíli, kdy je potřebuje. Některé skills přinášejí i hotové skripty, které agent může rovnou spustit — například `send_sms.cjs`, `get_message_status.cjs` nebo `upload_bulk.cjs`.
+
+---
+
+## Konfigurace
+
+Skills čtou přihlašovací údaje výhradně z proměnných prostředí. Agent je instruován, aby klíč nikdy nezapisoval do kódu.
+
+| Proměnná | Povinná | Význam |
+| --- | --- | --- |
+| `SMSMANAGER_API_KEY` | Ano (pro reálné volání) | Váš API klíč z [app.smsmanager.com/app/developers](https://app.smsmanager.com/app/developers/). |
+| `SMSMANAGER_BASE_URL` | Ne | Základní URL JSON API v2. Výchozí `https://api.smsmngr.com/v2`. |
+| `SMSMANAGER_REST_BASE_URL` | Ne | Základní URL REST API v1. Výchozí `https://rest-api.smsmngr.com/v1`. |
+| `SMSMANAGER_SENDER` | Ne | Výchozí ID odesílatele, které agent použije, pokud ho nezadáte v promptu. |
+
+```bash
+export SMSMANAGER_API_KEY="YOUR_API_KEY"
+export SMSMANAGER_SENDER="MujSender"
+```
+
+<Tip>
+  Při vývoji můžete do `SMSMANAGER_BASE_URL` nastavit [mock endpoint](/guides/testing) `https://api-mock.smsmngr.com/v2` nebo použít testovací číslo `420777777777` — kód vygenerovaný agentem pak nic neodešle a neodečte kredit.
+</Tip>
+
+---
+
+## Jak s agentem pracovat
+
+Skills se aktivují automaticky podle toho, co po agentovi chcete. Stačí popsat úkol běžným jazykem:
+
+- „Pošli SMS s jednorázovým kódem na 420777123456 a použij prioritní endpoint.“
+- „Přidej do našeho Express serveru endpoint, který přijímá doručenky ze SmsManageru a ukládá stav do databáze.“
+- „Zprávu pošli nejdřív přes WhatsApp šablonu a když se do 10 minut nedoručí, přejdi na SMS.“
+- „Vygeneruj JSONL soubor z tohoto CSV a nahraj ho jako hromadnou kampaň naplánovanou na zítra 9:00.“
+- „Zjisti, proč nám API vrací kód 304, a oprav to.“
+
+Před generováním kódu si agent doplní chybějící informace (kanál, odesílatel, jazyk, zda text obsahuje diakritiku) a poté použije správný endpoint, formát čísel (E.164 bez `+`) a hlavičku `x-api-key`.
+
+### Zabudované pojistky
+
+Skills obsahují pravidla, která chrání váš účet a kredit:
+
+- **Objednávky služeb** se vždy nejdřív spouštějí nanečisto (`dryrun: true`), agent vám ukáže celkovou cenu a čeká na potvrzení.
+- **Vymazání celého opt-out seznamu nebo blacklistu** (`all: true`) agent provede jen po výslovném potvrzení.
+- **API klíč** se načítá z proměnné prostředí, nikdy se nevkládá do zdrojového kódu ani do repozitáře.
+- Pro hromadné kampaně agent doporučí sdílený `tag` a `callback`, aby šlo výsledky dohledat.
+
+---
+
+## Skills, nebo MCP server?
+
+| | Skills | [MCP server](/ai/mcp-server) |
+| --- | --- | --- |
+| Co to je | Znalosti API pro coding agenty | Nástroje, kterými asistent operuje reálný účet |
+| Typický úkol | „Napiš integraci, která…“ | „Pošli zprávu, zkontroluj kredit, vytvoř klíč…“ |
+| Přihlášení | Není potřeba (API klíč až pro spuštění kódu) | OAuth přihlášení do SmsManageru, bez API klíčů |
+| Kde běží | Lokálně ve vašem agentovi | Hostovaný server SmsManager |
+| Vhodné pro | Vývojáře píšící vlastní integraci | Provozní práci s účtem v konverzaci |
+
+Vývojářům doporučujeme obojí: skills pro psaní kódu, MCP server pro rychlé ověření, že zpráva odešla, nebo pro vytvoření sub-klíče pro novou integraci.
+
+---
+
+## Verze a aktualizace
+
+Skills se publikují přímo z repozitáře — sloučení do větve `main` znamená vydání. Aktuální verzi katalogu a změny jednotlivých skills najdete v [CHANGELOG.md](https://github.com/smsmngr/smsmanager-skills/blob/main/CHANGELOG.md). Aktualizaci provedete opakovanou instalací (`/plugin` v Claude Code, případně znovu `npx skills add`).
+
+Všechna fakta ve skills odpovídají této dokumentaci. Pokud narazíte na nesrovnalost, [otevřete issue](https://github.com/smsmngr/smsmanager-skills/issues) v repozitáři.
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="MCP server" icon="plug" href="/ai/mcp-server">
+    Připojte AI asistenta přímo k vašemu účtu — odesílání, stav doručení, klíče, kredit a služby.
+  </Card>
+
+  <Card title="Autentizace" icon="key" href="/authentication">
+    Kde získat API klíč a jak ho bezpečně předávat v požadavcích.
+  </Card>
+
+  <Card title="Testování napojení" icon="flask" href="/guides/testing">
+    Testovací číslo, testovací brána a mock endpointy pro kód generovaný agentem.
+  </Card>
+
+  <Card title="JSON API v2" icon="code" href="/api-reference/json-v2/overview">
+    Referenční specifikace endpointů, ze které skills vycházejí.
+  </Card>
+</CardGroup>
