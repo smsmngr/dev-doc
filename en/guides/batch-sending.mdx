@@ -1,5 +1,9 @@
 The `/messages` endpoint lets you pack up to **10 message objects**, each with up to **10 recipients**, into a single API call — that's up to 100 recipient deliveries per request. This is the most efficient way to run a campaign, send a batch of transactional notifications, or combine SMS and Viber sends in one round trip.
 
+<Note>
+  Need to send to **more than 100 recipients at once**? Use the JSONL bulk upload via the REST API (`POST /messaging/url`, see [REST API](/api-reference/rest/overview)). The `smsmanager-bulk-messaging` skill from the [SmsManager skills](/ai/skills) package can generate, upload and schedule the file for you.
+</Note>
+
 ---
 
 ## When to use batch sending

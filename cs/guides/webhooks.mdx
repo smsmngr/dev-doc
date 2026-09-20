@@ -1,5 +1,9 @@
 Webhooky umožňují SmsManageru ihned posílat události na váš server, jakmile se něco stane (zpráva je doručena, doručení selže nebo příjemce odpoví apod.). Místo opakovaného dotazování API na stav, stačí jen připravit endpoint na vaší straně, který přijímá HTTP `POST` požadavek obsahující JSON payload. Je to nejefektivnější způsob, jak vybudovat sledování zpráv v reálném čase, automatizovat opakování a zpracovávat příchozí zprávy.
 
+<Tip>
+  Webhook endpoint vám může napsat AI agent: skill `smsmanager-delivery-reports` z balíčku [SmsManager skills](/ai/skills) zná formát payloadu, sekvenci stavů i kódy `result_info` popsané na této stránce.
+</Tip>
+
 ---
 
 ## Typy webhooků

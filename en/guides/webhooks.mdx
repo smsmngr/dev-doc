@@ -1,5 +1,9 @@
 Webhooks let SmsManager push events to your server the moment something happens — a message is delivered, a delivery fails, or a recipient replies. Instead of polling the API for status updates, your endpoint receives an HTTP `POST` request containing a JSON payload describing the event. This is the most efficient way to build real-time message tracking, automate retries, and handle inbound messages.
 
+<Tip>
+  An AI agent can write the webhook endpoint for you: the `smsmanager-delivery-reports` skill from the [SmsManager skills](/ai/skills) package knows the payload format, the status sequence and the `result_info` codes described on this page.
+</Tip>
+
 ---
 
 ## Webhook types

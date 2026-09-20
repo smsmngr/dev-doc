@@ -10,6 +10,10 @@ Tento průvodce vás provede odesláním první SMS pomocí SmsManager JSON API 
   **Předpoklady:** Před začátkem potřebujete účet SmsManager a API klíč. Klíč získáte na [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud).
 </Note>
 
+<Tip>
+  **Píšete integraci s AI agentem?** Nainstalujte [SmsManager skills](/ai/skills) (`npx skills add smsmngr/smsmanager-skills`) a agent zvládne níže popsané kroky sám — včetně správného formátu čísel, hlavičky `x-api-key` a zpracování odpovědi. Pro odeslání zprávy přímo z konverzace bez psaní kódu připojte [MCP server](/ai/mcp-server).
+</Tip>
+
 <Steps>
   <Step title="Získejte svůj API klíč">
     Přihlaste se ke svému účtu SmsManager a přejděte na [API & Cloud](https://app.smsmanager.com/api-cloud). Váš hlavní API klíč je zobrazen na této stránce. Zkopírujte jej — budete jej předávat jako hlavičku `x-api-key` v každém požadavku.
@@ -149,7 +153,7 @@ echo $response;
 
 ## Další kroky
 
-<CardGroup cols={3}>
+<CardGroup cols={2}>
   <Card title="Tok zpráv" icon="arrow-right-arrow-left" href="/concepts/message-flow">
     Naučte se vytvářet multikanálové záložní řetězce pomocí vlastnosti `flow`.
   </Card>
@@ -160,5 +164,9 @@ echo $response;
 
   <Card title="Webhooky" icon="webhook" href="/guides/webhooks">
     Přijímejte potvrzení o doručení a příchozí zprávy v reálném čase.
+  </Card>
+
+  <Card title="AI skills a MCP server" icon="wand-magic-sparkles" href="/ai/skills">
+    Nechte AI agenta psát integraci za vás nebo připojte asistenta přímo k účtu.
   </Card>
 </CardGroup>

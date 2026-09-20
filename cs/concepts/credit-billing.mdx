@@ -56,7 +56,7 @@ Pokud v okamžiku odeslání není na účtu dostatek kreditu, zpráva je **odm�
 - **Zpracujte stav `rejected` s kódem 307.** Naslouchejte na callback URL a v poli `result_info` rozlišujte `[307] Insufficient credit` od ostatních příčin zamítnutí. Zamítnuté zprávy po dobití kreditu v případě potřeby odešlete znovu.
 
 <Tip>
-  Aktuální stav kreditu i automatická upozornění na jeho vyčerpání lze sledovat přes REST API v sekci [Kredit](/api-reference/rest/overview).
+  Aktuální stav kreditu i automatická upozornění na jeho vyčerpání lze sledovat přes REST API v sekci [Kredit](/api-reference/rest/overview). AI asistent připojený přes [MCP server](/ai/mcp-server) zjistí zůstatek nástrojem `get_credit` a připraví podklady pro dobití převodem (`get_topup_details`).
 </Tip>
 
 ---

@@ -10,6 +10,10 @@ This guide walks you through sending your first SMS with SmsManager's JSON API v
   **Prerequisites:** You need an SmsManager account and an API key before you begin. Retrieve your key from [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud).
 </Note>
 
+<Tip>
+  **Building the integration with an AI agent?** Install the [SmsManager skills](/ai/skills) (`npx skills add smsmngr/smsmanager-skills`) and the agent handles the steps below on its own — including the phone number format, the `x-api-key` header and response handling. To send a message straight from a conversation without writing code, connect the [MCP server](/ai/mcp-server).
+</Tip>
+
 <Steps>
   <Step title="Get your API key">
     Log in to your SmsManager account and navigate to [API & Cloud](https://app.smsmanager.com/api-cloud). Your primary API key is displayed on that page. Copy it — you'll pass it as the `x-api-key` header in every request.
@@ -149,7 +153,7 @@ echo $response;
 
 ## Next steps
 
-<CardGroup cols={3}>
+<CardGroup cols={2}>
   <Card title="Message flow" icon="arrow-right-arrow-left" href="/concepts/message-flow">
     Learn how to build multi-channel fallback chains with the `flow` property.
   </Card>
@@ -160,5 +164,9 @@ echo $response;
 
   <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
     Receive delivery receipts and inbound messages in real time.
+  </Card>
+
+  <Card title="AI skills and MCP server" icon="wand-magic-sparkles" href="/ai/skills">
+    Let an AI agent write the integration for you, or connect an assistant directly to your account.
   </Card>
 </CardGroup>
