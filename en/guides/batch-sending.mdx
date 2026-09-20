@@ -1,4 +1,21 @@
-The `/messages` endpoint lets you pack up to **10 message objects**, each with up to **10 recipients**, into a single API call — that's up to 100 recipient deliveries per request. This is the most efficient way to run a campaign, send a batch of transactional notifications, or combine SMS and Viber sends in one round trip.
+---
+title: "Batch Sending — the /messages endpoint and JSONL file upload"
+sidebarTitle: "Batch sending"
+description: "Send up to 100 messages in a single /messages call, or upload a JSONL file with thousands of messages in one file upload via a presigned URL from the REST API /messaging/url endpoint."
+---
+
+The `/messages` endpoint lets you pack up to **10 message objects**, each with up to **10 recipients**, into a single API call — that's up to 100 recipient deliveries per request. This is the most efficient way to run a campaign, send a batch of transactional notifications, or combine SMS and Viber sends in one round trip. If you need to send **thousands to hundreds of thousands of messages**, you can upload a single JSONL file instead of making many HTTP requests — see [Bulk file upload via the REST API](#bulk-file-upload-via-the-rest-api) below.
+
+---
+
+## Two ways to send in bulk
+
+| | `POST /messages` (JSON API v2) | File upload (`POST /messaging/url`, REST API) |
+| --- | --- | --- |
+| Best for | a few to a few hundred recipients, transactional and real-time sends | thousands to hundreds of thousands of messages, campaigns |
+| Per call | 10 message objects × 10 recipients | one file, one message object per line |
+| Response | synchronous `accepted` / `rejected` with `message_id` | upload acknowledged; per-message outcome via webhooks |
+| Scheduling | `datetime` per message | `datetime` for the whole file (and optionally per message); cancel via `/messaging/cancel` |
 
 <Note>
   Need to send to **more than 100 recipients at once**? Use the JSONL bulk upload via the REST API (`POST /messaging/url`, see [REST API](/api-reference/rest/overview)). The `smsmanager-bulk-messaging` skill from the [SmsManager skills](/ai/skills) package can generate, upload and schedule the file for you.
@@ -163,7 +180,7 @@ Each message object in the array has its own independent `flow`. This means you 
 | Total recipients per `/messages` call | 100 |
 
 <Tip>
-  If you need to reach more than 100 recipients, split your list and send multiple `/messages` calls. There is no rate-limit penalty for making back-to-back batch requests — just stay within your account's per-second throughput quota.
+  If you need to reach more than 100 recipients, split your list and send multiple `/messages` calls. There is no rate-limit penalty for making back-to-back batch requests — just stay within your account's per-second throughput quota. For thousands of messages or more, it is simpler to [upload a single JSONL file](#bulk-file-upload-via-the-rest-api) — no need to manage thousands of HTTP requests, their throughput, retries, or return codes.
 </Tip>
 
 ---
@@ -218,11 +235,132 @@ curl -X POST https://api.smsmngr.com/v2/messages \
 
 ---
 
+## Bulk file upload via the REST API
+
+When you send thousands to hundreds of thousands of messages, calling `/messages` a hundred recipients at a time becomes impractical: you have to manage request concurrency and throughput, handle the return code of every call, and retry the failed ones. The REST API endpoint `POST /messaging/url` instead returns a **presigned URL** to which you upload your whole message list as a single **JSONL file** (JSON Lines — one message object per line) in one file upload. SmsManager then processes the messages on its side.
+
+<Note>
+  The `/messaging/url` endpoint belongs to the [REST API](/api-reference/rest/overview), not to the JSON API v2. The base URL is `https://rest-api.smsmngr.com/v1`; authentication is the same — the `x-api-key` header with the same API key.
+</Note>
+
+<Steps>
+  <Step title="Prepare the JSONL file">
+    Each line of the file is one message object in the **same format as the JSON API v2** — the same object you send to `POST /message` or as an array element to `POST /messages`. Use UTF-8 encoding, one JSON object per line, with no surrounding array and no commas between lines.
+
+    ```jsonl messages.jsonl
+    {"body": "Hi Alice! Your order is on its way.", "to": [{"phone_number": "420777123456"}], "tag": "transactional", "callback": "https://yourapp.com/webhooks/bulk"}
+    {"body": "Hi Bob! Your order is on its way.", "to": [{"phone_number": "420777654321"}], "tag": "transactional", "callback": "https://yourapp.com/webhooks/bulk"}
+    {"body": "Flash sale ends tonight! Visit example.com/sale", "to": [{"phone_number": "420777111111"}, {"phone_number": "420777222222"}], "tag": "promotional", "flow": [{"sms": {"sender": "MyShop", "gateway": "high"}}]}
+    ```
+
+    Every line can use all message object fields — `to` with up to 10 recipients, a mixed-channel `flow`, `tag`, `callback`, `payload`, `datetime`, and `delivery_time`. For large files, we recommend gzip compression:
+
+    ```bash gzip
+    gzip messages.jsonl   # creates messages.jsonl.gz
+    ```
+  </Step>
+  <Step title="Request the upload URL">
+    Call `POST /messaging/url` with your own batch identifier and the file type.
+
+    ```bash cURL
+    curl -X POST https://rest-api.smsmngr.com/v1/messaging/url \
+      -H "x-api-key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"bulk_id": "campaign-2026-09-20", "filetype": "jsonl"}'
+    ```
+
+    ```json Response
+    {
+      "success": true,
+      "url": "https://smsmngr-bulk-uploads.s3.amazonaws.com/...&X-Amz-Expires=60..."
+    }
+    ```
+
+    | Field | Required | Description |
+    | --- | --- | --- |
+    | `bulk_id` | yes | Your identifier of the bulk upload. Use a unique, descriptive string (for example the campaign name and date) — it is the key for cancelling a scheduled upload. |
+    | `filetype` | yes | `jsonl` for an uncompressed file, `gz` for gzipped JSONL. |
+    | `datetime` | no | Scheduled processing time of the file in UTC (ISO 8601). Without this field the file is processed right after upload. |
+  </Step>
+  <Step title="Upload the file">
+    Send the file to the returned URL with `PUT`. The `Content-Type` header must match the chosen `filetype`: `application/jsonl` for `jsonl`, `application/gzip` for `gz`.
+
+    ```bash cURL (JSONL)
+    curl -X PUT "https://smsmngr-bulk-uploads.s3.amazonaws.com/...&X-Amz-Expires=60..." \
+      -H "Content-Type: application/jsonl" \
+      --data-binary @messages.jsonl
+    ```
+
+    ```bash cURL (gzip)
+    curl -X PUT "https://smsmngr-bulk-uploads.s3.amazonaws.com/...&X-Amz-Expires=60..." \
+      -H "Content-Type: application/gzip" \
+      --data-binary @messages.jsonl.gz
+    ```
+
+    <Warning>
+      The presigned URL is valid for only **60 seconds**. Request it right before uploading and have the file ready in advance. Upload with `PUT` and the raw file content as the request body — not with `POST` or `multipart/form-data`. Do not send `x-api-key` with the `PUT` request itself; the authorization is part of the URL.
+    </Warning>
+  </Step>
+  <Step title="Track delivery via webhooks">
+    The uploaded file is processed asynchronously — a successful `PUT` only means the file was received. You get the outcome of every message (accepted, sent, delivered, or rejected) as a `sentMessage` webhook to the `callback` set on the message, or to your account's default callback URL. There is no separate endpoint for the status of the whole batch.
+
+    Every recipient has its own `message_id`; for lines with multiple recipients the `message_id` is derived the same way as for `/messages` — with the index suffix `-0`, `-1`, and so on. See the [Webhooks](/guides/webhooks) guide and the [Request acceptance](/concepts/request-acceptance) concept for details.
+  </Step>
+</Steps>
+
+### Scheduling and cancellation
+
+The `datetime` field in the `POST /messaging/url` body schedules processing of the **whole file** for the given UTC time. The same rules apply as for [scheduling individual messages](/concepts/scheduling).
+
+```bash cURL
+curl -X POST https://rest-api.smsmngr.com/v1/messaging/url \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"bulk_id": "campaign-2026-09-21", "filetype": "gz", "datetime": "2026-09-21T08:00:00Z"}'
+```
+
+To cancel a scheduled upload, call `POST /messaging/cancel` with its `bulk_id`:
+
+```bash cURL
+curl -X POST https://rest-api.smsmngr.com/v1/messaging/cancel \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"bulk_id": "campaign-2026-09-21"}'
+```
+
+<Note>
+  A `datetime` inside an individual line of the file applies to that message and takes effect when the message is processed. Processing of the file itself is controlled only by the `datetime` in the URL request.
+</Note>
+
+### Errors
+
+| Code | Message | Cause |
+| --- | --- | --- |
+| `400` | `Missing 'bulk_id' or 'filetype' or 'datetime' in request data` | A required field is missing or `datetime` has an invalid format. |
+| `400` | `Unsupported filetype` | `filetype` is neither `jsonl` nor `gz`. |
+| `500` | `Failed to generate upload URL` | The URL could not be generated — retry the request. |
+
+Errors during the `PUT` itself (for example an expired URL or a mismatched `Content-Type`) are returned directly by the storage as an HTTP error without an SmsManager-formatted body. In that case request a new URL and repeat the upload.
+
+<Tip>
+  For large campaigns use gzip (`filetype: "gz"`) — it significantly reduces the transferred volume. Keep marketing messages in the default `promotional` queue (see [Sending queues](/concepts/sending-queues)); the priority queue is not intended for bulk sending.
+</Tip>
+
+---
+
 ## Next steps
 
 <CardGroup cols={2}>
   <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
     Receive delivery status for each recipient in your batch via webhooks.
+  </Card>
+
+  <Card title="REST API reference" icon="book" href="/api-reference/rest/overview">
+    Reference for the `/messaging/url` and `/messaging/cancel` bulk file upload endpoints.
+  </Card>
+
+  <Card title="Scheduling" icon="calendar" href="/concepts/scheduling">
+    Schedule sends with `datetime` and restrict delivery to allowed hours with `delivery_time`.
   </Card>
 
   <Card title="Send Viber" icon="message" href="/guides/send-viber">

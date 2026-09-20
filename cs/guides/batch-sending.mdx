@@ -1,4 +1,21 @@
-Endpoint `/messages` vám umožňuje sbalit až **10 objektů zpráv**, každý s až **10 příjemci**, do jednoho API volání — to je až 100 doručení příjemcům na požadavek. Je to nejefektivnější způsob pro zvýšení propustnosti odesílání.
+---
+title: "Hromadné odesílání zpráv — endpoint /messages a nahrání JSONL souboru"
+sidebarTitle: "Hromadné odesílání"
+description: "Odesílejte až 100 zpráv jedním voláním endpointu /messages, nebo nahrajte JSONL soubor s tisíci zpráv jedním file uploadem přes předpodepsanou URL z REST API endpointu /messaging/url."
+---
+
+Endpoint `/messages` vám umožňuje sbalit až **10 objektů zpráv**, každý s až **10 příjemci**, do jednoho API volání — to je až 100 doručení příjemcům na požadavek. Je to nejefektivnější způsob pro zvýšení propustnosti odesílání. Pokud potřebujete odeslat **tisíce až statisíce zpráv**, můžete místo mnoha HTTP požadavků nahrát jeden JSONL soubor — viz [Hromadné nahrání souboru přes REST API](#hromadné-nahrání-souboru-přes-rest-api) níže.
+
+---
+
+## Dvě cesty hromadného odesílání
+
+| | `POST /messages` (JSON API v2) | Nahrání souboru (`POST /messaging/url`, REST API) |
+| --- | --- | --- |
+| Vhodné pro | jednotky až stovky příjemců, transakční a real-time odesílání | tisíce až statisíce zpráv, kampaně |
+| Na jedno volání | 10 objektů zpráv × 10 příjemců | jeden soubor, jeden objekt zprávy na řádek |
+| Odpověď | synchronně `accepted` / `rejected` s `message_id` | potvrzení nahrání; výsledek každé zprávy přes webhooky |
+| Plánování | `datetime` u každé zprávy | `datetime` pro celý soubor (a volitelně u každé zprávy); zrušení přes `/messaging/cancel` |
 
 <Note>
   Potřebujete odeslat **více než 100 příjemců najednou**? Použijte hromadné nahrání JSONL souboru přes REST API (`POST /messaging/url`, viz [REST API](/api-reference/rest/overview)). Skill `smsmanager-bulk-messaging` z balíčku [SmsManager skills](/ai/skills) umí soubor vygenerovat, nahrát a naplánovat za vás.
@@ -80,7 +97,7 @@ Odpověď obsahuje `request_id` na nejvyšší úrovni a dvě pole — `accepted
 }
 ```
 
-Pokud objekty zpráv seleží při validaci (například chybný formát telefonního čísla), objeví se v `rejected` s `key` odpovídajícím jejich pozici v poli a popisem chyby. Platné objekty zpráv ve stejném požadavku jsou i tak přijaty a zařazeny.
+Pokud objekty zpráv selžou při validaci (například chybný formát telefonního čísla), objeví se v `rejected` s `key` odpovídajícím jejich pozici v poli a popisem chyby. Platné objekty zpráv ve stejném požadavku jsou i tak přijaty a zařazeny.
 
 ---
 
@@ -101,7 +118,7 @@ Doručovací webhooky obsahují tato ID s příponou, takže můžete propojit k
 
 ## Smíšené kanály v dávce
 
-Každý objekt zprávy může mít poli má vlastní nezávislé `flow`. To znamená, že můžete odeslat SMS jedné skupině a Viber zprávu (s SMS zálohou) jiné skupině ve stejném API volání.
+Každý objekt zprávy v poli má vlastní nezávislé `flow`. To znamená, že můžete odeslat SMS jedné skupině a Viber zprávu (s SMS zálohou) jiné skupině ve stejném API volání.
 
 ```json Dávka smíšených kanálů
 [
@@ -164,7 +181,7 @@ Každý objekt zprávy může mít poli má vlastní nezávislé `flow`. To znam
 | Celkem příjemců na volání `/messages` | 100 |
 
 <Tip>
-  Pokud potřebujete oslovit více než 100 příjemců, rozdělte seznam a odešlete více volání `/messages`.
+  Pokud potřebujete oslovit více než 100 příjemců, rozdělte seznam a odešlete více volání `/messages`. U tisíců a více zpráv je jednodušší [nahrát jeden JSONL soubor](#hromadné-nahrání-souboru-přes-rest-api) — nemusíte řešit tisíce HTTP požadavků, jejich rychlost, opakování ani návratové kódy.
 </Tip>
 
 ---
@@ -219,11 +236,132 @@ curl -X POST https://api.smsmngr.com/v2/messages \
 
 ---
 
+## Hromadné nahrání souboru přes REST API
+
+Když odesíláte tisíce až statisíce zpráv, je volání `/messages` po stovkách příjemců nepraktické: musíte řídit souběžnost a rychlost požadavků, ošetřit návratový kód každého z nich a opakovat neúspěšná volání. REST API endpoint `POST /messaging/url` vám místo toho vrátí **předpodepsanou URL**, na kterou nahrajete celý seznam zpráv jako jeden **JSONL soubor** (JSON Lines — jeden objekt zprávy na řádek) jediným file uploadem. Zpracování zpráv pak probíhá na straně SmsManager.
+
+<Note>
+  Endpoint `/messaging/url` patří do [REST API](/api-reference/rest/overview), nikoli do JSON API v2. Základní URL je `https://rest-api.smsmngr.com/v1`, autentizace je stejná — hlavička `x-api-key` se stejným API klíčem.
+</Note>
+
+<Steps>
+  <Step title="Připravte JSONL soubor">
+    Každý řádek souboru je jeden objekt zprávy ve **stejném formátu jako u JSON API v2** — tedy stejný objekt, jaký posíláte na `POST /message` nebo jako prvek pole na `POST /messages`. Používejte kódování UTF-8, jeden JSON objekt na řádek, bez obalujícího pole a bez čárek mezi řádky.
+
+    ```jsonl messages.jsonl
+    {"body": "Ahoj Alice! Vaše objednávka je na cestě.", "to": [{"phone_number": "420777123456"}], "tag": "transactional", "callback": "https://yourapp.com/webhooks/bulk"}
+    {"body": "Ahoj Bobe! Vaše objednávka je na cestě.", "to": [{"phone_number": "420777654321"}], "tag": "transactional", "callback": "https://yourapp.com/webhooks/bulk"}
+    {"body": "Flash sleva končí dnes! Navštivte example.com/sale", "to": [{"phone_number": "420777111111"}, {"phone_number": "420777222222"}], "tag": "promotional", "flow": [{"sms": {"sender": "MujObchod", "gateway": "high"}}]}
+    ```
+
+    Na každém řádku můžete použít všechna pole objektu zprávy — `to` s až 10 příjemci, `flow` se smíšenými kanály, `tag`, `callback`, `payload`, `datetime` i `delivery_time`. Pro velké soubory doporučujeme gzip kompresi:
+
+    ```bash gzip
+    gzip messages.jsonl   # vytvoří messages.jsonl.gz
+    ```
+  </Step>
+  <Step title="Získejte URL pro nahrání">
+    Zavolejte `POST /messaging/url` s vlastním identifikátorem dávky a typem souboru.
+
+    ```bash cURL
+    curl -X POST https://rest-api.smsmngr.com/v1/messaging/url \
+      -H "x-api-key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"bulk_id": "kampan-2026-09-20", "filetype": "jsonl"}'
+    ```
+
+    ```json Odpověď
+    {
+      "success": true,
+      "url": "https://smsmngr-bulk-uploads.s3.amazonaws.com/...&X-Amz-Expires=60..."
+    }
+    ```
+
+    | Pole | Povinné | Popis |
+    | --- | --- | --- |
+    | `bulk_id` | ano | Váš identifikátor hromadného nahrání. Použijte unikátní, popisný řetězec (např. název kampaně a datum) — slouží ke zrušení naplánovaného nahrání. |
+    | `filetype` | ano | `jsonl` pro nekomprimovaný soubor, `gz` pro gzipovaný JSONL. |
+    | `datetime` | ne | Naplánovaný čas zpracování souboru v UTC (ISO 8601). Bez tohoto pole se soubor zpracuje ihned po nahrání. |
+  </Step>
+  <Step title="Nahrajte soubor">
+    Na vrácenou URL odešlete soubor metodou `PUT`. Hlavička `Content-Type` musí odpovídat zvolenému `filetype`: `application/jsonl` pro `jsonl`, `application/gzip` pro `gz`.
+
+    ```bash cURL (JSONL)
+    curl -X PUT "https://smsmngr-bulk-uploads.s3.amazonaws.com/...&X-Amz-Expires=60..." \
+      -H "Content-Type: application/jsonl" \
+      --data-binary @messages.jsonl
+    ```
+
+    ```bash cURL (gzip)
+    curl -X PUT "https://smsmngr-bulk-uploads.s3.amazonaws.com/...&X-Amz-Expires=60..." \
+      -H "Content-Type: application/gzip" \
+      --data-binary @messages.jsonl.gz
+    ```
+
+    <Warning>
+      Předpodepsaná URL platí jen **60 sekund**. Vyžádejte si ji až těsně před nahráním a soubor mějte připravený předem. Nahrávejte metodou `PUT` s tělem tvořeným přímo obsahem souboru — ne přes `POST` ani `multipart/form-data`. Do samotného `PUT` požadavku neposílejte `x-api-key`; oprávnění je součástí URL.
+    </Warning>
+  </Step>
+  <Step title="Sledujte doručení přes webhooky">
+    Nahraný soubor se zpracovává asynchronně — úspěšný `PUT` znamená pouze, že soubor byl přijat. Výsledek každé zprávy (přijetí, odeslání, doručení nebo odmítnutí) dostanete jako `sentMessage` webhook na `callback` uvedený u zprávy, případně na výchozí callback URL vašeho účtu. Žádný samostatný endpoint pro stav celé dávky neexistuje.
+
+    Každý příjemce má vlastní `message_id`; u řádků s více příjemci se `message_id` odvozuje stejně jako u `/messages` — příponou indexu `-0`, `-1` atd. Podrobnosti najdete v průvodci [Webhooky](/guides/webhooks) a v konceptu [Přijetí požadavku](/concepts/request-acceptance).
+  </Step>
+</Steps>
+
+### Plánování a zrušení
+
+Pole `datetime` v těle `POST /messaging/url` naplánuje zpracování **celého souboru** na zadaný čas v UTC. Platí stejná pravidla jako pro [plánování jednotlivých zpráv](/concepts/scheduling).
+
+```bash cURL
+curl -X POST https://rest-api.smsmngr.com/v1/messaging/url \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"bulk_id": "kampan-2026-09-21", "filetype": "gz", "datetime": "2026-09-21T08:00:00Z"}'
+```
+
+Naplánované nahrání zrušíte voláním `POST /messaging/cancel` s jeho `bulk_id`:
+
+```bash cURL
+curl -X POST https://rest-api.smsmngr.com/v1/messaging/cancel \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"bulk_id": "kampan-2026-09-21"}'
+```
+
+<Note>
+  Pole `datetime` uvnitř jednotlivých řádků souboru se vztahuje k dané zprávě a uplatní se při jejím zpracování. Zpracování souboru samotného řídí jen `datetime` z požadavku na URL.
+</Note>
+
+### Chyby
+
+| Kód | Zpráva | Příčina |
+| --- | --- | --- |
+| `400` | `Missing 'bulk_id' or 'filetype' or 'datetime' in request data` | Chybí povinné pole nebo má `datetime` neplatný formát. |
+| `400` | `Unsupported filetype` | `filetype` není `jsonl` ani `gz`. |
+| `500` | `Failed to generate upload URL` | URL se nepodařilo vygenerovat — požadavek zopakujte. |
+
+Chyby při samotném `PUT` (například vypršelá URL nebo neodpovídající `Content-Type`) vrací úložiště přímo jako HTTP chybu bez těla ve formátu SmsManager. V takovém případě si vyžádejte novou URL a nahrání zopakujte.
+
+<Tip>
+  U velkých kampaní použijte gzip (`filetype: "gz"`) — výrazně zmenší přenášený objem. Marketingové zprávy nechte ve výchozí frontě `promotional` (viz [Fronty odesílání](/concepts/sending-queues)); prioritní fronta není pro hromadné odesílání určena.
+</Tip>
+
+---
+
 ## Další kroky
 
 <CardGroup cols={2}>
   <Card title="Webhooky" icon="webhook" href="/guides/webhooks">
     Přijímejte stav doručení pro každého příjemce ve vaší dávce přes webhooky.
+  </Card>
+
+  <Card title="REST API reference" icon="book" href="/api-reference/rest/overview">
+    Referenční popis endpointů `/messaging/url` a `/messaging/cancel` pro hromadné nahrání souborů.
+  </Card>
+
+  <Card title="Plánování" icon="calendar" href="/concepts/scheduling">
+    Naplánujte odeslání pomocí `datetime` a omezte doručení na povolené hodiny přes `delivery_time`.
   </Card>
 
   <Card title="Odeslat Viber" icon="message" href="/guides/send-viber">
