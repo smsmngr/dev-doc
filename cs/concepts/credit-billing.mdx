@@ -27,7 +27,7 @@ Kredit se naopak **neodečítá**:
 
 Až ve chvíli odeslání SmsManager ověří, že máte na danou zprávu dostatek kreditu, a pokud ano, kredit odečte. Tehdy se také vyhodnotí ostatní pravidla pro odeslání (blacklist, opt-out apod.).
 
-Výše odečteného kreditu se řídí cenou zprávy podle destinace, kanálu a počtu segmentů. Podrobnosti o tom, jak SmsManager požadavek přijímá a následně zpracovává, najdete v konceptu [Příjem a zpracování požadavku](/concepts/request-acceptance).
+Výše odečteného kreditu se řídí cenou zprávy podle destinace, kanálu a počtu segmentů. Za co se u jednotlivých kanálů platí, popisuje koncept [Účtování zpráv podle kanálu](/concepts/message-billing). Podrobnosti o tom, jak SmsManager požadavek přijímá a následně zpracovává, najdete v konceptu [Příjem a zpracování požadavku](/concepts/request-acceptance).
 
 ---
 
@@ -64,6 +64,14 @@ Pokud v okamžiku odeslání není na účtu dostatek kreditu, zpráva je **odm�
 ## Další kroky
 
 <CardGroup cols={2}>
+  <Card title="Dobíjení kreditu" icon="bolt" href="/concepts/credit-topup">
+    Bankovní převod, platební karta, automatické dobíjení a měsíční fakturace.
+  </Card>
+
+  <Card title="Účtování zpráv" icon="gauge" href="/concepts/message-billing">
+    Za co platíte u SMS, WhatsAppu, RCS a Viberu a jak funguje cena podle objemu.
+  </Card>
+
   <Card title="Příjem a zpracování požadavku" icon="inbox" href="/concepts/request-acceptance">
     Proč `200 OK` znamená jen přijetí ke zpracování a která validace probíhá až následně.
   </Card>
