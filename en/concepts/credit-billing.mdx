@@ -27,7 +27,7 @@ Credit is **not** deducted:
 
 Only at the moment of sending does SmsManager verify that you have enough credit for the given message, and if so, deducts it. The other send-time rules (blacklist, opt-out, etc.) are evaluated at the same point.
 
-The amount deducted follows the message price based on destination, channel, and number of segments. For details on how SmsManager accepts and then processes a request, see the [Request acceptance](/concepts/request-acceptance) concept.
+The amount deducted follows the message price based on destination, channel, and number of segments. For what you pay for on each channel, see the [Message billing by channel](/concepts/message-billing) concept. For details on how SmsManager accepts and then processes a request, see the [Request acceptance](/concepts/request-acceptance) concept.
 
 ---
 
@@ -64,6 +64,14 @@ If there isn't enough credit on the account at send time, the message is **rejec
 ## Next steps
 
 <CardGroup cols={2}>
+  <Card title="Topping up credit" icon="bolt" href="/concepts/credit-topup">
+    Bank transfer, payment card, automatic top-up, and monthly invoicing.
+  </Card>
+
+  <Card title="Message billing" icon="gauge" href="/concepts/message-billing">
+    What you pay for on SMS, WhatsApp, RCS, and Viber, and how volume pricing works.
+  </Card>
+
   <Card title="Request acceptance" icon="inbox" href="/concepts/request-acceptance">
     Why `200 OK` means only accepted for processing, and which validation happens afterward.
   </Card>

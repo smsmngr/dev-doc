@@ -299,6 +299,8 @@
               "concepts/message-flow",
               "concepts/request-acceptance",
               "concepts/credit-billing",
+              "concepts/message-billing",
+              "concepts/credit-topup",
               "concepts/sending-queues",
               "concepts/channels",
               "concepts/message-ids",
