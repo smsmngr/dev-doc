@@ -79,7 +79,7 @@ SmsManager sends a `sentMessage` event whenever the status of an outbound messag
 </ResponseField>
 
 <ResponseField name="result_info" type="string">
-  A human-readable description of the result, optionally prefixed with a numeric code in square brackets. Examples: `"[0] Delivered"`, `"[307] Insufficient credit"`, `"[131042] There was an error related to your payment method"`, `"Unauthorized error"`.
+  Optional — the field can be missing or empty. Additional detail about the result in the format `[code] Description`. SmsManager fills it in for rejected messages, for example `"[307] Insufficient credit"`. It can also carry an error from the channel provider, for example `"[131042] There was an error related to your payment method"`. For the full list of values, see [Errors](/reference/errors).
 </ResponseField>
 
 <ResponseField name="sms" type="object">
@@ -145,7 +145,6 @@ SmsManager sends a `sentMessage` event whenever the status of an outbound messag
       "phone_number": "420777123456"
     },
     "result": "delivered",
-    "result_info": "[0] Delivered",
     "sms": {
       "gateway": "high",
       "sender": "MySender",

@@ -74,7 +74,6 @@ SmsManager posts an **array** of event objects to your callback URL. Multiple de
       "phone_number": "420777123456"
     },
     "result": "delivered",
-    "result_info": "[0] Delivered",
     "sms": {
       "gateway": "high",
       "sender": "MySender",
@@ -207,15 +206,9 @@ For Viber and WhatsApp, you may also receive a `seen` event when the recipient o
 
 ## `result_info` codes
 
-The `result_info` field gives a human-readable description of the delivery outcome. It follows the format `[code] Description` where the numeric code is carrier-specific and optional. Common examples:
+The `result_info` field is optional — it can be missing or empty. When present, it gives more detail about the result in the format `[code] Description`. SmsManager fills it in for rejected messages, for example `[302] Invalid number` or `[307] Insufficient credit`. It can also carry an error from the channel provider, such as a WhatsApp error code.
 
-| `result_info` | Meaning |
-| --- | --- |
-| `[0] Delivered` | Successfully delivered to handset |
-| `[1] Undelivered` | Could not be delivered (handset off, number not in service) |
-| `[2] Rejected` | Rejected by carrier or SmsManager routing |
-| `[3] Failed` | Technical failure during delivery attempt |
-| `Sent` | Accepted by the carrier; final status not yet known |
+For every status code and `result_info` value, see [Errors](/reference/errors).
 
 Use `result` (the machine-readable enum) in your application logic, and `result_info` for logging and support.
 
@@ -238,7 +231,6 @@ User-Agent: SmsManager-Webhook/1.0
     "type": "outgoing",
     "to": { "phone_number": "420777123456" },
     "result": "delivered",
-    "result_info": "[0] Delivered",
     "sms": {
       "gateway": "high",
       "sender": "MySender",

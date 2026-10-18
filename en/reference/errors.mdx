@@ -42,22 +42,41 @@ After a message is sent, SmsManager delivers one or more webhook callbacks to yo
   A `rejected` result means the message was never dispatched to the carrier. Check your account credit balance and verify the recipient's phone number format before retrying.
 </Warning>
 
-## result\_info codes
+## Status codes and result\_info values
 
-The `result_info` field in webhook payloads provides additional detail about a delivery outcome. It follows the format `[code] Description`, where both parts are optional — you may receive a code only, a description only, or both.
+Each state of a sent message has a numeric status code (`status_code`). The table lists every status code and how it maps to the `result` and `result_info` fields in the webhook.
 
-- **Code** — a numeric identifier in square brackets, e.g. `[307]`
-- **Description** — a human-readable explanation, e.g. `Insufficient credit`
+| `status_code` | `result` | `result_info` | Meaning |
+| --- | --- | --- | --- |
+| `200` | `sent` | — | The carrier accepted the message for delivery. |
+| `201` | `delivered` | — | The recipient's device confirmed that it received the message. |
+| `202` | `seen` | — | The recipient opened the message (Viber and WhatsApp only). |
+| `300` | `failed` | — | A technical failure occurred while sending the message. |
+| `301` | `undelivered` | — | The carrier couldn't deliver the message to the recipient's device. |
+| `302` | `rejected` | `[302] Invalid number` | The phone number is invalid. Check the [phone number format](/reference/phone-numbers). |
+| `303` | `rejected` | `[303] Rejected destination` | Sending to this destination isn't allowed, for example because the number isn't on your allowed list. |
+| `304` | `rejected` | `[304] Blacklisted / opted-out` | The recipient is on your blacklist or has opted out. |
+| `305` | `rejected` | `[305] Invalid message` | The message itself is invalid. Check its text and parameters. |
+| `306` | `rejected` | `[306] Max messages per recipient reached` | You reached the maximum number of messages for this recipient, for example by sending too many identical messages to the same number. |
+| `307` | `rejected` | `[307] Insufficient credit` | Your credit ran out before the message was sent. See [Credit and billing](/concepts/credit-billing). |
 
-Common examples you will encounter:
+A dash (—) means SmsManager doesn't fill in `result_info` for that status.
+
+<Note>
+  **`result_info` is optional.** The field can be missing or empty in a webhook event. Base your application logic on `result`, and use `result_info` for logging, diagnostics, and support.
+</Note>
+
+The [REST API](/api-reference/rest/overview) `GET /message` endpoint returns the same codes: the sending status in `status_code` and the delivery status in `delivery_code`. Don't confuse these codes with the [HTTP/XML API error codes](/api-reference/xml-api/errors), which use their own numbering.
+
+### Values from the channel provider
+
+Besides the values in the table, `result_info` can carry an error returned by the channel provider, mainly WhatsApp. These values use the `[code] Description` format, but either part can be missing:
 
 | `result_info` value | What it means |
 | --- | --- |
-| `[0] Delivered` | The message was delivered successfully. |
-| `[307] Insufficient credit` | Your account credit was depleted before the message could be sent. |
-| `[131042] There was an error related to your payment method` | A WhatsApp-specific payment issue prevented delivery. |
-| `[368]` | A code-only result with no accompanying description. |
-| `Unauthorized error` | A description-only result indicating an authorization failure. |
+| `[131042] There was an error related to your payment method` | A WhatsApp payment issue prevented delivery. |
+| `[368]` | A code-only value with no description. |
+| `Unauthorized error` | A description-only value indicating an authorization failure. |
 
 <Note>
   WhatsApp error codes (such as `131042`) follow [Meta's WhatsApp error code reference](https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes). Refer to Meta's documentation for the full list of WhatsApp-specific codes and their meanings.
@@ -99,7 +118,7 @@ Common examples you will encounter:
   <Accordion title="Message rejected">
     A message appears in the `rejected` array of the API response or arrives at your webhook with `result: rejected`.
 
-    **Fix:** The two most common causes are insufficient credit and an invalid phone number. Check both:
+    **Fix:** In the webhook, the `result_info` field usually tells you the exact cause — look up its code in the status codes table above. The two most common causes are insufficient credit and an invalid phone number. Check both:
 
     1. Verify your account credit balance at [app.smsmanager.com](https://app.smsmanager.com).
     2. Confirm the phone number is in E.164 format without a leading `+` (e.g. `420777123456`).
