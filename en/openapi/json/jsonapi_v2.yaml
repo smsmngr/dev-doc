@@ -1008,14 +1008,17 @@ x-webhooks:
                   result_info:
                     type: string
                     description: |
-                      Additional result code for the message in format "[code] Description". Code is optional, description is also optional. Result info can also contain only code inside square brackets or only description without code.
+                      Optional. The field can be missing or empty — don't rely on it in your application logic; use `result` instead.
 
-                      Common rejection codes:
-                      - `[302]` Invalid phone number format
-                      - `[303]` Phone number is not in allowed list
-                      - `[304]` Phone number is blacklisted or opted-out
-                      - `[306]` Too many identical messages for the same recipient
-                      - `[307]` Insufficient credit
+                      Additional detail about the result in format "[code] Description". SmsManager fills it in for rejected messages (`result: rejected`):
+                      - `[302] Invalid number`
+                      - `[303] Rejected destination`
+                      - `[304] Blacklisted / opted-out`
+                      - `[305] Invalid message`
+                      - `[306] Max messages per recipient reached`
+                      - `[307] Insufficient credit`
+
+                      It can also carry an error from the channel provider (mainly WhatsApp). Such values may contain only the code in square brackets or only the description.
                     examples:
                       - "[307] Insufficient credit"
                       - "[131042] There was an error related to your payment method"
@@ -1121,7 +1124,6 @@ x-webhooks:
                     to:
                       phone_number: "420777123456"
                     result: delivered
-                    result_info: "[0] Delivered"
               Message rejected insufficient credit:
                 value:
                   - request_id: "bc36f3d1-d284-463a-921b-a3560c154649"
