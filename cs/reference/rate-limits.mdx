@@ -1,23 +1,34 @@
-SmsManager vynucuje limity jak na počet příjemců, které můžete cílit v jednom API volání, tak na to, jak často můžete zahajovat ověřování telefonních čísel. Pochopení těchto limitů vám pomůže navrhnout robustní integrace, které efektivně dávkují požadavky a elegantně se zotavují při dosažení limitu.
+SmsManager vynucuje limity jak na počet příjemců, které můžete cílit v jednom API volání, tak na to, jak často můžete zahajovat ověřování telefonních čísel. Pochopení těchto limitů vám pomůže efektivně dávkovat požadavky.
 
 ## Limity odesílacího API
 
-Odesílací API nevynucuje pevný rate limit požadavků za sekundu, ale vynucuje limity příjemců na požadavek, které musíte dodržovat při dávkování odchozích zpráv.
+Odesílací API obvykle nevynucuje pevný rate limit požadavků za sekundu pokud se jedná o účet, který je plně ověřen.
 
-| Endpoint | Max příjemců na volání | Poznámky |
-| --- | --- | --- |
-| `POST /message` | 10 příjemců | Předejte až 10 telefonních čísel v poli `to`. |
-| `POST /messages` | 10 objektů zpráv × 10 příjemců = **100 celkem** | Každý objekt zprávy v poli podporuje až 10 příjemců. |
+V rámci jednoho HTTP požadavků můžete odeslat až:
 
-Pro kampaně větší než tyto limity rozdělte příjemce mezi několik sekvenčních nebo souvislých API volání.
+| Endpoint | API | Max příjemců na volání | Poznámky |
+| --- | --- | --- | --- |
+| `POST /message` | api.smsmngr.com |  10 příjemců | Předejte až 10 telefonních čísel v poli `to`. |
+| `POST /messages` | api.smsmngr.com | 10 objektů zpráv × 10 příjemců = **100 celkem** | Každý objekt zprávy v poli podporuje až 10 příjemců. Pozor, 100 příjemců efektivně využijete pokud máte vždy stejnou zprávu. Pokud je zpráva unikátní pro každého příjemce, budete moci odeslat jen 10 zpráv (každý s jedním příjemcem v poli `to`) |
+| `POST /messaging/url` | rest-api.smsmngr.com | 10 000+ | Tímto voláním lze požádat o URL na kterou nahrajete JSONL obsahující až tisíce příjemců (každý řádek je jeden objekt tak jak je definován pro použití na endpointu `/message` v rámci `api.smsmngr.com`). Pozor, nehodí se pro průběžné odesílání zpráv, protože tento způsob odesílání je "multi-krokový" a zároveň je před zpracováním zprávy určitá latence (přibližně 10 sekund) |
 
 <Tip>
-  Pokud potřebujete odesílat velmi velké objemy — desítky tisíc zpráv v krátkém okně — kontaktujte [podporu SmsManager](mailto:cc@smsmanager.cz) pro diskusi o vysoko-objemových ujednáních a vyhrazené kapacitě.
+  Pokud potřebujete typicky jednu zprávu pro jednoho příjemce použijte `POST /message` na `api.smsmngr.com` (nebo variance pro HTTP GET/POST na `/simple/message`). Zpráva je přijata okamžitě do fronty a je bezprostředně zahájeno její zpracování.
 </Tip>
 
-<Note>
-  Odpověď `200` neznamená, že každá zpráva byla odeslána. Zkontrolujte pole `rejected` v těle odpovědi pro identifikaci příjemců, kteří nebyli přijati v rámci jednoho volání. Odmítnuté záznamy se **nepočítají** do rate limitů — můžete je ihned znovu odeslat po vyřešení hlavního problému (například dobití kreditu).
-</Note>
+<Tip>
+  Pokud potřebujete nárazově velké počty zpráv, kde je zdrojem interní fronta nebo seznam událostí (který např. průběžně vzniká), dává smysl využít `POST /messages` na `api.smsmngr.com`, který je přizpůsoben na téměř neomezenou propustnost.
+</Tip>
+
+<Tip>
+  Pokud nárazově potřebujete odeslat velké množství zpráv (typicky kampaň nebo hromadná zpráva) použijte `POST /messaging/url` na `rest-api.smsmngr.com` protože máte možnost jednoduše si vygenerovat všechna odesílání a nahrát je jedním požadavkem. Drobné zpoždění začátku zpracování hraje ve velkém množství příjemců zanedbatelnou roli a odeslání požadavků je mnohem jednodušší.
+</Tip>
+
+<Warning>
+  Odpověď `200` neznamená, že každá zpráva byla odeslána. Zkontrolujte pole `rejected` v těle odpovědi pro identifikaci příjemců, kteří nebyli přijati v rámci volání.
+
+  Úvodní potvrzení pouze potvrzuje přijetí zprávy. Asynchronně je kontrolován kredit, obsah zprávy nebo platnost příjemců. O výsledku odesílání se spolehlivě dozvíte výhradně z callback webhooku.
+</Warning>
 
 ## Rate limity Verify API
 

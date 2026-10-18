@@ -8,15 +8,16 @@ Než pustíte integraci do provozu, je vhodné ji vyzkoušet — ověřit, že s
 
 | Nástroj | Jak zapnout | Kredit | Odešle SMS? | Doručenky (webhook)? | Kdy použít |
 | --- | --- | --- | --- | --- | --- |
+| Validační endpoint | `rest-api.smsmngr.com/v1/validate` | Neodečítá se | Ne | Ne | Vývoj a řešení problémů |
 | Testovací číslo | `to.phone_number` = `420777777777` | Neodečítá se | Ne | Ne | Ověření, že požadavek projde a odpověď zpracujete správně |
-| Testovací brána | `gateway: "test"` ve flow objektu `sms` | 0,01 Kč / SMS | Ne | Ano | End-to-end test zpracování doručenek na vaší callback URL |
+| Testovací brána | `gateway: "test"` ve flow objektu `sms` | 0,001 Kč / SMS | Ne | Ano | End-to-end test zpracování doručenek na vaší callback URL |
 | Mock endpointy | Doména `api-mock` / `rest-api-mock` | Neodečítá se | Ne | Ne | Vývoj a automatizované testy proti simulaci API |
 
 ---
 
 ## Testovací telefonní číslo
 
-Na speciální číslo `420777777777` se zpráva **nikdy neodešle** a **neodečte se za ni kredit**. Příjemce se vyhodnotí jako neplatný. API požadavek se přesto zpracuje jako běžně — dostanete zpět `request_id` a pro každého příjemce `message_id` — takže si ověříte, že vaše integrace sestaví platný požadavek, autentizuje se a správně načte odpověď.
+Na speciální číslo `420777777777` se zpráva **nikdy neodešle** a **neodečte se za ni kredit**. Příjemce se vyhodnotí jako neplatný. API požadavek se přesto zpracuje jako běžně — dostanete zpět `request_id` a pro každého příjemce `message_id` — takže si ověříte, že vaše integrace sestaví platný požadavek, autentizuje se a správně zpracujete odpověď od API.
 
 ```bash cURL
 curl -X POST https://api.smsmngr.com/v2/message \
@@ -36,7 +37,9 @@ curl -X POST https://api.smsmngr.com/v2/message \
 
 ## Testovací brána
 
-Přidáním `gateway: "test"` do flow objektu `sms` označíte zprávu jako testovací. Takové zprávy stojí jen **0,01 Kč / SMS**, ve skutečnosti se **nedoručují na telefon**, ale SmsManager pro ně **vygeneruje doručenky** a pošle je jako webhook na vaši callback URL. Díky tomu otestujete celý tok od odeslání až po zpracování doručenky.
+Přidáním `gateway: "test"` do flow objektu `sms` označíte zprávu jako testovací. Takové zprávy stojí jen **0,001 Kč / SMS**, ve skutečnosti se **nedoručují na telefon**, ale SmsManager pro ně **vygeneruje doručenky** a pošle je jako webhook na vaši callback URL. Díky tomu otestujete celý tok od odeslání až po zpracování doručenky.
+
+Důvodem pro odečtení kreditu je zapojení fakturace a validace do všech částí zpracování pro kompletní end-to-end otestování.
 
 ```json Tělo požadavku
 {

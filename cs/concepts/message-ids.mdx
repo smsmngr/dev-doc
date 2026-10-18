@@ -6,8 +6,8 @@ Tyto dva identifikátory slouží různým účelům:
 
 | Identifikátor | Rozsah | Primární použití |
 | --- | --- | --- |
-| `request_id` | Jeden na HTTP API volání | Podporní tikety, logování na serveru, ladění |
-| `message_id` | Jeden na jednotlivou zprávu | Dotazování stavu doručení, korelace webhook událostí |
+| `request_id` | Jeden na HTTP API volání | Ticket na podporu pokud zprávu nelze dohledat dle `message_id`, logování na serveru, ladění |
+| `message_id` | Jeden na jednotlivou zprávu | Dotazování stavu doručení, propojení s webhook událostí |
 
 **`request_id`** je generován pro celý HTTP požadavek. Bez ohledu na to, kolik zpráv nebo příjemců v jednom API volání zahrnete, všichni sdílejí stejné `request_id`. Použijte jej při kontaktování podpory SmsManager nebo pokud potřebujete vysledovat konkrétní API volání ve vašich vlastních logech.
 
@@ -123,8 +123,8 @@ Když SmsManager posílá oznámení o doručení na vaši [callback URL](/api-r
 
 Každá odpověď obsahuje pole `accepted` a pole `rejected`:
 
-- **`accepted`** — záznamy zpráv, které byly úspěšně zařazeny k doručení. Každý záznam obsahuje `key` příjemce/položky a `message_id`, které můžete použít ke sledování.
-- **`rejected`** — záznamy zpráv, které nebylo možné zařadit. Každý záznam obsahuje `key` neuspělé položky. Běžné důvody odmítnutí zahrnují neplatné nebo nesměrovatelné telefonní číslo, nedostatečný kredit účtu nebo chybně formátované pole požadavku.
+- **`accepted`** — záznamy zpráv, které byly úspěšně zařazeny do fronty k doručení. Každý záznam obsahuje `key` příjemce/položky a `message_id`, které můžete použít ke sledování.
+- **`rejected`** — záznamy zpráv, které nebylo možné zařadit. Každý záznam obsahuje `key` neuspělé položky. Odmítnutí na této úrovni je spíše výjmečné a důvody bývají síťové nebo systémové. Je důležité ale mít tento stav ošetřen a odesílání v takovém případě opakovat (ovšem nikoliv na všechny příjemce, ale jen na ty, kterých se týká stav `rejected`).
 
 ```json
 {
@@ -138,4 +138,4 @@ Každá odpověď obsahuje pole `accepted` a pole `rejected`:
 }
 ```
 
-Odmítnuté záznamy **neobsahují** `message_id`, protože žádná zpráva nebyla vytvořena. Pokud potřebujete pochopit, proč byla zpráva odmítnuta, zkontrolujte detaily chyby v těle odpovědi API nebo kontaktujte podporu SmsManager s vaším `request_id`.
+Odmítnuté záznamy **neobsahují** `message_id`, protože v takovém případě nebyl založen požadavek na frontě k odeslání. Pokud potřebujete pochopit, proč byla zpráva odmítnuta, zkontrolujte detaily chyby v těle odpovědi API nebo kontaktujte podporu SmsManager s vaším `request_id`.

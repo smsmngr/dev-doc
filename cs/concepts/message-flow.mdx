@@ -1,6 +1,6 @@
 Při odesílání zprávy přes SmsManager můžete definovat **flow** — seřazený seznam kanálů, které se pro každého příjemce zkusí. Pokud první kanál není schopen zprávu doručit (například příjemce nemá nainstalovaný Viber), SmsManager automaticky vyzkouší další kanál v seznamu. To vám umožňuje maximalizovat míru doručení přes SMS, Viber a WhatsApp bez nutnosti psát vlastní logiku pro opakování.
 
-## Co je tok zpráv?
+## Co je flow zpráv?
 
 Vlastnost `flow` je pole objektů kanálů. Každý objekt obsahuje přesně jeden klíč — `sms`, `viber`, `whatsapp_text` nebo `whatsapp_template` — spolu s konfigurací toho kanálu. SmsManager prochází pole od prvního k poslednímu: vyzkouší první kanál, a pokud selže nebo je nedostupný pro daného příjemce, přejde na druhý a tak dále.
 
@@ -27,7 +27,7 @@ Pole `body` z kořene vašeho požadavku se použije jako text zprávy a platí 
 
 ## Příklady flow
 
-### Jednoduchý tok pouze pro SMS
+### Jednoduché flow pouze pro SMS
 
 Když chcete jemné řízení SMS — například určení jména odesílatele, brány nebo zpracování Unicode — definujte jednoprvkový flow s kanálem `sms`:
 

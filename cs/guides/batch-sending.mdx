@@ -1,4 +1,4 @@
-Endpoint `/messages` vám umožňuje sbalit až **10 objektů zpráv**, každý s až **10 příjemci**, do jednoho API volání — to je až 100 doručení příjemcům na požadavek. Je to nejefektivnější způsob pro zvýšení propustnosti odesílání.
+Endpoint `/messages` vám umožňuje sbalit až **10 objektů zpráv**, každý s až **10 příjemci**, do jednoho API volání. To znamená až 100 odesílání na jeden HTTP požadavek. Je to nejjednodušší způsob pro zvýšení propustnosti odesílání.
 
 ---
 
@@ -160,7 +160,7 @@ Každý objekt zprávy může mít poli má vlastní nezávislé `flow`. To znam
 | Celkem příjemců na volání `/messages` | 100 |
 
 <Tip>
-  Pokud potřebujete oslovit více než 100 příjemců, rozdělte seznam a odešlete více volání `/messages`.
+  Pokud potřebujete oslovit více než 100 příjemců, rozdělte seznam a odešlete více volání `/messages`. Alternativou pro hromadné odesílání nebo odeslání kampaní je využití endpointu `/messaging/url` na `rest-api.smsmngr.com`.
 </Tip>
 
 ---

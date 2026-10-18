@@ -24,16 +24,16 @@ Po odeslání zprávy SmsManager doručí jeden nebo více webhook callbacků na
 
 | Hodnota `result` | Význam |
 | --- | --- |
-| `sending` | Zpráva byla odeslána operatérovi a čeká na potvrzení. |
-| `sent` | Operatér přijal zprávu k doručení. |
+| `sending` | Zpráva byla odeslána operátorovi a čeká se nyní na potvrzení, že byla zpráva odeslána (obvykle pouze pro internetová API, tedy např. Viber, RCS nebo WhatsApp). |
+| `sent` | Operátor potvrdil přijetí zprávy k doručení. |
 | `delivered` | Zařízení příjemce potvrdilo, že zpráva byla přijata. |
-| `undelivered` | Operatér se pokusil o doručení, ale nemohl dosáhnout zařízení příjemce. |
-| `rejected` | Zpráva nebyla vůbec odeslána — typicky kvůli nedostatečnému kreditu nebo neplatnému telefonnímu číslu. |
+| `undelivered` | Operátor se pokusil o doručení, ale nepodařilo se zprávu doručit do zařízení příjemce. |
+| `rejected` | Zpráva nebyla vůbec odeslána (typicky kvůli nedostatečnému kreditu, neplatnému telefonnímu číslu, nebo je telefonní číslo na seznamu opt-out). |
 | `failed` | Došlo k technickému selhání během odesílacího procesu. |
-| `seen` | Zpráva byla otevřena a viděna příjemcem (pouze Viber a WhatsApp). |
+| `seen` | Zpráva byla otevřena a viděna příjemcem (pouze Viber, RCS a WhatsApp). Vyžaduje, aby zařízení příjemce mělo povolené sdílení tohoto stavu. |
 
 <Warning>
-  Výsledek `rejected` znamená, že zpráva nebyla nikdy odeslána operatérovi. Zkontrolujte kreditní zůstatek účtu a ověřte formát telefonního čísla příjemce před opakováním.
+  Výsledek `rejected` znamená, že zpráva nebyla nikdy odeslána operátorovi. Zkontrolujte kreditní zůstatek účtu a ověřte formát telefonního čísla příjemce před opakováním. Webhook na URL adresu z hodnoty `callback` (nebo `default_callback_url`) obsahuje detailní informaci o důvodu odmítnutí požadavku.
 </Warning>
 
 ## Kódy result\_info
@@ -47,9 +47,9 @@ Běžné příklady, s nimiž se setkáte:
 
 | Hodnota `result_info` | Co znamená |
 | --- | --- |
-| `[0] Delivered` | Zpráva byla úspěšně doručena. |
+| `Delivered` | Zpráva byla úspěšně doručena. |
 | `[307] Insufficient credit` | Kredit vašeho účtu byl vyčerpán před odesláním zprávy. |
-| `[131042] There was an error related to your payment method` | Problém s platební metodou specifický pro WhatsApp zabránil doručení. |
+| `[131042] There was an error related to your payment method` | Problém s platební metodou specificky pro WhatsApp. |
 | `[368]` | Výsledek pouze s kódem bez doprovodného popisu. |
 | `Unauthorized error` | Výsledek pouze s popisem označující selhání autorizace. |
 
@@ -63,7 +63,7 @@ Běžné příklady, s nimiž se setkáte:
   <Accordion title="Neplatný API klíč">
     Váš požadavek byl odmítnut, protože API klíč chybí, je poškozený nebo neodpovídá žádnému aktivnímu klíči na vašem účtu.
 
-    **Řešení:** Přihlaste se na [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud) a zkopírujte váš aktuální API klíč. Předejte jej v každém požadavku pomocí hlavičky `x-api-key`:
+    **Řešení:** Přihlaste se na [app.smsmanager.com/app/developers](https://app.smsmanager.com/app/developers) a zkopírujte váš aktuální API klíč. Předejte jej v každém požadavku pomocí hlavičky `x-api-key`:
 
     ```http
     x-api-key: YOUR_API_KEY
@@ -102,7 +102,7 @@ Běžné příklady, s nimiž se setkáte:
   <Accordion title="Zpráva ukazuje 'sent' ale ne 'delivered'">
     Obdrželi jste webhook s `result: sent`, ale nikdy jste neobdrželi navazující callback `result: delivered`.
 
-    To je v mnoha případech normální. Stav `sent` znamená, že operatér přijal zprávu, ale potvrzení doručení (DLR) závisí na tom, zda operatér podporuje potvrzení a zda je zařízení příjemce dostupné. Někteří operatoři a sítě nevracejí potvrzení doručení vůbec.
+    To je v mnoha případech normální. Stav `sent` znamená, že operátor přijal zprávu, ale potvrzení doručení (DLR) závisí na tom, zda zařízení příjemce příchozí zprávu potvrdí. Někteří operatoři a sítě nevracejí potvrzení doručení vůbec což nemusí znamenat, že zprávy nebyla doručena.
 
     Pokud je zpráva časově citlivá, zvažte použití záložního kanálu (např. SMS → Viber) přes parametr `flow`.
   </Accordion>
@@ -116,7 +116,7 @@ Běžné příklady, s nimiž se setkáte:
     Content-Type: application/x-www-form-urlencoded
     ```
 
-    Všechny ostatní JSON API v2 endpointy (`/message`, `/messages`) přijímají `application/json`.
+    Všechny ostatní JSON API v2 endpointy (`/message`, `/messages`) přijímají výhradně `application/json`.
   </Accordion>
 </AccordionGroup>
 

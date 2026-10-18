@@ -6,7 +6,7 @@ info:
 
     ## Autentizace
 
-    Pro všechny požadavky je vyžadován API klíč — zasílejte jej v HTTP hlavičce `x-api-key`. Svůj API klíč najdete v [nastavení účtu](https://app.smsmanager.com/api-cloud).
+    Pro všechny požadavky je vyžadován API klíč — zasílejte jej v HTTP hlavičce `x-api-key`. Svůj API klíč najdete v sekci [Vývojáři](https://app.smsmanager.com/app/developers/).
 
     Pro odesílání zpráv použijte [JSON API v2](https://api.smsmngr.com/v2).
   version: v1

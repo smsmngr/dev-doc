@@ -6,7 +6,7 @@ info:
 
     ## JSON API v2
 
-    API klíč je vyžadován pro všechny požadavky. Svůj API klíč najdete v [nastavení účtu](https://app.smsmanager.com/api-cloud).
+    API klíč je vyžadován pro všechny požadavky. Svůj API klíč najdete v sekci [Výojáři](https://app.smsmanager.com/app/developers/).
 
     Starší verze API (http-api a xml-api) jsou zastaralé a místo nich byste měli používat toto JSON API v2.
   version: v2
@@ -402,7 +402,7 @@ paths:
         metadata:
           sidebarTitle: "Odeslat zprávu"
       security:
-        - x-api-key: [] # API klíč je vyžadován pro všechny požadavky. Svůj API klíč najdete v [nastavení účtu](https://app.smsmanager.com/api-cloud).
+        - x-api-key: [] # API klíč je vyžadován pro všechny požadavky. Svůj API klíč najdete v sekci [Vývojáři](https://app.smsmanager.com/app/developers/).
       tags:
         - sending
       summary: Odeslání zprávy
@@ -538,7 +538,7 @@ paths:
         metadata:
           sidebarTitle: "Prioritní zpráva"
       security:
-        - x-api-key: [] # API klíč je vyžadován pro všechny požadavky. Svůj API klíč najdete v [nastavení účtu](https://app.smsmanager.com/api-cloud).
+        - x-api-key: [] # API klíč je vyžadován pro všechny požadavky. Svůj API klíč najdete v sekci [Vývojáři](https://app.smsmanager.com/app/developers/).
       tags:
         - sending
       summary: Odeslání prioritní zprávy
@@ -599,7 +599,7 @@ paths:
         metadata:
           sidebarTitle: "Odeslat více"
       security:
-        - x-api-key: [] # API klíč je vyžadován pro všechny požadavky. Svůj API klíč najdete v [nastavení účtu](https://app.smsmanager.com/api-cloud).
+        - x-api-key: [] # API klíč je vyžadován pro všechny požadavky. Svůj API klíč najdete v sekci [Vývojáři](https://app.smsmanager.com/app/developers/).
       tags:
         - sending
       summary: Odeslání více zpráv
@@ -723,7 +723,7 @@ paths:
         metadata:
           sidebarTitle: "Jednoduchá (GET)"
       security:
-        - apikey: [] # API klíč je vyžadován pro všechny požadavky. Svůj API klíč najdete v [nastavení účtu](https://app.smsmanager.com/api-cloud).
+        - apikey: [] # API klíč je vyžadován pro všechny požadavky. Svůj API klíč najdete v sekci [Vývojáři](https://app.smsmanager.com/app/developers/).
       tags:
         - sending
       summary: Odeslání jednoduché zprávy (GET request)
@@ -822,7 +822,7 @@ paths:
         metadata:
           sidebarTitle: "Jednoduchá (POST)"
       security:
-        - x-api-key: [] # API klíč je vyžadován pro všechny požadavky. Svůj API klíč najdete v [nastavení účtu](https://app.smsmanager.com/api-cloud).
+        - x-api-key: [] # API klíč je vyžadován pro všechny požadavky. Svůj API klíč najdete v sekci [Vývojáři](https://app.smsmanager.com/app/developers/).
       tags:
         - sending
       summary: Odeslání jednoduché zprávy (POST request)

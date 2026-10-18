@@ -25,9 +25,9 @@ Do těla požadavku vložte atribut `params` s objektem `_url`:
 
 | Parametr | Popis | Výchozí |
 | --- | --- | --- |
-| `domain` | Doména použitá pro zkrácenou URL. Lze použít systémovou i vlastní doménu. | Systémová doména — pro nastavení tvaru domény nás [kontaktujte](mailto:support@smsmanager.cz) |
+| `domain` | Doména použitá pro zkrácenou URL. Lze použít systémovou (vsms.cz, 2sms.cz a další) i vlastní doménu. | Systémová doména. Pro nastavení tvaru domény nás [kontaktujte](mailto:cc@smsmanager.cz), vlastní doména je placenou funkcí a vyžaduje nastavení našich DNS u této domény |
 | `type` | Typ zkrácení: `full` (vyžaduje kompletní URL včetně protokolu) nebo `all` (zkrátí i zápisy typu `mojedomena.cz` bez protokolu). | `full` |
-| `get_enhance` | `code` přidá ke zkrácené URL GET parametr (název dle `get_name`) s alfanumerickým kódem; `id` do GET parametru vloží `message_id`. | `false` |
+| `get_enhance` | `code` přidá ke zkrácené URL GET parametr (název dle `get_name`) s alfanumerickým kódem odpovídající kódu URL zkracovače; hodnota `id` do GET parametru vloží `message_id`. | `false` |
 | `get_name` | Název GET parametru použitého pro `get_enhance`. | `_` |
 | `expires_at` | Unix timestamp expirace zkráceného odkazu. Nedoporučujeme nastavovat delší než 30 dní. | 7 dní |
 
