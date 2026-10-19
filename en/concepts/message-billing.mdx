@@ -1,0 +1,160 @@
+---
+title: "Message billing by channel"
+sidebarTitle: "Message billing"
+description: "What you pay for, and when, on SMS, WhatsApp, RCS, and Viber. SMS is charged on sending, RCS and Viber only on delivery, and WhatsApp combines an SmsManager fee with a Meta fee. How volume pricing works."
+---
+
+Each channel has its own billing rules. For SMS, you pay for every **sent** message whether or not it is delivered. For RCS and Viber, you pay only for **delivered** messages. WhatsApp combines both: a small SmsManager fee on sending and a Meta fee on delivery.
+
+This page describes **what** you pay for. For exactly when credit is deducted and what happens when it runs out, see the [Credit and billing](/concepts/credit-billing) concept.
+
+---
+
+## Overview
+
+| Channel | When it is charged | SmsManager platform fee | Per-message fee |
+| --- | --- | --- | --- |
+| **SMS** | On sending (when the carrier accepts the message) | — | Destination price, regardless of delivery |
+| **WhatsApp** | On sending + on delivery | CZK 0.10 per sent message | Meta fee by destination, delivered messages only |
+| **RCS** | On delivery | — | Destination price, delivered messages only |
+| **Viber** | On delivery | — | Destination price, delivered messages only (monthly minimum applies) |
+
+---
+
+## SMS
+
+An SMS message is **always charged on sending**, meaning at the moment the carrier accepts the message for delivery.
+
+When the carrier accepts a message, it does not check whether the number exists or is reachable. It only checks formal validity, such as an existing prefix.
+
+SmsManager filters out obviously invalid messages and never tries to send them. Examples include numbers with a non-existent international prefix or with the wrong length for a given prefix. These messages are not charged. For details, see the [Phone number normalization](/concepts/phone-normalization) concept.
+
+### Delivered and undelivered messages cost the same
+
+For billing purposes, mobile carriers do not distinguish between delivered and undelivered messages. Once the carrier accepts a message for delivery, the message counts as sent and is charged, even if it is never delivered.
+
+### Delivery retries
+
+If a message cannot be delivered right after sending, it stays with the carrier. The carrier retries delivery for **2–7 days**, depending on the destination and carrier.
+
+<Note>
+  Typically only **1–3 %** of messages that were not delivered right after sending are delivered later.
+</Note>
+
+---
+
+## WhatsApp
+
+WhatsApp has two cost components:
+
+- **SmsManager platform fee — CZK 0.10** per sent message. It is charged on sending, regardless of the delivery result.
+- **Meta fee** by destination. Meta charges it **only for delivered messages**.
+
+### What the `sending` and `sent` statuses mean
+
+| Status | Meaning |
+| --- | --- |
+| `sending` | SmsManager confirms it has handed the message over to the WhatsApp platform. |
+| `sent` | The Meta platform has accepted the message for sending. The phone number most likely uses, or has used, WhatsApp. |
+
+### Undelivered messages
+
+If a message cannot be delivered within the time limit, Meta does not charge for it. You pay only the SmsManager fee of CZK 0.10.
+
+<Tip>
+  For the differences between template and free-form WhatsApp messages, see the [WhatsApp message types](/concepts/whatsapp-message-types) concept.
+</Tip>
+
+---
+
+## RCS
+
+SmsManager **does not charge a platform fee** for RCS. You pay only for delivered messages.
+
+### RCS Business Agent registration
+
+To send messages, you need a registered **RCS Business Agent**. SmsManager handles the registration for you. Fill in the registration form in the admin when you order the sender.
+
+One agent can deliver messages to multiple destinations. The price differs by destination.
+
+### Undelivered messages
+
+Only delivered messages are charged.
+
+- If the recipient's phone is not RCS-compatible or is not registered to receive RCS messages, the message is usually marked as undeliverable during the send attempt.
+- If the recipient has used RCS in the past, the message may wait for delivery until it expires.
+
+---
+
+## Viber
+
+SmsManager **does not charge a platform fee** for Viber. You pay only for delivered messages.
+
+### Viber Business profile registration
+
+To send messages, you need a registered **Viber Business profile**. SmsManager handles the registration for you. Fill in the registration form in the admin when you order the sender.
+
+One profile can deliver messages to multiple destinations. The price differs by destination.
+
+### Monthly minimum
+
+<Warning>
+  For every profile you use for sending, Viber requires a **minimum monthly payment equal to 10,000 delivered messages**. Even if you send no messages through the profile in a given month, you are always billed for at least 10,000 delivered messages.
+</Warning>
+
+### Undelivered messages
+
+Only delivered messages are charged.
+
+- If the recipient does not have Viber installed, the message is usually marked as undeliverable during the send attempt.
+- If the recipient is not reachable in the Viber app, the message may wait until it expires before being marked as undeliverable.
+
+To set message validity and an SMS fallback, see the [Send a Viber message](/guides/send-viber) guide.
+
+---
+
+## Volume pricing
+
+The message price decreases with the volume of messages you send. Volume is always counted per **calendar month**.
+
+### Start of the month
+
+On the first day of each month, the first message is always charged at the standard (highest) price, unless you have agreed on different terms in your contract.
+
+### Price tier recalculation
+
+Your price tier is recalculated every day **at midnight (UTC)**:
+
+1. SmsManager compares the number of messages sent in the current month with your current price tier.
+2. If you have reached a higher tier, the new price tier is activated. It applies to all further sending.
+3. At the same time, a bonus for messages already sent is calculated and added to your account as credit. All messages sent in that calendar month therefore end up at the new price tier.
+
+<Note>
+  Example: During the month, you cross the threshold of the next price tier. At the next midnight UTC, the lower price is activated for further sending. The difference between the original and the new price for messages you have already sent that month is returned to you as credit.
+</Note>
+
+### Destination price
+
+For simplicity, the price is always shown as a single price for all carriers in a destination. It is based on a weighted average of the individual carriers' prices.
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Credit and billing" icon="receipt" href="/concepts/credit-billing">
+    Exactly when credit is deducted and what `[307] Insufficient credit` means.
+  </Card>
+
+  <Card title="Topping up credit" icon="bolt" href="/concepts/credit-topup">
+    Bank transfer, payment card, automatic top-up, and monthly invoicing.
+  </Card>
+
+  <Card title="Channels" icon="layer-group" href="/concepts/channels">
+    What each channel supports and how to configure it.
+  </Card>
+
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    How to track the `sending`, `sent`, and `delivered` statuses on your callback URL.
+  </Card>
+</CardGroup>

@@ -36,22 +36,41 @@ Po odeslání zprávy SmsManager doručí jeden nebo více webhook callbacků na
   Výsledek `rejected` znamená, že zpráva nebyla nikdy odeslána operátorovi. Zkontrolujte kreditní zůstatek účtu a ověřte formát telefonního čísla příjemce před opakováním. Webhook na URL adresu z hodnoty `callback` (nebo `default_callback_url`) obsahuje detailní informaci o důvodu odmítnutí požadavku.
 </Warning>
 
-## Kódy result\_info
+## Stavové kódy a hodnoty result\_info
 
-Pole `result_info` v webhook payloadech poskytuje dodatečné detaily o výsledku doručení. Sleduje formát `[kód] Popis`, kde obě části jsou volitelné — můžete obdržet pouze kód, pouze popis, nebo obojetě.
+Každý stav odeslané zprávy má číselný stavový kód (`status_code`). Tabulka uvádí všechny stavové kódy a jejich mapování na pole `result` a `result_info` ve webhooku.
 
-- **Kód** — číselný identifikátor v hranatých závorkách, např. `[307]`
-- **Popis** — čitelné vysvětlení, např. `Insufficient credit`
+| `status_code` | `result` | `result_info` | Význam |
+| --- | --- | --- | --- |
+| `200` | `sent` | — | Operátor přijal zprávu k doručení. |
+| `201` | `delivered` | — | Zařízení příjemce potvrdilo přijetí zprávy. |
+| `202` | `seen` | — | Příjemce zprávu otevřel (pouze Viber, RCS a WhatsApp). |
+| `300` | `failed` | — | Při odesílání zprávy došlo k technickému selhání. |
+| `301` | `undelivered` | — | Operátor nedokázal zprávu doručit na zařízení příjemce. |
+| `302` | `rejected` | `[302] Invalid number` | Telefonní číslo je neplatné. Zkontrolujte [formát telefonního čísla](/reference/phone-numbers). |
+| `303` | `rejected` | `[303] Rejected destination` | Odesílání na tuto destinaci není povoleno, například protože číslo není v seznamu povolených čísel. |
+| `304` | `rejected` | `[304] Blacklisted / opted-out` | Příjemce je na vašem blacklistu nebo se odhlásil z příjmu zpráv (opt-out). |
+| `305` | `rejected` | `[305] Invalid message` | Zpráva samotná je neplatná. Zkontrolujte její text a parametry. |
+| `306` | `rejected` | `[306] Max messages per recipient reached` | Dosáhli jste maximálního počtu zpráv pro tohoto příjemce, například odesláním příliš mnoha stejných zpráv na stejné číslo. |
+| `307` | `rejected` | `[307] Insufficient credit` | Před odesláním zprávy vám došel kredit. Viz [Kredit a účtování](/concepts/credit-billing). |
 
-Běžné příklady, s nimiž se setkáte:
+Pomlčka (—) znamená, že SmsManager pro daný stav pole `result_info` nevyplňuje.
+
+<Note>
+  **Pole `result_info` je nepovinné.** Ve webhook události může chybět nebo být prázdné. Logiku vaší aplikace stavte na poli `result` a `result_info` používejte pro logování, diagnostiku a podporu.
+</Note>
+
+Stejné kódy vrací i endpoint `GET /message` v [REST API](/api-reference/rest/overview): stav odeslání v poli `status_code` a stav doručení v poli `delivery_code`. Nepleťte si tyto kódy s [chybovými kódy HTTP/XML API](/api-reference/xml-api/errors), které mají vlastní číslování.
+
+### Hodnoty od poskytovatele kanálu
+
+Kromě hodnot z tabulky může `result_info` obsahovat chybu, kterou vrátil poskytovatel kanálu, hlavně WhatsApp. Tyto hodnoty mají formát `[kód] Popis`, ale kterákoli část může chybět:
 
 | Hodnota `result_info` | Co znamená |
 | --- | --- |
-| `Delivered` | Zpráva byla úspěšně doručena. |
-| `[307] Insufficient credit` | Kredit vašeho účtu byl vyčerpán před odesláním zprávy. |
-| `[131042] There was an error related to your payment method` | Problém s platební metodou specificky pro WhatsApp. |
-| `[368]` | Výsledek pouze s kódem bez doprovodného popisu. |
-| `Unauthorized error` | Výsledek pouze s popisem označující selhání autorizace. |
+| `[131042] There was an error related to your payment method` | Doručení zabránil problém s platební metodou u WhatsAppu. |
+| `[368]` | Hodnota pouze s kódem bez popisu. |
+| `Unauthorized error` | Hodnota pouze s popisem, která označuje selhání autorizace. |
 
 <Note>
   WhatsApp chybové kódy (jako `131042`) sledují [WhatsApp error code referenci Mety](https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes). Ohledně úplného seznamu specifických WhatsApp kódů a jejich významu se podívejte na dokumentaci Mety.
@@ -93,7 +112,7 @@ Běžné příklady, s nimiž se setkáte:
   <Accordion title="Zpráva odmítnuta">
     Zpráva se objeví v poli `rejected` odpovědi API nebo dorazí do vašeho webhooku s `result: rejected`.
 
-    **Řešení:** Dvě nejčastější příčiny jsou nedostatečný kredit a neplatné telefonní číslo. Zkontrolujte obojetě:
+    **Řešení:** Přesnou příčinu ve webhooku obvykle najdete v poli `result_info` — jeho kód vyhledejte v tabulce stavových kódů výše. Dvě nejčastější příčiny jsou nedostatečný kredit a neplatné telefonní číslo. Zkontrolujte obojí:
 
     1. Ověřte kreditní zůstatek na [app.smsmanager.com](https://app.smsmanager.com).
     2. Potvrďte, že telefonní číslo je ve formátu E.164 bez úvodního `+` (např. `420777123456`).

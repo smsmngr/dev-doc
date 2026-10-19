@@ -1,0 +1,167 @@
+---
+title: "Skills for AI coding agents"
+sidebarTitle: "AI skills"
+description: "Install the official SmsManager skills into Claude Code, Cursor, Codex or any other AI agent. Your agent gains verified knowledge of the JSON API v2 and REST API v1 — flow, senders, Unicode, scheduling, webhooks, message status, opt-out lists and service ordering."
+---
+
+**SmsManager skills** are a knowledge package for AI coding agents (Claude Code, Cursor, Codex and others). Once installed, your agent knows how to use the SmsManager APIs correctly — the omnichannel `flow` model, sender IDs and aliases, Unicode vs GSM encoding, scheduling, batch sends, delivery reports, status polling, and the gotchas a language model otherwise gets wrong.
+
+Skills are the **knowledge layer**: they teach the agent to write code against the API. If you want an AI assistant to **operate your account** directly (send messages, check delivery, manage keys and credit), connect the [MCP server](/ai/mcp-server) — the action layer. You can use both at once.
+
+<Note>
+  No credentials are needed to install. You only need an API key when you want to run the generated code and send a real message.
+</Note>
+
+Source code and the current catalog version: [github.com/smsmngr/smsmanager-skills](https://github.com/smsmngr/smsmanager-skills) (Apache-2.0 license).
+
+---
+
+## Install
+
+<Tabs>
+  <Tab title="Claude Code">
+    Install the skills as a plugin from the official SmsManager marketplace. In Claude Code, run:
+
+    ```text
+    /plugin marketplace add smsmngr/smsmanager-skills
+    /plugin install smsmanager-skills@smsmanager
+    ```
+
+    The plugin updates through `/plugin` like any other plugin.
+  </Tab>
+  <Tab title="skills CLI (Cursor, Codex, …)">
+    Any agent that supports the [skills CLI](https://www.npmjs.com/package/skills) installs the catalog with one command:
+
+    ```bash
+    npx skills add smsmngr/smsmanager-skills
+    ```
+
+    This also works in Claude Code if you prefer not to use the plugin marketplace.
+  </Tab>
+  <Tab title="Cursor plugin">
+    Cursor has an official plugin, [smsmngr/smsmanager-cursor-plugin](https://github.com/smsmngr/smsmanager-cursor-plugin), which bundles all 7 skills **and registers the [MCP server](/ai/mcp-server)**. Install the `smsmanager` plugin from that marketplace to get both layers at once.
+  </Tab>
+  <Tab title="Manual">
+    Copy the folders under [`skills/`](https://github.com/smsmngr/smsmanager-skills/tree/main/skills) into your agent's skills directory, for example `~/.claude/skills/`. Each folder contains a `SKILL.md` plus optional `references/` and `scripts/` subfolders.
+  </Tab>
+</Tabs>
+
+<Tip>
+  Using **ChatGPT or Codex**? The [smsmngr/smsmanager-chatgpt-plugin](https://github.com/smsmngr/smsmanager-chatgpt-plugin) adds four workflow skills (send and verify delivery, account setup, sender ordering, daily campaign report) on top of the [MCP server](/ai/mcp-server). It is aimed at operating your account in conversation rather than writing code.
+</Tip>
+
+---
+
+## What the skills cover
+
+The catalog has seven skills. Each covers one part of the API and cross-references the others, so the agent loads only what the task needs.
+
+| Skill | Category | What it teaches |
+| --- | --- | --- |
+| `smsmanager-authentication` | Core | API key handling, base URLs for JSON API v2 and REST API v1, the `x-api-key` header vs the `apikey` query parameter, authentication troubleshooting. The shared foundation for every other skill. |
+| `smsmanager-messaging-api` | Messaging | Send SMS, Viber, WhatsApp and RCS via `/message`, `/message/priority`, `/messages` and `/simple/message` — omnichannel `flow`, sender IDs and aliases, Unicode, scheduling, batches, tags, custom `payload`. |
+| `smsmanager-delivery-reports` | Messaging | Delivery-status, inbound-message and inbound-reply webhooks (`callback` URL), status codes, rejection codes, two-way SMS. |
+| `smsmanager-message-status` | Messaging | Poll message status, list sent messages, per-request and per-day statistics and the inbox via REST API v1 (`/message`, `/messages`, `/request`, `/requests`, `/inbox`). |
+| `smsmanager-optout-blacklist` | Messaging | Manage the opt-out list and blacklist — add and remove numbers, export as CSV (`/optout`, `/blacklist`). |
+| `smsmanager-services` | Account | Order paid services — alphanumeric senders, dedicated numbers, SIM hosting — with a dry-run fee preview; check the credit balance; cancel services (`/credit/services`, `/credit/order`, `/credit/cancel`). |
+| `smsmanager-bulk-messaging` | Messaging | Mass-send from a JSONL file via presigned upload, validate messages without sending, cancel scheduled messages and bulk uploads (`/messaging/url`, `/messaging/validate`, `/messaging/cancel`). |
+
+### Anatomy of a skill
+
+```text
+skills/smsmanager-<area>/
+├─ SKILL.md        # entry point — short, under 500 lines
+├─ references/     # detailed material loaded on demand
+└─ scripts/        # runnable zero-dependency Node.js scripts (.cjs)
+```
+
+`SKILL.md` is deliberately brief and links to `references/` (an endpoint overview, per-channel notes, or examples in Node.js, PHP and Python). The agent keeps its context small and loads details only when it needs them. Some skills ship ready-to-run scripts the agent can execute directly, such as `send_sms.cjs`, `get_message_status.cjs` or `upload_bulk.cjs`.
+
+---
+
+## Configuration
+
+The skills read credentials exclusively from environment variables. The agent is instructed never to hardcode the key.
+
+| Variable | Required | Meaning |
+| --- | --- | --- |
+| `SMSMANAGER_API_KEY` | Yes (for real calls) | Your API key from [app.smsmanager.com/app/developers](https://app.smsmanager.com/app/developers/). |
+| `SMSMANAGER_BASE_URL` | No | Base URL of the JSON API v2. Defaults to `https://api.smsmngr.com/v2`. |
+| `SMSMANAGER_REST_BASE_URL` | No | Base URL of the REST API v1. Defaults to `https://rest-api.smsmngr.com/v1`. |
+| `SMSMANAGER_SENDER` | No | Default sender ID the agent uses when you don't specify one in the prompt. |
+
+```bash
+export SMSMANAGER_API_KEY="YOUR_API_KEY"
+export SMSMANAGER_SENDER="MySender"
+```
+
+<Tip>
+  During development, point `SMSMANAGER_BASE_URL` at the [mock endpoint](/guides/testing) `https://api-mock.smsmngr.com/v2` or use the test number `420777777777` — the agent-generated code then sends nothing and spends no credit.
+</Tip>
+
+---
+
+## Working with the agent
+
+Skills activate automatically based on what you ask for. Describe the task in plain language:
+
+- "Send a one-time code by SMS to 420777123456 using the priority endpoint."
+- "Add an endpoint to our Express server that receives SmsManager delivery reports and stores the status in the database."
+- "Send the message via a WhatsApp template first, and fall back to SMS if it isn't delivered within 10 minutes."
+- "Generate a JSONL file from this CSV and upload it as a bulk campaign scheduled for tomorrow at 9:00."
+- "Find out why the API returns code 304 and fix it."
+
+Before generating code, the agent fills in missing details (channel, sender, language, whether the text contains diacritics) and then uses the right endpoint, phone number format (E.164 without `+`) and the `x-api-key` header.
+
+### Built-in safeguards
+
+The skills include rules that protect your account and credit:
+
+- **Service orders** always run as a dry run first (`dryrun: true`); the agent shows you the total fee and waits for confirmation.
+- **Wiping an entire opt-out list or blacklist** (`all: true`) happens only after your explicit confirmation.
+- **The API key** is read from an environment variable and never written into source code or a repository.
+- For bulk campaigns the agent recommends a shared `tag` and a `callback` so results can be traced.
+
+---
+
+## Skills or MCP server?
+
+| | Skills | [MCP server](/ai/mcp-server) |
+| --- | --- | --- |
+| What it is | API knowledge for coding agents | Tools that let an assistant operate a real account |
+| Typical task | "Write an integration that…" | "Send a message, check credit, create a key…" |
+| Sign-in | Not needed (API key only to run the code) | OAuth sign-in to SmsManager, no API keys |
+| Where it runs | Locally inside your agent | SmsManager-hosted server |
+| Best for | Developers writing their own integration | Operating the account in conversation |
+
+We recommend both for developers: skills for writing code, the MCP server for quickly confirming a message went out or creating a sub-key for a new integration.
+
+---
+
+## Versions and updates
+
+The skills are published straight from the repository — a merge to `main` is a release. The current catalog version and per-skill changes are in [CHANGELOG.md](https://github.com/smsmngr/smsmanager-skills/blob/main/CHANGELOG.md). To update, reinstall (`/plugin` in Claude Code, or `npx skills add` again).
+
+Every API fact in the skills matches this documentation. If you spot a discrepancy, [open an issue](https://github.com/smsmngr/smsmanager-skills/issues) in the repository.
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="MCP server" icon="plug" href="/ai/mcp-server">
+    Connect an AI assistant directly to your account — sending, delivery status, keys, credit and services.
+  </Card>
+
+  <Card title="Authentication" icon="key" href="/authentication">
+    Where to get an API key and how to pass it securely in requests.
+  </Card>
+
+  <Card title="Testing your integration" icon="flask" href="/guides/testing">
+    Test number, test gateway and mock endpoints for agent-generated code.
+  </Card>
+
+  <Card title="JSON API v2" icon="code" href="/api-reference/json-v2/overview">
+    The endpoint reference the skills are built on.
+  </Card>
+</CardGroup>

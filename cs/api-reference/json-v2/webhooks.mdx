@@ -79,7 +79,7 @@ SmsManager posílá událost `sentMessage` při každé změně stavu odchozí z
 </ResponseField>
 
 <ResponseField name="result_info" type="string">
-  Čitelný popis výsledku, volitelně s předponou číselného kódu v hranatých závorkách. Příklady: `"[0] Delivered"`, `"[307] Insufficient credit"`, `"[131042] There was an error related to your payment method"`, `"Unauthorized error"`.
+  Nepovinné — pole může chybět nebo být prázdné. Doplňující informace k výsledku ve formátu `[kód] Popis`. SmsManager ho vyplňuje u zamítnutých zpráv, například `"[307] Insufficient credit"`. Může obsahovat i chybu od poskytovatele kanálu, například `"[131042] There was an error related to your payment method"`. Úplný seznam hodnot najdete v [přehledu chyb](/reference/errors).
 </ResponseField>
 
 <ResponseField name="sms" type="object">
@@ -145,7 +145,6 @@ SmsManager posílá událost `sentMessage` při každé změně stavu odchozí z
       "phone_number": "420777123456"
     },
     "result": "delivered",
-    "result_info": "[0] Delivered",
     "sms": {
       "gateway": "high",
       "sender": "MujSender",

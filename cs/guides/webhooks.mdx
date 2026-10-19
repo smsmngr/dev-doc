@@ -1,5 +1,9 @@
 Webhooky umožňují SmsManageru ihned posílat události na váš server, jakmile se něco stane (zpráva je doručena, doručení selže nebo příjemce odpoví apod.). Místo opakovaného dotazování API na stav, stačí jen připravit endpoint na vaší straně, který přijímá HTTP `POST` požadavek obsahující JSON payload. Je to nejefektivnější způsob, jak vybudovat sledování zpráv v reálném čase, automatizovat opakování a zpracovávat příchozí zprávy.
 
+<Tip>
+  Webhook endpoint vám může napsat AI agent: skill `smsmanager-delivery-reports` z balíčku [SmsManager skills](/ai/skills) zná formát payloadu, sekvenci stavů i kódy `result_info` popsané na této stránce.
+</Tip>
+
 ---
 
 ## Typy webhooků
@@ -208,15 +212,9 @@ Pro Viber a WhatsApp můžete také obdržet událost `seen`, když příjemce z
 
 ## Kódy `result_info`
 
-Pole `result_info` může poskytovat další popis výsledku doručení nebo nedoručení. Sleduje formát `[kód] Popis`, kde číselný kód je specifický pro operatéra a volitelný. Běžné příklady:
+Pole `result_info` je nepovinné — může chybět nebo být prázdné. Pokud je vyplněné, upřesňuje výsledek ve formátu `[kód] Popis`. SmsManager ho vyplňuje u zamítnutých zpráv, například `[302] Invalid number` nebo `[307] Insufficient credit`. Může obsahovat i chybu od poskytovatele kanálu, například chybový kód WhatsAppu.
 
-| `result_info` | Význam |
-| --- | --- |
-| `Delivered` | Úspěšně doručeno do telefonu |
-| `[1] Undelivered` | Nebylo možné doručit (telefon vypnutý, číslo mimo provoz) |
-| `[2] Rejected` | Zamítnuto operatérem nebo směrováním SmsManageru |
-| `[3] Failed` | Technické selhání při pokusu o doručení |
-| `Sent` | Přijato operatérem; finální stav zatím není znám |
+Všechny stavové kódy a hodnoty `result_info` najdete v [přehledu chyb](/reference/errors).
 
 Používejte `result` (strojově čitelný enum) ve vaší aplikační logice a `result_info` pro logování a podporu.
 

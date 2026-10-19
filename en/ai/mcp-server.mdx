@@ -1,0 +1,218 @@
+---
+title: "SmsManager MCP server"
+sidebarTitle: "MCP server"
+description: "Connect Claude, Claude Code, Cursor, ChatGPT or any other MCP client to your SmsManager account. The hosted MCP server uses OAuth sign-in — no API keys — and lets an AI assistant send messages, check delivery, manage keys, credit and senders."
+---
+
+The **SmsManager MCP server** is a hosted [Model Context Protocol](https://modelcontextprotocol.io) server that lets an AI assistant (Claude, Cursor, ChatGPT and others) work with your SmsManager account right in the conversation — send a message, confirm delivery, create an API key, check the credit balance or order a sender.
+
+| | |
+| --- | --- |
+| **Endpoint** | `https://app-api.smsmanager.com/functions/v1/mcp` |
+| **Transport** | Streamable HTTP |
+| **Authentication** | OAuth 2.1 with Dynamic Client Registration — **no API keys to configure** |
+| **Scope** | One signed-in SmsManager user and one workspace you pick when you connect |
+
+The MCP server is the **action layer**: it operates a real account. If you also want your coding agent to **write code** correctly against the SmsManager APIs, install the [AI skills](/ai/skills) — the knowledge layer. The two complement each other.
+
+<Warning>
+  The `send_message` and `order_service` tools **spend credit** from the selected workspace. The assistant should always get your confirmation before calling them; for service orders the server additionally offers a dry-run quote (`confirm: false`).
+</Warning>
+
+The server documentation is maintained in the [github.com/smsmngr/smsmanager-mcp](https://github.com/smsmngr/smsmanager-mcp) repository.
+
+---
+
+## Connecting
+
+<Tabs>
+  <Tab title="Claude (desktop / web)">
+    In Claude settings, add a **custom connector** with the server URL:
+
+    ```text
+    https://app-api.smsmanager.com/functions/v1/mcp
+    ```
+
+    Claude discovers the OAuth settings automatically. Keep the defaults:
+
+    - **Authentication:** *Sign in now* — the server requires a login.
+    - **OAuth client:** *Register automatically* (Dynamic Client Registration).
+  </Tab>
+  <Tab title="Claude Code">
+    Add the server with one command:
+
+    ```bash
+    claude mcp add --transport http smsmanager https://app-api.smsmanager.com/functions/v1/mcp
+    ```
+
+    Then run `/mcp` and choose to authenticate with the `smsmanager` server.
+  </Tab>
+  <Tab title="Cursor">
+    The easiest route is the official [Cursor plugin](https://github.com/smsmngr/smsmanager-cursor-plugin), which registers the server automatically and adds the [skills](/ai/skills) too. Alternatively use the [Add to Cursor](cursor://anysphere.cursor-deeplink/mcp/install?name=smsmanager&config=eyJ1cmwiOiJodHRwczovL2FwcC1hcGkuc21zbWFuYWdlci5jb20vZnVuY3Rpb25zL3YxL21jcCJ9) link, or add the server manually to `mcp.json`:
+
+    ```json
+    {
+      "mcpServers": {
+        "smsmanager": {
+          "url": "https://app-api.smsmanager.com/functions/v1/mcp"
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="ChatGPT / Codex">
+    Enable **Developer mode** in ChatGPT settings and add a plugin with the server URL. Sign in, pick a workspace, and invoke the plugin in a conversation by typing `@`.
+
+    The official [SmsManager plugin for ChatGPT](https://github.com/smsmngr/smsmanager-chatgpt-plugin) adds four workflow skills on top of the server (send and verify delivery, account setup, sender ordering, daily campaign report), including safety rules — confirmation before sending and ordering, and a dry-run price quote.
+  </Tab>
+  <Tab title="Other clients">
+    Any MCP client that supports **Streamable HTTP** and **OAuth 2.1** with Dynamic Client Registration can connect. Just enter the endpoint URL — the server returns the OAuth metadata automatically.
+  </Tab>
+</Tabs>
+
+### What happens when you connect
+
+<Steps>
+  <Step title="Sign in">
+    The client opens a browser to sign in to SmsManager. Use the same account as in the [dashboard](https://app.smsmanager.com).
+  </Step>
+  <Step title="Consent and workspace">
+    A consent screen shows which app is requesting access and lets you **pick a workspace**. The connection is bound to that workspace.
+  </Step>
+  <Step title="Tools are available">
+    After you approve, the client is connected and the assistant can call the tools described below. Try "How much credit do I have?".
+  </Step>
+</Steps>
+
+<Note>
+  **Switching workspace:** disconnect (revoke) the app in your MCP client and reconnect, then pick a different workspace on the consent screen.
+</Note>
+
+---
+
+## How access works
+
+- The token identifies **you** as a SmsManager user. The workspace chosen at consent time is remembered and every tool call operates on it.
+- The server only sees data you can already see in the dashboard. Workspace membership is **re-checked on every request** — losing it cuts off access immediately.
+- Sending messages and ordering services **spend the workspace's credit** and use the workspace's API key server-side. **The key itself is never exposed to the AI.**
+- You never configure an API key anywhere; you revoke access in the MCP client by disconnecting the app.
+
+---
+
+## Tools
+
+Legend: 🔎 read-only · ✏️ writes / changes state · 💸 spends credit
+
+### Identity & account
+
+| Tool | Type | Description |
+| --- | --- | --- |
+| `whoami` | 🔎 | Who you are and which workspace this connection uses. Includes a short account block (activated?, review status, phone verified?, currency). No input. |
+| `get_account_status` | 🔎 | Detailed activation state and the concrete next step: `review_status` (`not_submitted` / `pending` / `approved` / `denied`), phone verification, and the usage description / sample message on file. No input. |
+
+<Note>
+  **Activation is finished in the browser.** Phone verification needs a code widget that can't be automated, so this tool only reports status and requirements. The assistant can help you *draft* the usage description (min. 11 characters) and a sample message (min. 6 characters); you complete activation at [app.smsmanager.com/app/account-verify](https://app.smsmanager.com/app/account-verify).
+</Note>
+
+### Messaging
+
+| Tool | Type | Description |
+| --- | --- | --- |
+| `send_message` | ✏️💸 | Sends a real SMS to up to 10 recipients. Parameters: `to` (array of E.164 numbers **without** the leading `+`, e.g. `420777123456`, 1–10 entries), `text` (1–1000 characters), optionally `sender` (a registered sender ID; omit to use the workspace default). Returns a `request_id` and a `message_id` per recipient. A recipient in `rejected` was **not** sent (bad number or no credit). |
+| `get_message_status` | 🔎 | Delivery status of one message by `message_id`. `delivery_code` `201` = delivered, `202` = seen. An unknown ID returns `message: null` (not an error). |
+| `list_messages` | 🔎 | Sent messages for one day (`date` as `YYYY-MM-DD`), optional `tag` and `phone_number` filters. Cursor-paginated — pass the returned `next_cursor` back as `cursor`. |
+| `list_inbox` | 🔎 | Received (inbound) messages for one day (`date`). |
+
+### API keys
+
+| Tool | Type | Description |
+| --- | --- | --- |
+| `list_apikeys` | 🔎 | Lists the workspace's child API keys ("apps") with their notes, scopes and status. |
+| `create_child_apikey` | ✏️ | Creates a new child API key for an integration and returns it. Parameters: `note` (the app / integration name), optionally `scope` (`api` = send and read only, default; `full` = all permissions), `share_senders` (whether the key may use the workspace's senders; default `true`), `currency` (`CZK` or `EUR`; defaults to the workspace currency). |
+
+<Tip>
+  The returned key is a live credential. Use it for the integration and don't reuse the workspace's own key. See [Authentication](/authentication#managing-api-keys) for details on sub-keys.
+</Tip>
+
+### Credit & billing
+
+| Tool | Type | Description |
+| --- | --- | --- |
+| `get_credit` | 🔎 | Current credit balance and account currency. No input. |
+| `get_billing_details` | 🔎 | Invoicing details on file (name, address, company ID, VAT). Empty fields mean billing isn't set up yet. **Billing must be filled in before credit can be topped up.** |
+| `set_billing_details` | ✏️ | Fills or updates invoicing details. Pass only the fields you want to change — existing values are preserved. Fields: `name`, `email`, `street`, `city`, `zip`, `country` (ISO 3166-1 alpha-2, e.g. `CZ`), `company_id` (registration number), `company_vat` (VAT number). |
+| `get_topup_details` | 🔎 | Bank-transfer payment instructions for adding credit — bank account number, IBAN, variable symbol. You make the transfer yourself; credit is added once the payment is processed. Card top-up is done in the dashboard. No input. |
+
+### Services (senders, numbers)
+
+| Tool | Type | Description |
+| --- | --- | --- |
+| `list_services` | 🔎 | Catalog of orderable paid services (alphanumeric sender IDs, dedicated virtual numbers, SIM hosting, …) with setup and monthly fees per currency. Use it to find a `service_id`. No input. |
+| `order_service` | ✏️💸 | Orders a paid service. Parameters: `service_id` (from `list_services`, e.g. `sender_sms_420_alnum`), optionally `period` (`once` / `month` / `quarter` / `year`; the service minimum may override), `subject` (for "defined" services, the sender text or number; omit for pool-assigned ones), `payload` (service-specific fields, e.g. `{ "country": "CZ", "proofName": "…" }`) and `confirm` (default `false` = **dry-run quote, no charge**; `true` = place the real order). |
+| `cancel_service` | ✏️ | Flags a paid service to cancel at the end of the paid period (no refund; stays active until `active_until`). Idempotent. Parameters: `service_id` and the exact `subject` the service was ordered with. |
+
+<Warning>
+  Always call `order_service` with `confirm: false` first, check the returned `total_fee`, and only then repeat the call with `confirm: true`.
+</Warning>
+
+---
+
+## Common workflows
+
+**Send and confirm delivery**
+`send_message` → note the `message_id` → `get_message_status` (or `list_messages` for a day's overview).
+
+**Top up credit by bank transfer**
+`get_billing_details` → if empty, `set_billing_details` → `get_topup_details` → make the transfer with the given variable symbol.
+
+**Order an alphanumeric sender**
+`list_services` (find the `service_id`) → `order_service` with `confirm: false` (review the fee) → `order_service` with `confirm: true`.
+
+**Get the account activated**
+`get_account_status` → the assistant helps draft the usage description and sample message → finish phone verification and submit at [app.smsmanager.com/app/account-verify](https://app.smsmanager.com/app/account-verify).
+
+**Connect a new integration**
+`create_child_apikey` → use the returned key in the integration (and let the [AI skills](/ai/skills) help you write its code).
+
+---
+
+## Limitations
+
+- One workspace per connection; switching means reconnecting.
+- Account activation (phone verification, review submission) is completed in the browser — the tools read status and help prepare, but can't submit it.
+- `get_topup_details` returns bank-transfer instructions only; card top-up is in the dashboard.
+- `send_message` sends SMS only. For Viber, WhatsApp, RCS, the omnichannel `flow`, scheduling or bulk campaigns use the [JSON API v2](/api-reference/json-v2/overview) — the [AI skills](/ai/skills) help you write that code.
+
+---
+
+## MCP server or skills?
+
+| | MCP server | [Skills](/ai/skills) |
+| --- | --- | --- |
+| What it is | Tools that let an assistant operate a real account | API knowledge for coding agents |
+| Typical task | "Send a message, check credit, create a key…" | "Write an integration that…" |
+| Sign-in | OAuth sign-in to SmsManager, no API keys | Not needed (API key only to run the code) |
+| Where it runs | SmsManager-hosted server | Locally inside your agent |
+| Best for | Operating the account in conversation | Developers writing their own integration |
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="AI skills" icon="wand-magic-sparkles" href="/ai/skills">
+    Teach your coding agent to write correct code against the SmsManager APIs.
+  </Card>
+
+  <Card title="Authentication" icon="key" href="/authentication">
+    How API keys and the sub-keys you create via MCP work.
+  </Card>
+
+  <Card title="Credit and billing" icon="coins" href="/concepts/credit-billing">
+    When credit is deducted and what happens when it runs out.
+  </Card>
+
+  <Card title="REST API" icon="code" href="/api-reference/rest/overview">
+    The same operations (keys, credit, services, message status) directly over HTTP.
+  </Card>
+</CardGroup>

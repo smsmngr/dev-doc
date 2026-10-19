@@ -90,6 +90,13 @@
             ]
           },
           {
+            "group": "AI asistenti",
+            "pages": [
+              "ai/skills",
+              "ai/mcp-server"
+            ]
+          },
+          {
             "group": "Přístup a klíče",
             "pages": [
               "authentication"
@@ -292,6 +299,8 @@
               "concepts/message-flow",
               "concepts/request-acceptance",
               "concepts/credit-billing",
+              "concepts/message-billing",
+              "concepts/credit-topup",
               "concepts/sending-queues",
               "concepts/channels",
               "concepts/message-ids",
@@ -370,6 +379,14 @@
           {
             "label": "Příklady kódu",
             "href": "https://github.com/smsmngr/dev-examples"
+          },
+          {
+            "label": "AI skills",
+            "href": "https://smsmanager.cz/docs/ai/skills"
+          },
+          {
+            "label": "MCP server",
+            "href": "https://smsmanager.cz/docs/ai/mcp-server"
           }
         ]
       },

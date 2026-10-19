@@ -60,6 +60,10 @@ When creating a sub-key you can configure:
   API keys are account-scoped. Sub-keys created under your account can either share your credit line or hold their own balance, depending on how you configure the `shared` flag when calling the REST API.
 </Note>
 
+<Tip>
+  An AI assistant connected through the [MCP server](/ai/mcp-server) can create a sub-key for a new integration for you (the `create_child_apikey` tool) — without ever seeing the workspace's primary key. Code generated with the [AI skills](/ai/skills) reads the key from the `SMSMANAGER_API_KEY` environment variable, in line with the best practices below.
+</Tip>
+
 ## Security best practices
 
 Follow these guidelines to keep your API keys and your users' data safe:

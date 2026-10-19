@@ -23,7 +23,10 @@ The SmsManager messaging platform (SMS, Viber, WhatsApp) and its four APIs:
 - **Verify API** — one-time-code phone verification
 - **WhatsApp Partner API** — programmatic WABA onboarding
 
-Plus getting-started tutorials, how-to guides, and core-concept explanations.
+Plus getting-started tutorials, how-to guides, core-concept explanations, and
+two pages for **AI assistants** (`ai/`): the
+[skills catalog](https://github.com/smsmngr/smsmanager-skills) for coding
+agents and the hosted [MCP server](https://github.com/smsmngr/smsmanager-mcp).
 
 ## Repository structure
 
@@ -37,6 +40,7 @@ cs/                      # 🇨🇿 Czech (primary)  → smsmanager.cz/docs
 ├─ index, introduction, quickstart, authentication
 ├─ concepts/             # channels, message-flow, message-ids, scheduling, …
 ├─ guides/               # send-sms, send-whatsapp, whatsapp-sms-fallback, webhooks, …
+├─ ai/                   # AI skills + MCP server (install + features)
 ├─ reference/            # errors, rate-limits, phone-numbers, …
 ├─ tutorials/
 ├─ api-reference/        # per-API overview pages
@@ -104,4 +108,5 @@ push to `main` to ship.
 
 - **Live docs:** https://smsmanager.cz/docs · https://smsmanager.com/docs
 - **Code examples:** [`smsmngr/dev-examples`](https://github.com/smsmngr/dev-examples)
+- **AI skills:** [`smsmngr/smsmanager-skills`](https://github.com/smsmngr/smsmanager-skills) · **MCP server:** [`smsmngr/smsmanager-mcp`](https://github.com/smsmngr/smsmanager-mcp)
 - **API dashboard / keys:** https://app.smsmanager.com/app/developers/apikeys

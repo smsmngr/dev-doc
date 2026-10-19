@@ -1008,14 +1008,17 @@ x-webhooks:
                   result_info:
                     type: string
                     description: |
-                      Doplňkový kód výsledku zprávy ve formátu "[kód] Popis". Kód je volitelný, popis také. Result info může obsahovat jen kód v hranatých závorkách nebo jen popis bez kódu.
+                      Nepovinné. Pole může chybět nebo být prázdné — logiku aplikace na něm nestavte, používejte `result`.
 
-                      Časté kódy odmítnutí:
-                      - `[302]` Neplatný formát telefonního čísla
-                      - `[303]` Telefonní číslo není v povoleném seznamu
-                      - `[304]` Telefonní číslo je na blacklistu nebo opt-out seznamu
-                      - `[306]` Příliš mnoho stejných zpráv pro stejného příjemce
-                      - `[307]` Nedostatečný kredit
+                      Doplňující informace k výsledku ve formátu "[kód] Popis". SmsManager ho vyplňuje u zamítnutých zpráv (`result: rejected`):
+                      - `[302] Invalid number` — neplatné telefonní číslo
+                      - `[303] Rejected destination` — odesílání na tuto destinaci není povoleno
+                      - `[304] Blacklisted / opted-out` — příjemce je na blacklistu nebo se odhlásil
+                      - `[305] Invalid message` — neplatná zpráva
+                      - `[306] Max messages per recipient reached` — dosažen maximální počet zpráv pro příjemce
+                      - `[307] Insufficient credit` — nedostatečný kredit
+
+                      Může obsahovat i chybu od poskytovatele kanálu (hlavně WhatsApp). Taková hodnota může obsahovat jen kód v hranatých závorkách nebo jen popis.
                     examples:
                       - "[307] Insufficient credit"
                       - "[131042] There was an error related to your payment method"
@@ -1121,7 +1124,6 @@ x-webhooks:
                     to:
                       phone_number: "420777123456"
                     result: delivered
-                    result_info: "[0] Delivered"
               Message rejected insufficient credit:
                 value:
                   - request_id: "bc36f3d1-d284-463a-921b-a3560c154649"

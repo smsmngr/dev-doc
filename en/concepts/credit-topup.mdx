@@ -1,0 +1,123 @@
+---
+title: "Topping up credit"
+sidebarTitle: "Topping up credit"
+description: "How to top up SmsManager credit by bank transfer or payment card, how to set up automatic top-up, and how to switch to monthly invoicing (postpaid)."
+---
+
+You can top up credit by **online bank transfer** or **payment card**. If you send larger volumes, you can automate top-ups or switch to monthly invoicing.
+
+For when credit is deducted and what happens when it runs out, see the [Credit and billing](/concepts/credit-billing) concept.
+
+---
+
+## Recommendations for larger volumes
+
+If you send a large number of messages, we recommend that you:
+
+1. **Set up a recurring payment.** The variable symbol for payments never changes, so you don't need to generate top-up requests manually.
+2. **Set up automatic top-up** when credit drops below 10 %. See the steps below.
+3. **Switch to monthly invoicing** for sent messages. See the steps below.
+
+---
+
+## Online bank transfer
+
+If your bank supports instant payments, we receive your payment in about 10 minutes, often faster. You can then start sending messages almost immediately.
+
+### Credit was not topped up
+
+If your credit did not increase after a payment, email us at [cc@smsmanager.cz](mailto:cc@smsmanager.cz). Include at least:
+
+1. The variable symbol of your payment.
+2. Which of our accounts you sent the payment to, and when.
+3. Your bank account number.
+
+A payment confirmation is not required, but it can help.
+
+<Warning>
+  Without these details, we are unable to trace your payment.
+</Warning>
+
+---
+
+## Payment card
+
+You can also top up credit online with a payment card. For new accounts, you may need to ask support to activate this option.
+
+<Note>
+  Payments with a corporate payment card may incur a percentage surcharge.
+</Note>
+
+### Activating card top-ups
+
+1. Fill in all contact details in your account settings.
+2. Contact support through the **online chat** in the admin and ask for activation.
+
+---
+
+## Automatic top-up by payment card
+
+If you don't want to monitor and top up credit manually, set up automatic top-up. Your credit is topped up to 100 % of the original amount whenever it drops below 10 %.
+
+<Steps>
+  <Step title="Top up credit and enable automatic top-up">
+    Enter the top-up amount, for example CZK 2,000. Before continuing to the payment gateway, check **Automatic top-up**.
+  </Step>
+
+  <Step title="Credit tops itself up">
+    Whenever your credit drops below 10 % of the topped-up amount (below CZK 200 in this example), the original amount of CZK 2,000 is topped up automatically.
+  </Step>
+</Steps>
+
+You cannot change the 10 % threshold manually. If you want credit to be topped up sooner, increase the top-up amount. For example, with a top-up of CZK 5,000, the next top-up happens whenever credit drops below CZK 500.
+
+---
+
+## Monthly invoicing (postpaid)
+
+If you send more messages, or topping up by transfer or card is impractical for you, you can switch to a **postpaid** account. You then pay for sent messages based on a monthly invoice.
+
+<Steps>
+  <Step title="Submit a request">
+    Fill in the form to request a postpaid contract.
+  </Step>
+
+  <Step title="Receive the draft contract">
+    You receive the prepared draft contract by email as a PDF.
+  </Step>
+
+  <Step title="Sign the contract online">
+    We sign the contract online. All you need is a mobile phone number and an email address.
+  </Step>
+
+  <Step title="Pay the deposit">
+    You receive a request to pay the deposit.
+  </Step>
+
+  <Step title="Switch to postpaid">
+    We switch your account to postpaid the following day. You receive the invoice for sending the following month. The first invoice also deducts your remaining credit balance.
+  </Step>
+</Steps>
+
+### Deposit and sending limit
+
+- The **deposit** serves as security. After 6 months, you can ask for it to be returned.
+- You can usually send messages **up to three times the deposit amount**. This is an indicative limit. If you exceed it, we will contact you to agree on next steps.
+
+<Tip>
+  An AI assistant connected through the [MCP server](/ai/mcp-server) can check your credit balance with the `get_credit` tool and prepare bank transfer details with `get_topup_details`.
+</Tip>
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Credit and billing" icon="receipt" href="/concepts/credit-billing">
+    When credit is deducted and what `[307] Insufficient credit` means.
+  </Card>
+
+  <Card title="Message billing" icon="gauge" href="/concepts/message-billing">
+    What you pay for on SMS, WhatsApp, RCS, and Viber, and how volume pricing works.
+  </Card>
+</CardGroup>

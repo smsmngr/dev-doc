@@ -1,0 +1,123 @@
+---
+title: "Dobíjení kreditu"
+sidebarTitle: "Dobíjení kreditu"
+description: "Jak dobít kredit v SmsManageru bankovním převodem nebo platební kartou, jak nastavit automatické dobíjení a jak přejít na měsíční fakturaci (postpaid)."
+---
+
+Kredit můžete dobít **online bankovním převodem** nebo **platební kartou**. Pokud odesíláte větší objem zpráv, můžete dobíjení automatizovat nebo přejít na měsíční fakturaci.
+
+Kdy se kredit odečítá a co se stane při jeho nedostatku, popisuje koncept [Kredit a účtování](/concepts/credit-billing).
+
+---
+
+## Doporučení pro větší objemy
+
+Pokud odesíláte větší množství zpráv, doporučujeme:
+
+1. **Nastavit pravidelnou úhradu.** Variabilní symbol pro platbu je stále stejný, takže nemusíte žádosti o dobití kreditu generovat ručně.
+2. **Nastavit automatické dobíjení** při poklesu kreditu pod 10 %. Postup najdete níže.
+3. **Přejít na měsíční fakturaci** odeslaných zpráv. Postup najdete níže.
+
+---
+
+## Online bankovní převod
+
+Pokud vaše banka podporuje okamžité platby, obdržíme vaši úhradu přibližně do 10 minut, často i rychleji. Zprávy tak můžete odesílat téměř okamžitě.
+
+### Kredit nebyl navýšen
+
+Pokud se kredit po platbě nenavýšil, napište nám na [cc@smsmanager.cz](mailto:cc@smsmanager.cz). Uveďte alespoň:
+
+1. Variabilní symbol vaší platby.
+2. Na který z našich účtů jste platbu odeslali a kdy.
+3. Číslo vašeho bankovního účtu.
+
+Potvrzení o platbě není vyžadováno, ale může pomoci.
+
+<Warning>
+  Bez těchto údajů vaši platbu bohužel nedokážeme dohledat.
+</Warning>
+
+---
+
+## Platební karta
+
+Kredit můžete dobít také online platební kartou. U nových účtů může být nutné o aktivaci této možnosti požádat podporu.
+
+<Note>
+  Při platbě firemní platební kartou může být účtována procentuální přirážka.
+</Note>
+
+### Aktivace dobíjení platební kartou
+
+1. V nastavení účtu vyplňte všechny kontaktní údaje.
+2. Kontaktujte podporu přes **online chat** v administraci a požádejte o aktivaci.
+
+---
+
+## Automatické dobíjení platební kartou
+
+Pokud nechcete kredit hlídat a dobíjet ručně, nastavte si automatické dobíjení. Kredit se dobije na 100 % původní částky, jakmile klesne pod 10 %.
+
+<Steps>
+  <Step title="Dobijte kredit a zapněte automatické dobíjení">
+    Zadejte částku dobití, například 2 000 Kč. Před přechodem na platební bránu zaškrtněte **Automatické dobíjení**.
+  </Step>
+
+  <Step title="Kredit se dobíjí sám">
+    Kdykoli kredit klesne pod 10 % dobité částky (v tomto příkladu pod 200 Kč), automaticky se dobije původní částka 2 000 Kč.
+  </Step>
+</Steps>
+
+Hranici 10 % nelze ručně změnit. Pokud chcete, aby se kredit dobíjel dříve, zvyšte částku dobití. Například při dobití 5 000 Kč proběhne další dobití vždy při poklesu pod 500 Kč.
+
+---
+
+## Měsíční fakturace (postpaid)
+
+Pokud odesíláte více zpráv nebo je pro vás dobíjení převodem či kartou nepraktické, můžete přejít na **postpaid** účet. Za odeslané zprávy pak platíte na základě měsíční faktury.
+
+<Steps>
+  <Step title="Vyplňte žádost">
+    Vyplňte formulář pro žádost o aktivaci postpaid smlouvy.
+  </Step>
+
+  <Step title="Obdržíte návrh smlouvy">
+    Na e-mail vám přijde připravený návrh smlouvy ve formátu PDF.
+  </Step>
+
+  <Step title="Podepište smlouvu online">
+    Smlouvu podepíšeme online. Stačí vám mobilní telefonní číslo a e-mail.
+  </Step>
+
+  <Step title="Uhraďte depozit">
+    Obdržíte výzvu k úhradě depozitu.
+  </Step>
+
+  <Step title="Přepnutí na postpaid">
+    Následující den váš účet přepneme na postpaid. Fakturu za odesílání obdržíte následující měsíc. První faktura odečte i zůstatek vašeho kreditu.
+  </Step>
+</Steps>
+
+### Depozit a limit odesílání
+
+- **Depozit** slouží jako jistota. Po 6 měsících můžete požádat o jeho vrácení.
+- Zprávy můžete obvykle odesílat **až do trojnásobku výše depozitu**. Jde o orientační limit. Pokud ho překročíte, budeme vás kontaktovat a domluvíme se na dalším postupu.
+
+<Tip>
+  AI asistent připojený přes [MCP server](/ai/mcp-server) zjistí zůstatek kreditu nástrojem `get_credit` a připraví podklady pro dobití převodem nástrojem `get_topup_details`.
+</Tip>
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Kredit a účtování" icon="receipt" href="/concepts/credit-billing">
+    Kdy se kredit odečítá a co znamená chyba `[307] Insufficient credit`.
+  </Card>
+
+  <Card title="Účtování zpráv" icon="gauge" href="/concepts/message-billing">
+    Za co platíte u SMS, WhatsAppu, RCS a Viberu a jak funguje cena podle objemu.
+  </Card>
+</CardGroup>
