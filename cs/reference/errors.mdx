@@ -121,7 +121,7 @@ Kromě hodnot z tabulky může `result_info` obsahovat chybu, kterou vrátil pos
   <Accordion title="Zpráva ukazuje 'sent' ale ne 'delivered'">
     Obdrželi jste webhook s `result: sent`, ale nikdy jste neobdrželi navazující callback `result: delivered`.
 
-    To je v mnoha případech normální. Stav `sent` znamená, že operátor přijal zprávu, ale potvrzení doručení (DLR) závisí na tom, zda zařízení příjemce příchozí zprávu potvrdí. Někteří operatoři a sítě nevracejí potvrzení doručení vůbec což nemusí znamenat, že zprávy nebyla doručena.
+    To je v mnoha případech normální. Stav `sent` znamená, že operátor přijal zprávu, ale potvrzení doručení (DLR) závisí na tom, zda zařízení příjemce příchozí zprávu potvrdí. Někteří operátoři a sítě nevracejí potvrzení doručení vůbec, což nemusí znamenat, že zpráva nebyla doručena.
 
     Pokud je zpráva časově citlivá, zvažte použití záložního kanálu (např. SMS → Viber) přes parametr `flow`.
   </Accordion>
