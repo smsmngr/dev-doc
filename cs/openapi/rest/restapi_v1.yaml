@@ -65,6 +65,9 @@ paths:
                       default_callback_url:
                         type: string
                         description: Výchozí webhook URL pro notifikace o doručení.
+                      callback_secret:
+                        type: string
+                        description: Secret pro podepisování webhook požadavků (64 hex znaků). Prázdný, pokud je podepisování vypnuté. Spravuje se přes `default_callback_secret` na `/apikey/update`.
                       account:
                         type: string
                         enum:
@@ -86,7 +89,7 @@ paths:
                         description: '`1`, pokud je klíč zablokován.'
                       senders:
                         type: array
-                        description: Registrovaní odesílatelé klíče.
+                        description: Všichni registrovaní odesílatelé klíče, jedna položka za odesílatele a kanál.
                         items:
                           type: object
                           properties:
@@ -99,6 +102,28 @@ paths:
                             name:
                               type: string
                               description: Zobrazovaný název odesílatele.
+                      default_sender:
+                        type: string
+                        description: Výchozí odesílatel účtu; použije se, když zpráva neuvádí `sender` ani na jedné úrovni. Může jít i o název aliasu odesílatele.
+                      sender_aliases:
+                        type: array
+                        description: Aliasy odesílatele pro tento klíč. Alias je jeden název, pod kterým můžete odesílat a který se pro každou předvolbu příjemce přeloží na jiného zaregistrovaného odesílatele. Nastavuje podpora.
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                              description: Název aliasu, který použijete jako `sender` zprávy.
+                            prefixes:
+                              type: object
+                              additionalProperties:
+                                type: string
+                              description: Mapování předvolby na odesílatele.
+                      whitelist_ip:
+                        type: array
+                        items:
+                          type: string
+                        description: IP whitelist pro odesílání. Položka obsahující `.` nebo `:` se porovnává jako přesná IP adresa; jakákoli jiná položka se porovnává jako podřetězec názvu ISP/organizace IP adresy požadavku. Prázdné pole znamená žádné omezení. Spravuje se přes `/apikey/update`.
                       vat:
                         type: string
                         description: '`"1"`, pokud je účet plátcem DPH.'
@@ -119,6 +144,7 @@ paths:
                     me:
                       note: "eshop"
                       default_callback_url: "https://example.com/hook"
+                      callback_secret: "3f1c9a0d8e7b64520f4a1b2c3d4e5f60718293a4b5c6d7e8f9012345a6b7c8d9"
                       account: "prepaid"
                       scope: "full"
                       share_senders: "1"
@@ -127,6 +153,18 @@ paths:
                         - flow: "sms"
                           value: "Mojefirma"
                           name: "Mojefirma"
+                        - flow: "sms"
+                          value: "Mojefirma CZ"
+                          name: "Mojefirma CZ"
+                      default_sender: "Mojefirma"
+                      sender_aliases:
+                        - name: "brand"
+                          prefixes:
+                            "420": "Mojefirma CZ"
+                            "421": "Mojefirma SK"
+                      whitelist_ip:
+                        - "1.2.3.4"
+                        - "internet cz"
                       vat: "1"
                       currency: "czk"
                       tz: "Europe/Prague"
@@ -283,25 +321,51 @@ paths:
           sidebarTitle: "Upravit klíč"
       tags:
         - api
-      summary: Upravit aktuální API klíč
+      summary: Upravit API klíč
       description: |
-        Upravuje nastavení volajícího API klíče. Obě pole musí být přítomna (prázdný řetězec hodnotu smaže). Změna `default_callback_url` zároveň aktualizuje webhook URL u všech odesílatelů klíče.
+        Upravuje nastavení volajícího API klíče, nebo — pokud je přítomno pole `apikey` — některého z jeho podřízených klíčů. Všechna nastavení jsou volitelná: mění se pouze pole přítomná v požadavku, `null` (nebo prázdný řetězec) hodnotu smaže. Požadavek bez rozpoznaného nastavení vrací 400. Změna `default_callback_url` zároveň aktualizuje webhook URL u všech odesílatelů upravovaného klíče.
+
+        Úprava podřízeného klíče: pole `apikey` smí použít pouze nadřazený (top-level) klíč a cíl musí být jedním z jeho podřízených klíčů (viz `/apikey/list`). Všechna nastavení se chovají přesně tak, jako by se podřízený klíč upravoval sám — např. registrace `default_sender` se ověřuje proti odesílatelům podřízeného klíče. Funguje to i pro podřízené klíče se scope `api`, které tento endpoint samy volat nemohou. Pole `scope` a `disable` jsou přijímána pouze společně s `apikey`; klíč nikdy nemůže měnit vlastní scope ani blokaci.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - default_callback_url
-                - note
               properties:
+                apikey:
+                  type: string
+                  description: Podřízený API klíč, který se má upravit místo volajícího klíče. Smí jej použít pouze nadřazený klíč a cíl mu musí patřit.
                 default_callback_url:
-                  type: string
-                  description: Výchozí webhook URL pro notifikace o doručení. Prázdný řetězec hodnotu smaže.
+                  type: [string, 'null']
+                  description: Výchozí webhook URL pro notifikace o doručení. `null` nebo prázdný řetězec hodnotu smaže.
                 note:
+                  type: [string, 'null']
+                  description: Vaše poznámka ke klíči. `null` nebo prázdný řetězec hodnotu smaže.
+                default_sender:
+                  type: [string, 'null']
+                  maxLength: 64
+                  description: Výchozí odesílatel pro zprávy, které neuvádějí `sender`. Může jít o zaregistrovaného odesílatele nebo o název aliasu odesílatele. Nesmí obsahovat `,` ani `:`. `null` nebo prázdný řetězec jej smaže. Odesílatele, který pro klíč není zaregistrovaný, uložíme, ale vrátíme jej ve `warning` a při odeslání bude ignorován.
+                whitelist_ip:
+                  type: [array, 'null']
+                  items:
+                    type: string
+                    maxLength: 100
+                  maxItems: 50
+                  description: IP whitelist pro odesílání. Položka obsahující `.` nebo `:` se porovnává jako přesná IP adresa (bez CIDR rozsahů); jakákoli jiná položka se porovnává jako podřetězec názvu ISP/organizace IP adresy požadavku. Zprávy odeslané z adresy mimo whitelist se místo odeslání podrží na ruční schválení. `null` nebo prázdné pole omezení zruší. Položky nesmí obsahovat `,`.
+                scope:
                   type: string
-                  description: Vaše poznámka ke klíči. Prázdný řetězec hodnotu smaže.
+                  enum:
+                    - full
+                    - rest-api
+                    - api
+                  description: Nový rozsah oprávnění podřízeného klíče. Přijímáno pouze společně s `apikey`.
+                disable:
+                  type: integer
+                  enum:
+                    - 0
+                    - 1
+                  description: '`1` podřízený klíč zablokuje, `0` odblokuje. Přijímáno pouze společně s `apikey`.'
             examples:
               Set callback:
                 value:
@@ -309,8 +373,27 @@ paths:
                   note: "eshop"
               Clear callback:
                 value:
-                  default_callback_url: ""
-                  note: "eshop"
+                  default_callback_url: null
+              Set default sender:
+                value:
+                  default_sender: "Mojefirma"
+              Set IP whitelist:
+                value:
+                  whitelist_ip:
+                    - "1.2.3.4"
+                    - "internet cz"
+              Clear IP whitelist:
+                value:
+                  whitelist_ip: null
+              Update a child key:
+                value:
+                  apikey: "cD4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+                  default_sender: "Mojefirma"
+                  note: "eshop child"
+              Block a child key:
+                value:
+                  apikey: "cD4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+                  disable: 1
       responses:
         '200':
           description: API klíč upraven
@@ -321,6 +404,9 @@ paths:
                 properties:
                   success:
                     type: boolean
+                  warning:
+                    type: string
+                    description: Vyplněno, když se nastavení uložilo, ale něco vyžaduje pozornost, například nedostupná callback URL nebo nezaregistrovaný výchozí odesílatel.
               example:
                 success: true
         '400':
@@ -330,15 +416,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                message: Missing 'default_callback_url' or 'note' in request data
+                message: No settings to update
         '403':
           description: Zakázáno
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                message: Apikey scope 'api' is not allowed to change settings
+              examples:
+                Scope not allowed:
+                  value:
+                    message: Apikey scope 'api' is not allowed to change settings
+                Not a parent:
+                  value:
+                    message: Only a top-level apikey can update child apikeys
+                Not owner:
+                  value:
+                    message: Target apikey does not belong to this parent
         '500':
           description: Interní chyba
           content:
@@ -389,8 +483,11 @@ paths:
           sidebarTitle: "Změnit sub-klíč"
       tags:
         - api
-      summary: Změnit podřízený API klíč
+      summary: Změnit podřízený API klíč (zastaralé)
+      deprecated: true
       description: |
+        **Zastaralé** — použijte místo něj `/apikey/update` s polem `apikey`, které pokrývá `scope`/`disable` i všechna ostatní nastavení podřízeného klíče. Tento endpoint zůstává funkční pro stávající integrace.
+
         Mění rozsah oprávnění a/nebo blokaci podřízeného API klíče. Podřízené klíče může měnit pouze nadřazený klíč; nadřazený klíč nemůže měnit sám sebe.
       requestBody:
         required: true
@@ -479,7 +576,7 @@ paths:
       tags:
         - credit
       summary: Získat stav kreditu
-      description: Vrací aktuální stav kreditu a dosažené cenové hladiny volajícího klíče.
+      description: 'Vrací aktuální stav kreditu a dosažené cenové hladiny volajícího klíče. Pro sdílené podklíče (vytvořené se `shared: true`) vrací stav sdílené peněženky (nadřazeného klíče).'
       responses:
         '200':
           description: Stav kreditu
@@ -551,7 +648,7 @@ paths:
       description: |
         Vrací katalog objednatelných placených služeb (odesílatelé, virtuální čísla, SIM hosting, ...). Katalog má strukturu `services.sender.<platform>.<country_calling_code>.<variant>`. Ploché id služby používané v `/credit/order` se skládá jako `sender_<platform>_<calling_code>_<variant>` (např. `sender_sms_420_alnum`).
 
-        Každá varianta služby obsahuje: lokalizovaný `name` (a volitelné `requirements` a `delay`), `subject` (`defined` = předmět dodáváte vy, např. text odesílatele nebo telefonní číslo, `assigned` = číslo z poolu je přiděleno automaticky), volitelný výchozí `status` a `prices` pro jednotlivé měny s poli `setup`, `monthly` a volitelně `min_interval` (`month` / `year`) nebo `min_monthly_spend`.
+        Každá varianta služby obsahuje: lokalizovaný `name` (a volitelné `requirements` a `delay`), `subject` (`defined` = předmět dodáváte vy, např. text odesílatele nebo telefonní číslo, `assigned` = číslo z poolu je přiděleno automaticky, `order` = číslo přidělí operátor později, viz `/credit/orders`), volitelný výchozí `status` a `prices` pro jednotlivé měny s poli `setup`, `monthly` a volitelně `min_interval` (`month` / `year`) nebo `min_monthly_spend`.
       responses:
         '200':
           description: Katalog služeb
@@ -643,6 +740,174 @@ paths:
                       mcc: 230
                       price_czk: 0.39
                       price_eur: 0.016
+
+  /credit/price:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Cena pro destinaci"
+      tags:
+        - credit
+      summary: Získat cenu pro destinaci
+      description: |
+        Vrací vaše aktuální ceny pro jedno cílové číslo, podle kanálů. Ceny už zahrnují dosaženou objemovou slevu, takže mohou být nižší než obecný ceník z `GET /credit/prices`. Kanály, které do dané destinace nedoručují, jsou z `prices` vynechány.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - to
+              properties:
+                to:
+                  type: string
+                  description: Cílové telefonní číslo. Doporučujeme mezinárodní formát (E.164, bez úvodního `+` nebo `00`), ale přijímáme i jiné formáty (převedeme je na mezinárodní formát).
+                  example: "420777123456"
+                platform:
+                  type: string
+                  enum:
+                    - sms
+                    - viber
+                    - whatsapp_text
+                    - whatsapp_template
+                    - rcs
+                  description: Volitelný filtr flow kanálu. Pokud je nastaven, vrací se ceny jen pro tento kanál.
+            examples:
+              All channels:
+                value:
+                  to: "420777123456"
+              Single channel:
+                value:
+                  to: "420777123456"
+                  platform: "sms"
+      responses:
+        '200':
+          description: Ceny pro destinaci
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  price:
+                    type: object
+                    properties:
+                      to:
+                        type: string
+                        description: Cílové číslo tak, jak bylo odesláno.
+                      normalized:
+                        type: string
+                        description: Cílové číslo převedené na mezinárodní formát.
+                      calling_code:
+                        type: string
+                        description: Rozpoznaná telefonní předvolba země.
+                      currency:
+                        type: string
+                        enum:
+                          - czk
+                          - eur
+                        description: Měna účtu.
+                      prices:
+                        type: object
+                        description: Ceny klíčované flow kanálem (`sms`, `viber`, `whatsapp_text`, `whatsapp_template`, `rcs`). `sms` obsahuje jednu položku pro každou gateway plus `default` (kopie `high`); ostatní kanály obsahují jen `default`. Kanály, které do dané destinace nedoručují, jsou vynechány.
+                        additionalProperties:
+                          type: object
+                          description: Ceny klíčované gateway; `default` je přítomen vždy.
+                          additionalProperties:
+                            type: object
+                            properties:
+                              mcc:
+                                type: integer
+                                description: Mobile country code destinace.
+                              price_czk:
+                                type: number
+                                description: Cena za část zprávy v CZK.
+                              price_eur:
+                                type: number
+                                description: Cena za část zprávy v EUR.
+              example:
+                success: true
+                price:
+                  to: "420777123456"
+                  normalized: "420777123456"
+                  calling_code: "420"
+                  currency: "czk"
+                  prices:
+                    sms:
+                      default:
+                        mcc: 230
+                        price_czk: 0.92
+                        price_eur: 0.04
+                      high:
+                        mcc: 230
+                        price_czk: 0.92
+                        price_eur: 0.04
+                      lowcost:
+                        mcc: 230
+                        price_czk: 0.92
+                        price_eur: 0.04
+                      direct:
+                        mcc: 230
+                        price_czk: 1.25
+                        price_eur: 0.05
+                      custom:
+                        mcc: 230
+                        price_czk: 0.1
+                        price_eur: 0.004
+                      simhost:
+                        mcc: 230
+                        price_czk: 0.1
+                        price_eur: 0.004
+                      gsm:
+                        mcc: 230
+                        price_czk: 0.92
+                        price_eur: 0.04
+                    viber:
+                      default:
+                        mcc: 230
+                        price_czk: 0.39
+                        price_eur: 0.016
+                    whatsapp_text:
+                      default:
+                        mcc: 230
+                        price_czk: 0.1
+                        price_eur: 0.004
+                    whatsapp_template:
+                      default:
+                        mcc: 230
+                        price_czk: 0.1
+                        price_eur: 0.004
+                    rcs:
+                      default:
+                        mcc: 230
+                        price_czk: 0.89
+                        price_eur: 0.04
+        '400':
+          description: Chybný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing to:
+                  value:
+                    message: Missing 'to'
+                Unknown platform:
+                  value:
+                    message: Unknown platform
+                Invalid phone number:
+                  value:
+                    message: Invalid phone number
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to get destination price
 
   /credit/notify:
     get:
@@ -764,6 +1029,94 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /credit/orders:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Objednané služby"
+      tags:
+        - credit
+      summary: Vypsat objednané služby
+      description: |
+        Vrací placené služby, které tento API klíč skutečně objednal — na rozdíl od `/credit/services`, který vrací katalog objednatelných služeb. Slouží k dohledání `subject` objednávky, který `/credit/cancel` vyžaduje přesně.
+
+        Služby objednané se `subject: order` nemají v okamžiku objednávky přidělené číslo. Dokud ho operátor nepřidělí, vrací se taková služba s `pending: true` a zástupným `subject`, který objednávku identifikuje, ale nelze ho použít jako odesílatele.
+      responses:
+        '200':
+          description: Objednané služby
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  orders:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        service_id:
+                          type: string
+                          description: Ploché id služby z katalogu.
+                        subject:
+                          type: string
+                          description: Předmět objednané služby. Dokud je `pending` `true`, jde pouze o zástupnou hodnotu.
+                        status:
+                          type: [string, "null"]
+                          description: Stav služby (`new`, `active`, `suspended`, `cancelled`).
+                        created:
+                          type: [string, "null"]
+                          description: Datum objednávky (YYYY-MM-DD).
+                        next_charge:
+                          type: [string, "null"]
+                          description: Datum další opakované platby (YYYY-MM-DD). `null`, dokud není služba aktivována.
+                        charge_day:
+                          type: [integer, "null"]
+                          description: Den v měsíci, ke kterému je opakovaná platba ukotvena.
+                        currency:
+                          type: [string, "null"]
+                        recurring_fee:
+                          type: number
+                          description: Částka účtovaná v každém zúčtovacím období.
+                        cancel_at_period_end:
+                          type: boolean
+                          description: '`true`, pokud je služba označena k ukončení na konci aktuálního zaplaceného období.'
+                        pending:
+                          type: boolean
+                          description: '`true`, dokud operátor nepřidělil skutečné číslo.'
+              example:
+                success: true
+                orders:
+                  - service_id: "sender_sms_420_alnum"
+                    subject: "Mojefirma"
+                    status: "active"
+                    created: "2026-08-15"
+                    next_charge: "2026-11-15"
+                    charge_day: 15
+                    currency: "czk"
+                    recurring_fee: 500
+                    cancel_at_period_end: false
+                    pending: false
+                  - service_id: "sender_sms_420_mobilevn"
+                    subject: "420012345678"
+                    status: "new"
+                    created: "2026-09-10"
+                    next_charge: null
+                    charge_day: 10
+                    currency: "czk"
+                    recurring_fee: 3600
+                    cancel_at_period_end: false
+                    pending: true
+        '500':
+          description: Výpis selhal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to list ordered services
+
   /credit/order:
     post:
       x-mint:
@@ -773,7 +1126,7 @@ paths:
         - credit
       summary: Objednat placenou službu
       description: |
-        Objedná placenou službu z katalogu (viz `/credit/services`) a odečte poplatek z vašeho kreditu. Celkový poplatek je `setup + monthly × months`, kde počet měsíců vyplývá z minimálního intervalu služby (`year` = 12, `quarter` = 3, jinak 1). U služeb se `subject: defined` musíte předmět dodat (např. text odesílatele nebo telefonní číslo); u `subject: assigned` je číslo z poolu přiděleno automaticky. Pomocí `dryrun` objednávku pouze ověříte (kredit, dostupnost) bez jakýchkoliv změn.
+        Objedná placenou službu z katalogu (viz `/credit/services`) a odečte poplatek z vašeho kreditu. Celkový poplatek je `setup + monthly × months`, kde počet měsíců vyplývá z minimálního intervalu služby (`year` = 12, `quarter` = 3, jinak 1). U služeb se `subject: defined` musíte předmět dodat (např. text odesílatele nebo telefonní číslo); u `subject: assigned` je číslo z poolu přiděleno automaticky. U `subject: order` přidělí číslo operátor až za několik dní: objednávka je přijata ihned s `pending: true` a zástupným `subject`, který ji identifikuje, dokud nedorazí skutečné číslo. Objednávka služby, kterou už se stejným předmětem máte, je odmítnuta s `409` a nic se neúčtuje. Pomocí `dryrun` objednávku pouze ověříte (kredit, dostupnost) bez jakýchkoliv změn.
       requestBody:
         required: true
         content:
@@ -834,6 +1187,9 @@ paths:
                       status:
                         type: string
                         description: Počáteční stav služby (`new` nebo `active`).
+                      pending:
+                        type: boolean
+                        description: '`true`, pokud číslo ještě nebylo přiděleno a `subject` je pouze zástupný.'
                       dryrun:
                         type: boolean
                         description: Přítomno pouze u dry runů.
@@ -854,6 +1210,14 @@ paths:
                       subject: "Mojefirma"
                       subject_id: "Mojefirma"
                       status: "new"
+                Ordered without a subject:
+                  value:
+                    success: true
+                    order:
+                      subject: "420012345678"
+                      subject_id: "420012345678"
+                      status: "new"
+                      pending: true
                 Dry run:
                   value:
                     success: true
@@ -871,22 +1235,35 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 message: Missing required service fields in request data
+        '402':
+          description: Nedostatečný kredit na celkový poplatek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Insufficient credit
+        '409':
+          description: Objednávka je v konfliktu s aktuálním stavem; nic nebylo účtováno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Already ordered:
+                  value:
+                    message: Service already ordered
+                No available sender:
+                  value:
+                    message: No available sender for this service
         '500':
           description: Objednávka selhala
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              examples:
-                Invalid service:
-                  value:
-                    message: Invalid service id
-                Insufficient credit:
-                  value:
-                    message: Insufficient credit
-                No available sender:
-                  value:
-                    message: No available sender for this service
+              example:
+                message: Invalid service id
 
   /credit/cancel:
     post:
@@ -1734,10 +2111,12 @@ paths:
                         type:
                           - string
                           - 'null'
+                        description: Unixový timestamp (sekundy) prvního odeslání, jako řetězec.
                       last_ts_sent:
                         type:
                           - string
                           - 'null'
+                        description: Unixový timestamp (sekundy) posledního odeslání, jako řetězec.
               example:
                 success: true
                 request:
@@ -1750,8 +2129,8 @@ paths:
                   msg_sent: "130"
                   price_czk: "150.5"
                   price_eur: "6.1"
-                  first_ts_sent: "2026-07-30T09:00:00Z"
-                  last_ts_sent: "2026-07-30T09:05:00Z"
+                  first_ts_sent: "1785402000"
+                  last_ts_sent: "1785402300"
         '400':
           description: Špatný požadavek
           content:
@@ -1775,7 +2154,7 @@ paths:
       tags:
         - status
       summary: Získat agregované statistiky podle data
-      description: Vrací agregované statistiky odesílání seskupené podle data, pro jedno nebo více dat, volitelně filtrované podle tagu.
+      description: Vrací agregované statistiky odesílání seskupené podle data, pro jedno nebo více dat, volitelně filtrované podle tagu. S parametrem `group=tag` vrací rozpad podle jednotlivých tagů místo agregátu za datum.
       parameters:
         - name: dates
           in: query
@@ -1797,6 +2176,14 @@ paths:
           schema:
             type: string
           description: Filtr podle tagu.
+        - name: group
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - tag
+          description: Volitelné seskupení statistik. Při hodnotě `tag` se `stats` vrací jako pole s jednou položkou za každý tag, každá s hodnotou tagu v poli `key`. Bez uvedení se statistiky agregují přes všechny tagy daného data.
       responses:
         '200':
           description: Agregované statistiky
@@ -1821,61 +2208,304 @@ paths:
                             type: string
                           description: Tagy nalezené pro dané datum.
                         stats:
-                          type: object
-                          properties:
-                            count_delivered:
-                              type: integer
-                            count_seen:
-                              type: integer
-                            count_clicked:
-                              type: integer
-                            count_nondelivered:
-                              type: integer
-                            count_sent:
-                              type: integer
-                            count_notsent:
-                              type: integer
-                            count_replied:
-                              type: integer
-                            count_optout:
-                              type: integer
-                            msg_sent:
-                              type: integer
-                            first_ts_sent:
-                              type:
-                                - string
-                                - 'null'
-                            last_ts_sent:
-                              type:
-                                - string
-                                - 'null'
-                            msg_mccmnc:
+                          description: Agregované statistiky daného data, nebo pole položek po tazích při použití `group=tag`.
+                          oneOf:
+                            - title: Agregované (výchozí)
                               type: object
-                              description: Počty zpráv podle mobilní sítě (MCC+MNC).
-                              additionalProperties:
-                                type: integer
-              example:
-                success: true
-                requests:
-                  - date: "2026-07-30"
-                    tags:
-                      - "newsletter"
-                      - "promo"
-                    stats:
-                      count_delivered: 120
-                      count_seen: 40
-                      count_clicked: 10
-                      count_nondelivered: 3
-                      count_sent: 125
-                      count_notsent: 2
-                      count_replied: 5
-                      count_optout: 1
-                      msg_sent: 130
-                      first_ts_sent: "2026-07-30T09:00:00Z"
-                      last_ts_sent: "2026-07-30T18:00:00Z"
-                      msg_mccmnc:
-                        "23001": 50
-                        "23002": 80
+                              properties:
+                                count_delivered:
+                                  type: integer
+                                count_seen:
+                                  type: integer
+                                  description: Unikátní zobrazené zprávy, odvozeno z čítačů jednotlivých kroků flow.
+                                count_clicked:
+                                  type: integer
+                                  description: Unikátní prokliknuté zprávy, odvozeno z čítačů jednotlivých kroků flow.
+                                count_nondelivered:
+                                  type: integer
+                                count_sent:
+                                  type: integer
+                                count_notsent:
+                                  type: integer
+                                count_replied:
+                                  type: integer
+                                count_optout:
+                                  type: integer
+                                msg_sent:
+                                  type: integer
+                                price_czk:
+                                  type: number
+                                  description: Celková cena v CZK; vratky za neodeslané zprávy se odečítají.
+                                price_eur:
+                                  type: number
+                                  description: Celková cena v EUR; vratky za neodeslané zprávy se odečítají.
+                                first_ts_sent:
+                                  type:
+                                    - string
+                                    - 'null'
+                                  description: Unixový timestamp (sekundy) prvního odeslání, jako řetězec.
+                                last_ts_sent:
+                                  type:
+                                    - string
+                                    - 'null'
+                                  description: Unixový timestamp (sekundy) posledního odeslání, jako řetězec.
+                                msg_mccmnc:
+                                  type: object
+                                  description: Počty zpráv podle mobilní sítě (MCC+MNC).
+                                  additionalProperties:
+                                    type: integer
+                                count_notsent_codes:
+                                  type: object
+                                  description: Rozpad `count_notsent` podle stavového kódu zamítnutí (300–399); součet odpovídá `count_notsent`.
+                                  additionalProperties:
+                                    type: integer
+                                flow_stats:
+                                  type: object
+                                  description: Čítače podle kroků flow, klíčované indexem kroku a dále kanálem (např. `sms`, `whatsapp_template`). Doručovací metriky (`delivered`, `nondelivered`, `seen`, `clicked`, `replied`, `optout`) počítají každou zprávu v rámci kroku nejvýše jednou; `sent` a `notsent` počítají pokusy o odeslání.
+                                  additionalProperties:
+                                    type: object
+                                    description: Kanály použité v kroku, klíčované názvem kanálu.
+                                    additionalProperties:
+                                      type: object
+                                      properties:
+                                        sent:
+                                          type: integer
+                                        notsent:
+                                          type: integer
+                                        delivered:
+                                          type: integer
+                                        nondelivered:
+                                          type: integer
+                                        seen:
+                                          type: integer
+                                        clicked:
+                                          type: integer
+                                        replied:
+                                          type: integer
+                                        optout:
+                                          type: integer
+                            - title: Po tazích (group=tag)
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  key:
+                                    type: string
+                                    description: Tag, ke kterému položka patří. Zpráva s více tagy si ponechává kombinaci tagů spojenou čárkou jako jeden klíč.
+                                  count_delivered:
+                                    type: integer
+                                  count_seen:
+                                    type: integer
+                                    description: Unikátní zobrazené zprávy, odvozeno z čítačů jednotlivých kroků flow.
+                                  count_clicked:
+                                    type: integer
+                                    description: Unikátní prokliknuté zprávy, odvozeno z čítačů jednotlivých kroků flow.
+                                  count_nondelivered:
+                                    type: integer
+                                  count_sent:
+                                    type: integer
+                                  count_notsent:
+                                    type: integer
+                                  count_replied:
+                                    type: integer
+                                  count_optout:
+                                    type: integer
+                                  msg_sent:
+                                    type: integer
+                                  price_czk:
+                                    type: number
+                                    description: Celková cena v CZK; vratky za neodeslané zprávy se odečítají.
+                                  price_eur:
+                                    type: number
+                                    description: Celková cena v EUR; vratky za neodeslané zprávy se odečítají.
+                                  first_ts_sent:
+                                    type:
+                                      - string
+                                      - 'null'
+                                    description: Unixový timestamp (sekundy) prvního odeslání, jako řetězec.
+                                  last_ts_sent:
+                                    type:
+                                      - string
+                                      - 'null'
+                                    description: Unixový timestamp (sekundy) posledního odeslání, jako řetězec.
+                                  msg_mccmnc:
+                                    type: object
+                                    description: Počty zpráv podle mobilní sítě (MCC+MNC).
+                                    additionalProperties:
+                                      type: integer
+                                  count_notsent_codes:
+                                    type: object
+                                    description: Rozpad `count_notsent` podle stavového kódu zamítnutí (300–399); součet odpovídá `count_notsent`.
+                                    additionalProperties:
+                                      type: integer
+                                  flow_stats:
+                                    type: object
+                                    description: Čítače podle kroků flow, klíčované indexem kroku a dále kanálem (např. `sms`, `whatsapp_template`). Doručovací metriky (`delivered`, `nondelivered`, `seen`, `clicked`, `replied`, `optout`) počítají každou zprávu v rámci kroku nejvýše jednou; `sent` a `notsent` počítají pokusy o odeslání.
+                                    additionalProperties:
+                                      type: object
+                                      description: Kanály použité v kroku, klíčované názvem kanálu.
+                                      additionalProperties:
+                                        type: object
+                                        properties:
+                                          sent:
+                                            type: integer
+                                          notsent:
+                                            type: integer
+                                          delivered:
+                                            type: integer
+                                          nondelivered:
+                                            type: integer
+                                          seen:
+                                            type: integer
+                                          clicked:
+                                            type: integer
+                                          replied:
+                                            type: integer
+                                          optout:
+                                            type: integer
+              examples:
+                aggregated:
+                  summary: Agregace za datum (výchozí)
+                  value:
+                    success: true
+                    requests:
+                      - date: "2026-07-30"
+                        tags:
+                          - "newsletter"
+                          - "promo"
+                        stats:
+                          count_delivered: 120
+                          count_seen: 40
+                          count_clicked: 10
+                          count_nondelivered: 3
+                          count_sent: 125
+                          count_notsent: 29
+                          count_replied: 5
+                          count_optout: 1
+                          msg_sent: 130
+                          price_czk: 118.75
+                          price_eur: 0
+                          first_ts_sent: "1785402000"
+                          last_ts_sent: "1785434400"
+                          msg_mccmnc:
+                            "23001": 50
+                            "23002": 80
+                          count_notsent_codes:
+                            "300": 27
+                            "303": 2
+                          flow_stats:
+                            "0":
+                              viber:
+                                sent: 100
+                                notsent: 27
+                                delivered: 98
+                                nondelivered: 1
+                                seen: 40
+                                clicked: 10
+                                replied: 5
+                                optout: 1
+                            "1":
+                              sms:
+                                sent: 25
+                                notsent: 2
+                                delivered: 22
+                                nondelivered: 2
+                                seen: 0
+                                clicked: 0
+                                replied: 0
+                                optout: 0
+                grouped_by_tag:
+                  summary: Seskupeno podle tagu (group=tag)
+                  value:
+                    success: true
+                    requests:
+                      - date: "2026-07-30"
+                        tags:
+                          - "newsletter"
+                          - "promo"
+                        stats:
+                          - key: "newsletter"
+                            count_delivered: 70
+                            count_seen: 25
+                            count_clicked: 6
+                            count_nondelivered: 1
+                            count_sent: 72
+                            count_notsent: 15
+                            count_replied: 3
+                            count_optout: 1
+                            msg_sent: 75
+                            price_czk: 68.4
+                            price_eur: 0
+                            first_ts_sent: "1785402000"
+                            last_ts_sent: "1785434400"
+                            msg_mccmnc:
+                              "23001": 30
+                              "23002": 45
+                            count_notsent_codes:
+                              "300": 14
+                              "303": 1
+                            flow_stats:
+                              "0":
+                                viber:
+                                  sent: 60
+                                  notsent: 14
+                                  delivered: 58
+                                  nondelivered: 1
+                                  seen: 25
+                                  clicked: 6
+                                  replied: 3
+                                  optout: 1
+                              "1":
+                                sms:
+                                  sent: 12
+                                  notsent: 1
+                                  delivered: 12
+                                  nondelivered: 0
+                                  seen: 0
+                                  clicked: 0
+                                  replied: 0
+                                  optout: 0
+                          - key: "promo"
+                            count_delivered: 50
+                            count_seen: 15
+                            count_clicked: 4
+                            count_nondelivered: 2
+                            count_sent: 53
+                            count_notsent: 14
+                            count_replied: 2
+                            count_optout: 0
+                            msg_sent: 55
+                            price_czk: 50.35
+                            price_eur: 0
+                            first_ts_sent: "1785405600"
+                            last_ts_sent: "1785430800"
+                            msg_mccmnc:
+                              "23001": 20
+                              "23002": 35
+                            count_notsent_codes:
+                              "300": 13
+                              "303": 1
+                            flow_stats:
+                              "0":
+                                viber:
+                                  sent: 40
+                                  notsent: 13
+                                  delivered: 40
+                                  nondelivered: 0
+                                  seen: 15
+                                  clicked: 4
+                                  replied: 2
+                                  optout: 0
+                              "1":
+                                sms:
+                                  sent: 13
+                                  notsent: 1
+                                  delivered: 10
+                                  nondelivered: 2
+                                  seen: 0
+                                  clicked: 0
+                                  replied: 0
+                                  optout: 0
         '400':
           description: Špatný požadavek
           content:
@@ -1940,6 +2570,88 @@ paths:
                             - object
                             - 'null'
                           description: Původní payload související odchozí zprávy, pokud existuje.
+                        original:
+                          type:
+                            - object
+                            - 'null'
+                          description: >-
+                            Odchozí zpráva, na kterou je tato zpráva odpovědí, pokud se příchozí
+                            zprávu podařilo spárovat. U nevyžádaných příchozích zpráv `null`.
+                          properties:
+                            message_id:
+                              type: string
+                              description: ID původní odchozí zprávy — použijte ho v `GET /message`.
+                            body:
+                              type: string
+                              description: Text původní odchozí zprávy.
+                            sender:
+                              type: string
+                              description: Odesílatel, ze kterého byla původní zpráva odeslána. U short kódu prázdné.
+                            created:
+                              type:
+                                - integer
+                                - 'null'
+                              description: Kdy byla původní zpráva vytvořena (unix timestamp v sekundách).
+                        media:
+                          type:
+                            - object
+                            - 'null'
+                          description: >-
+                            Médium přiložené k příchozí zprávě (WhatsApp/RCS obrázek, video, audio,
+                            dokument, nálepka, sdílená poloha nebo kontaktní karty). U čistě textových
+                            zpráv `null`. U binárních typů je soubor uložen na trvalé veřejné URL
+                            v poli `url`; pokud se soubor nepodařilo uložit, `url` chybí a místo něj
+                            je nastaveno pole `error` — ostatní metadata jsou vrácena i tak.
+                          properties:
+                            type:
+                              type: string
+                              enum: [image, video, audio, document, sticker, location, contacts]
+                              description: Typ obsahu přílohy.
+                            url:
+                              type: string
+                              description: Trvalá veřejná URL uloženého souboru. Chybí, pokud se soubor nepodařilo uložit.
+                            mime_type:
+                              type: string
+                              description: MIME typ, jak jej nahlásil kanál.
+                            filename:
+                              type: string
+                              description: Původní název souboru (dokumenty).
+                            caption:
+                              type: string
+                              description: Popisek odeslaný spolu s médiem. Pokud zpráva nemá text, vrací se také jako `body`.
+                            size:
+                              type: integer
+                              description: Velikost souboru v bajtech, pokud je známa.
+                            animated:
+                              type: boolean
+                              description: Zda je nálepka animovaná (pouze nálepky).
+                            thumbnail:
+                              type: string
+                              description: Trvalá veřejná URL uloženého náhledu (pouze RCS).
+                            location:
+                              type: object
+                              description: Sdílená poloha (pouze když `type` je `location`).
+                              properties:
+                                latitude:
+                                  type: number
+                                longitude:
+                                  type: number
+                                name:
+                                  type: string
+                                address:
+                                  type: string
+                            contacts:
+                              type: array
+                              description: Sdílené kontaktní karty (pouze když `type` je `contacts`), tak jak je poskytl kanál.
+                              items:
+                                type: object
+                            provider_id:
+                              type: string
+                              description: ID média/zprávy přidělené poskytovatelem kanálu.
+                            error:
+                              type: string
+                              enum: [download_failed, too_large, no_token]
+                              description: Nastaveno místo `url`, pokud se soubor nepodařilo uložit.
               example:
                 success: true
                 inbox:
@@ -1949,6 +2661,35 @@ paths:
                     to: "Mojefirma"
                     gateway: "sms"
                     payload: null
+                    original: null
+                    media: null
+                  - ts_received: "2026-07-30T11:25:02Z"
+                    body: "YES"
+                    from: "420777654321"
+                    to: "Mojefirma"
+                    gateway: "sms"
+                    payload:
+                      order_id: 42
+                    original:
+                      message_id: "01J8ZQ2V9K"
+                      body: "Confirm your order by replying YES."
+                      sender: "Mojefirma"
+                      created: 1785410553
+                    media: null
+                  - ts_received: "2026-07-30T12:34:56Z"
+                    body: "photo of the damaged package"
+                    from: "420777123456"
+                    to: "420736352552"
+                    gateway: "whatsapp"
+                    payload: null
+                    original: null
+                    media:
+                      type: "image"
+                      url: "https://smsmngr-inbound-media.s3.eu-central-1.amazonaws.com/3f7a1c9b2e4d5f60718293a4b5c6d7e8.jpg"
+                      mime_type: "image/jpeg"
+                      caption: "photo of the damaged package"
+                      size: 245731
+                      provider_id: "1234567890123456"
         '400':
           description: Špatný požadavek
           content:
@@ -2524,6 +3265,138 @@ paths:
               example:
                 message: Failed to generate upload URL
 
+  /messaging/validate:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Ověřit zprávy"
+      tags:
+        - messaging
+      summary: Ověřit zprávy bez odeslání
+      description: |
+        Ověří požadavek na odeslání, aniž by cokoli odeslal nebo účtoval. Přijímá stejné tělo jako odesílací endpointy JSON API v2 — jeden objekt `Message` (jako `POST /message`) nebo pole 1 až 10 objektů `Message` (jako `POST /messages`). Kontroluje se pouze struktura: pole a jejich typy, kroky flow a formát čísel příjemců. Doručitelnost, schválení odesílatele, opt-out seznamy ani kredit se nekontrolují.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  description: Jedna zpráva ve formátu `Message` JSON API v2.
+                - type: array
+                  minItems: 1
+                  maxItems: 10
+                  items:
+                    type: object
+                  description: Pole zpráv ve formátu `Message` JSON API v2.
+            examples:
+              Single message:
+                value:
+                  to:
+                    - phone_number: "420777123456"
+                  body: "Hello!"
+              Multiple messages:
+                value:
+                  - to:
+                      - phone_number: "420777123456"
+                      - phone_number: "123"
+                    body: "Hello!"
+                  - to:
+                      - phone_number: "420777123457"
+                    flow:
+                      - sms:
+                          body: "Hello via lowcost!"
+                          gateway: "lowcost"
+      responses:
+        '200':
+          description: Výsledek validace (vrací se i v případě neplatného obsahu požadavku — viz `success`).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: '`true` jen tehdy, když validací prošly všechny zprávy a všichni příjemci (`rejected` i `errors` jsou prázdné).'
+                  validate:
+                    type: object
+                    properties:
+                      accepted:
+                        type: array
+                        description: Položky, které prošly validací. Pro jednu zprávu `key` indexuje příjemce v `to` (jako `POST /message`); pro pole zpráv `key` indexuje odeslané pole (jako `POST /messages`).
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                              description: Index příjemce (jedna zpráva) nebo zprávy v poli požadavku.
+                            phone_number:
+                              type: string
+                              description: Číslo příjemce tak, jak bylo odesláno (přítomno jen pro požadavek s jednou zprávou).
+                      rejected:
+                        type: array
+                        description: Položky, které validací neprošly, stejná sémantika `key` jako u `accepted`. Podrobnosti jsou v `errors`, propojitelné přes `key`.
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                            phone_number:
+                              type: string
+                              description: Číslo příjemce tak, jak bylo odesláno (přítomno jen pro požadavek s jednou zprávou).
+                      errors:
+                        type: array
+                        description: Všechny chyby validace. Přítomno vždy (prázdné pole, když vše prošlo).
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                              description: Klíč související položky v `rejected`. Vynechán u chyb na úrovni zprávy u požadavku s jednou zprávou.
+                            field:
+                              type: string
+                              description: Cesta k neplatnému poli (např. `flow[0].sms.gateway`, `to[1].phone_number`).
+                            message:
+                              type: string
+                            code:
+                              type: string
+                              description: Interní stavový kód, pokud existuje (`302` pro číslo ve špatném formátu).
+              example:
+                success: false
+                validate:
+                  accepted:
+                    - key: "0"
+                      phone_number: "420777123456"
+                  rejected:
+                    - key: "1"
+                      phone_number: "123"
+                  errors:
+                    - key: "1"
+                      field: "to[1].phone_number"
+                      message: "Phone number is not in a valid format"
+                      code: "302"
+        '400':
+          description: Chybný požadavek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing body:
+                  value:
+                    message: Missing request body
+                Too many messages:
+                  value:
+                    message: Request must contain 1 to 10 messages
+        '500':
+          description: Interní chyba
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to validate message
+
   /messaging/cancel:
     post:
       x-mint:
@@ -2585,93 +3458,6 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 message: Failed to cancel schedule
-
-  /partner/signup:
-    post:
-      x-mint:
-        metadata:
-          sidebarTitle: "Partnerská registrace"
-      tags:
-        - partner
-      summary: Zahájit partnerskou registraci
-      description: |
-        Zahájí onboarding v partnerském brandingu. Vrací podepsaný token (platný 1 hodinu) a hostovanou registrační URL, kde koncový uživatel dokončí registraci. Dostupné pouze pro partnerské účty.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                connector_name:
-                  type: string
-                  description: Název konektoru/integrace.
-                callback_url:
-                  type: string
-                  description: URL, kterou náš systém zavolá po dokončení registrace.
-                callback_data:
-                  type: string
-                  description: Neprůhledná data předaná zpět do callbacku.
-                final_url:
-                  type: string
-                  description: URL, na kterou je uživatel přesměrován po dokončení registrace.
-                partner_logo_url:
-                  type: string
-                  description: URL loga partnera zobrazeného na registrační stránce.
-                partner_client_id:
-                  type: string
-                  description: Váš identifikátor klienta.
-                partner_client_data:
-                  type: string
-                  description: Neprůhledná data klienta uložená k registraci.
-                language:
-                  type: string
-                  description: Jazyk registrační stránky.
-                partner_copyright:
-                  type: string
-                  description: Copyright/patičkový text zobrazený na registrační stránce.
-            examples:
-              Start signup:
-                value:
-                  connector_name: "My Shop"
-                  callback_url: "https://partner.example/callback"
-                  callback_data: "abc"
-                  final_url: "https://partner.example/done"
-                  partner_logo_url: "https://partner.example/logo.png"
-                  partner_client_id: "client-1"
-                  language: "en"
-                  partner_copyright: "© My Shop"
-      responses:
-        '200':
-          description: Registrace zahájena
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  token:
-                    type: string
-                    description: Podepsaný registrační token (platný 1 hodinu).
-                  domain:
-                    type: string
-                  redirect_url:
-                    type: string
-                    description: Hostovaná registrační URL pro koncového uživatele.
-              example:
-                success: true
-                token: "eyJhbGciOi..."
-                domain: "connect.smsmanager.com"
-                redirect_url: "https://connect.smsmanager.com/?configuration=eyJhbGciOi..."
-        '500':
-          description: Interní chyba
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Failed to new partner registration
 
   /push/device:
     post:
@@ -2799,108 +3585,6 @@ paths:
               example:
                 message: Failed to register recipient
 
-  /connect/{connector}/{action}:
-    post:
-      x-mint:
-        metadata:
-          sidebarTitle: "Akce konektoru"
-      tags:
-        - partner
-      summary: Akce konektoru
-      description: |
-        Provede akci připojené integrace. Aktuálně je podporován konektor `klaviyo` s akcemi `segments`, `recipients`, `senders` a `me`.
-
-        - `segments` — vypíše segmenty účtu: `{ "success": true, "segments": [{ "id", "name" }] }`
-        - `recipients` — vypíše telefonní čísla v segmentu (vyžaduje pole `segment_id` v těle požadavku): `{ "success": true, "recipients": ["420777123456"] }`
-        - `senders` — vypíše dostupné odesílatele: `{ "success": true, "senders": [{ "type": "sms", "name": "info-sms" }] }`
-        - `me` — vrací informace o připojeném účtu: `{ "success": true, "account": { ... }, "currency": "eur" }`
-      parameters:
-        - name: connector
-          in: path
-          required: true
-          schema:
-            type: string
-            enum:
-              - klaviyo
-          description: Název konektoru.
-        - name: action
-          in: path
-          required: true
-          schema:
-            type: string
-            enum:
-              - segments
-              - recipients
-              - senders
-              - me
-          description: Akce konektoru.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - app_userid
-              properties:
-                app_userid:
-                  type: string
-                  description: Id uživatele aplikace připojeného účtu.
-                segment_id:
-                  type: string
-                  description: Id segmentu (povinné pro akci `recipients`).
-            examples:
-              List segments:
-                value:
-                  app_userid: "user-123"
-              List recipients of a segment:
-                value:
-                  app_userid: "user-123"
-                  segment_id: "SEG123"
-      responses:
-        '200':
-          description: Výsledek akce (tvar závisí na akci)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-              examples:
-                Segments:
-                  value:
-                    success: true
-                    segments:
-                      - id: "SEG123"
-                        name: "VIP customers"
-                Recipients:
-                  value:
-                    success: true
-                    recipients:
-                      - "420777123456"
-                      - "420777000111"
-                Not authenticated:
-                  value:
-                    success: false
-                    message: "Klaviyo request not authenticated"
-        '400':
-          description: Špatný požadavek
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Invalid 'app_userid' in request data
-        '404':
-          description: Nepodporovaný konektor nebo akce
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Unsupported connector or action
-
 
 tags:
   - name: api
@@ -2939,7 +3623,7 @@ tags:
     description: |
       Podpůrné endpointy pro hromadné odesílání: URL pro nahrání hromadných souborů a rušení naplánovaných zpráv.
   - name: partner
-    x-displayName: Partneři a integrace
-    x-group: "Partneři a integrace"
+    x-displayName: Zařízení a příjemci
+    x-group: "Zařízení a příjemci"
     description: |
-      Partnerský onboarding, integrace konektorů a registrace push zařízení/příjemců.
+      Registrace push zařízení a příjemců zpráv.
