@@ -1,0 +1,323 @@
+---
+title: "Auto-replies and incoming handling"
+sidebarTitle: "Auto-replies"
+description: "Handle replies and button clicks for a specific message with params._incoming — automatic replies by keyword or button, email forwarding, and your own webhook for incoming events."
+---
+
+The `_incoming` object in the `params` attribute controls what happens when a recipient reacts to a specific message you sent. A reaction can be a text reply or a WhatsApp or RCS button click. You can forward the incoming event by email, send it to your own webhook, or reply to it automatically. The settings apply only to the message that contains the `_incoming` object.
+
+## The `_incoming` object
+
+Add the `params` attribute with an `_incoming` object to your request body:
+
+```json
+{
+  "params": {
+    "_incoming": {
+      "email_to": "support@example.com",
+      "callback": "https://example.com/incoming-events",
+      "reply": {
+        "MORE_INFO": {
+          "sms": "Thank you for your interest! Read more at https://example.com/info",
+          "whatsapp": "Thank you for your interest! 🎉 Read more at https://example.com/info",
+          "callback": "https://example.com/hooks/more-info"
+        }
+      }
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `email_to` | string or array | An email address, or an array of up to 5 addresses. Every incoming reply is forwarded to them. |
+| `callback` | string | A webhook URL (`http` or `https`). It receives every incoming event matched to this message. |
+| `reply` | object | Auto-replies as a map of match values to reply texts. At most 10 entries. |
+
+<Note>
+  Include at least one of `email_to`, `callback` and `reply`.
+</Note>
+
+You can combine `_incoming` with the `_url` object for [URL shortening](/guides/url-shortening) in the same `params`.
+
+---
+
+## Email forwarding (`email_to`)
+
+The `email_to` field forwards every incoming reply to the addresses you specify. Pass one address as a string, or an array of up to 5 addresses:
+
+```json
+{
+  "params": {
+    "_incoming": {
+      "email_to": ["sales@example.com", "support@example.com"]
+    }
+  }
+}
+```
+
+---
+
+## Webhook for incoming events (`callback`)
+
+The `callback` field in the `_incoming` object receives every incoming event matched to this message:
+
+- text replies,
+- WhatsApp and RCS button clicks,
+- opt-out keywords.
+
+These events arrive in addition to the message's main `callback`, not instead of it. The payload is the standard incoming webhook event with `type: incoming`. It has the same format as `incomingReplyMessage` in the [Webhooks](/guides/webhooks) guide:
+
+```json Incoming event
+[
+  {
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+    "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+    "payload": { "booking_id": "BK-2041" },
+    "gateway": "sms",
+    "timestamp": 1700000120,
+    "type": "incoming",
+    "sender": "420777123456",
+    "recipient": "420777654321",
+    "body": "Yes"
+  }
+]
+```
+
+A button click also carries a `whatsapp` or `rcs` object with the pressed button.
+
+<Note>
+  Clicks on shortened links from the `_url` object are not sent to this `callback`.
+</Note>
+
+---
+
+## Auto-replies (`reply`)
+
+The `reply` field is a map. Each key is a match value, and each value is an object with reply texts per channel. You can define at most 10 entries. Each entry must contain at least one field.
+
+| Entry field | Type | Description |
+| --- | --- | --- |
+| `sms` | string | The reply sent when the incoming message arrived over SMS. Max. 1,000 characters. |
+| `whatsapp` | string | The reply sent when the incoming message arrived over WhatsApp. Max. 1,000 characters. |
+| `rcs` | string | The reply sent when the incoming message arrived over RCS. Max. 1,000 characters. |
+| `viber` | string | The reply sent when the incoming message arrived over Viber. Max. 1,000 characters. |
+| `callback` | string | A webhook URL notified only when this entry matches. |
+| `email_to` | string or array | An email address (or an array of up to 5) notified only when this entry matches. |
+
+On a match, SmsManager:
+
+- sends the text set for the channel the reply came in on, over that same channel,
+- sends nothing if you set no text for that channel,
+- notifies the entry's `callback` and `email_to`, in addition to the fields at the `_incoming` level.
+
+So an entry with only `callback` or `email_to` sends nothing on a match and only notifies you.
+
+<Note>
+  Auto-replies are billed like normal messages. See [Message billing by channel](/concepts/message-billing) for prices per channel.
+</Note>
+
+### How the match value is compared
+
+SmsManager compares the match value with the incoming reply, ignoring case. What it compares against depends on the channel:
+
+| Channel | The match value is compared with |
+| --- | --- |
+| SMS | the text of the incoming message (keyword) |
+| WhatsApp | the `id` of an interactive message button (`whatsapp_text.buttons[].id`), or the payload of a template quick-reply button from `params_buttons` |
+| RCS | the button's `postback` value, or the visible button text |
+
+So the key `YES` catches the replies `yes`, `Yes` and `YES`.
+
+---
+
+## Matching window
+
+Incoming events are matched to the sent message only for a limited time after sending:
+
+| Channel | Matching window |
+| --- | --- |
+| SMS | about 2 days |
+| Viber, WhatsApp, RCS | about 1 month |
+
+Later replies are not matched to the message. They don't trigger an auto-reply, an email or the `callback` from the `_incoming` object.
+
+---
+
+## Opt-out replies
+
+The replies `STOP`, `UNSUBSCRIBE` and `SUBSCRIBE` are keywords for unsubscribing and resubscribing (opt-out). SmsManager forwards them by email to `email_to`, with the subject prefixed `[OPT-OUT]`. It also forwards them to `callback`. They never trigger an auto-reply, so don't use opt-out keywords as keys in `reply`.
+
+---
+
+## Examples
+
+### SMS: reply to a keyword
+
+The customer confirms an appointment by replying `YES`, or cancels it by replying `NO`. Both keywords get an automatic reply. Every reply is also forwarded to the front desk by email. The `NO` reply also notifies your system through the entry's `callback`.
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Reminder: your appointment is on 12 Nov at 10:00. Reply YES to confirm or NO to cancel.",
+    "sender": "420777654321",
+    "to": [{ "phone_number": "420777123456" }],
+    "payload": { "booking_id": "BK-2041" },
+    "params": {
+      "_incoming": {
+        "email_to": "frontdesk@example.com",
+        "reply": {
+          "YES": {
+            "sms": "Thank you, your appointment is confirmed. See you soon."
+          },
+          "NO": {
+            "sms": "Your appointment has been cancelled. Pick a new time at https://example.com/booking",
+            "callback": "https://example.com/hooks/booking-cancelled"
+          }
+        }
+      }
+    }
+  }'
+```
+
+<Tip>
+  For two-way SMS, use a dedicated virtual number as the sender. [Senders, aliases and default sender](/concepts/senders) explains how SmsManager picks the gateway based on the sender.
+</Tip>
+
+### WhatsApp: interactive buttons
+
+You can send an interactive `whatsapp_text` message only within an open 24-hour customer service window (see [WhatsApp message types](/concepts/whatsapp-message-types)). Use the buttons' `id` values as keys in `reply`:
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": [{ "phone_number": "420777123456" }],
+    "flow": [
+      {
+        "whatsapp_text": {
+          "sender": "514578330250514",
+          "body": "Thanks for reaching out. How can we help?",
+          "buttons": [
+            { "id": "MORE_INFO", "title": "More info" },
+            { "id": "CALL_ME", "title": "Call me" }
+          ]
+        }
+      }
+    ],
+    "params": {
+      "_incoming": {
+        "callback": "https://example.com/incoming-events",
+        "reply": {
+          "MORE_INFO": {
+            "whatsapp": "Thank you for your interest! 🎉 Read more at https://example.com/info"
+          },
+          "CALL_ME": {
+            "whatsapp": "Thank you, we will get back to you shortly.",
+            "email_to": "sales@example.com"
+          }
+        }
+      }
+    }
+  }'
+```
+
+A tap on **More info** sends an automatic reply over WhatsApp. A tap on **Call me** sends a reply and also emails the sales team. Both clicks also reach `callback` with a `whatsapp` object. The [WhatsApp text](/reference/whatsapp-text) reference describes all button fields.
+
+For proactive outreach, use a template with quick-reply buttons. Pass the button payload in `params_buttons` and use the same value as the key in `reply`:
+
+```json Request body
+{
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "whatsapp_template": {
+        "sender": "514578330250514",
+        "template_name": "product_launch",
+        "language": "en",
+        "params_buttons": ["MORE_INFO"]
+      }
+    }
+  ],
+  "params": {
+    "_incoming": {
+      "reply": {
+        "MORE_INFO": {
+          "whatsapp": "Thank you for your interest! 🎉 Read more at https://example.com/info"
+        }
+      }
+    }
+  }
+}
+```
+
+### RCS: buttons with `postback` values
+
+A `reply` button returns its `postback` value when tapped. Use that value as the key in `reply`:
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": [{ "phone_number": "420777123456" }],
+    "flow": [
+      {
+        "rcs": {
+          "sender": "my_rcs_agent",
+          "body": "Our new collection is here. Want to know more?",
+          "buttons": [
+            { "type": "reply", "text": "More info", "postback": "MORE_INFO" },
+            { "type": "reply", "text": "Not interested", "postback": "NOT_INTERESTED" }
+          ]
+        }
+      }
+    ],
+    "params": {
+      "_incoming": {
+        "reply": {
+          "MORE_INFO": {
+            "rcs": "Thank you for your interest! Read more at https://example.com/info"
+          },
+          "NOT_INTERESTED": {
+            "rcs": "Understood, thank you for letting us know.",
+            "callback": "https://example.com/hooks/not-interested"
+          }
+        }
+      }
+    }
+  }'
+```
+
+Instead of the `postback` value, you can also use the visible button text as the key, for example `More info`. The [RCS message parameters](/reference/rcs) reference describes the button fields.
+
+---
+
+## Looking up incoming messages with the REST API
+
+You can also fetch incoming messages later with the REST endpoint `GET /inbox`. For a matched reply, the `original` field contains the outgoing message the recipient replied to. The [Message status and statistics](/guides/message-status) guide explains how.
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    The incoming event format and setting up the main callback.
+  </Card>
+
+  <Card title="WhatsApp text" icon="whatsapp" href="/reference/whatsapp-text">
+    Interactive buttons and their `id` values.
+  </Card>
+
+  <Card title="RCS message parameters" icon="comments" href="/reference/rcs">
+    Buttons with `postback` values, rich cards and carousels.
+  </Card>
+
+  <Card title="Message status and statistics" icon="inbox" href="/guides/message-status">
+    Incoming messages and matched replies via `GET /inbox`.
+  </Card>
+</CardGroup>

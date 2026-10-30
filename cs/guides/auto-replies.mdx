@@ -1,0 +1,323 @@
+---
+title: "Automatické odpovědi a příchozí zprávy"
+sidebarTitle: "Automatické odpovědi"
+description: "Zpracujte odpovědi a kliknutí na tlačítka u konkrétní zprávy pomocí params._incoming — automatická odpověď podle klíčového slova nebo tlačítka, přeposlání e-mailem a vlastní webhook pro příchozí události."
+---
+
+Objekt `_incoming` v atributu `params` určuje, co se stane, když příjemce na konkrétní odeslanou zprávu zareaguje. Reakcí může být textová odpověď nebo kliknutí na tlačítko ve WhatsAppu či RCS. Příchozí událost můžete přeposlat e-mailem, poslat na vlastní webhook nebo na ni automaticky odpovědět. Nastavení platí jen pro zprávu, ve které objekt `_incoming` uvedete.
+
+## Objekt `_incoming`
+
+Do těla požadavku vložte atribut `params` s objektem `_incoming`:
+
+```json
+{
+  "params": {
+    "_incoming": {
+      "email_to": "podpora@example.com",
+      "callback": "https://example.com/incoming-events",
+      "reply": {
+        "MORE_INFO": {
+          "sms": "Děkujeme za zájem! Více najdete na https://example.com/info",
+          "whatsapp": "Děkujeme za zájem! 🎉 Více najdete na https://example.com/info",
+          "callback": "https://example.com/hooks/more-info"
+        }
+      }
+    }
+  }
+}
+```
+
+| Pole | Typ | Popis |
+| --- | --- | --- |
+| `email_to` | string nebo array | E-mailová adresa, nebo pole až 5 adres. Přeposílá se na ně každá příchozí odpověď. |
+| `callback` | string | Webhook URL (`http` nebo `https`). Přijímá každou příchozí událost spárovanou s touto zprávou. |
+| `reply` | object | Automatické odpovědi jako mapa párovací hodnoty na texty odpovědí. Nejvýše 10 záznamů. |
+
+<Note>
+  Uveďte alespoň jedno z polí `email_to`, `callback` a `reply`.
+</Note>
+
+Objekt `_incoming` můžete v `params` kombinovat s objektem `_url` pro [zkracování URL](/guides/url-shortening).
+
+---
+
+## Přeposlání e-mailem (`email_to`)
+
+Pole `email_to` přeposílá každou příchozí odpověď na zadané adresy. Zadejte jednu adresu jako řetězec, nebo pole až 5 adres:
+
+```json
+{
+  "params": {
+    "_incoming": {
+      "email_to": ["obchod@example.com", "podpora@example.com"]
+    }
+  }
+}
+```
+
+---
+
+## Webhook pro příchozí události (`callback`)
+
+Pole `callback` v objektu `_incoming` přijímá každou příchozí událost spárovanou s touto zprávou:
+
+- textové odpovědi,
+- kliknutí na tlačítka ve WhatsAppu a RCS,
+- opt-out klíčová slova.
+
+Události dorazí navíc k hlavnímu poli `callback` zprávy, nikoli místo něj. Payload je standardní příchozí webhook událost s `type: incoming`. Má stejný formát jako `incomingReplyMessage` v návodu [Webhooky](/guides/webhooks):
+
+```json Příchozí událost
+[
+  {
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+    "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+    "payload": { "booking_id": "BK-2041" },
+    "gateway": "sms",
+    "timestamp": 1700000120,
+    "type": "incoming",
+    "sender": "420777123456",
+    "recipient": "420777654321",
+    "body": "Ano"
+  }
+]
+```
+
+Kliknutí na tlačítko nese navíc objekt `whatsapp`, resp. `rcs` se stisknutým tlačítkem.
+
+<Note>
+  Kliknutí na zkrácené odkazy z objektu `_url` se na tento `callback` neposílají.
+</Note>
+
+---
+
+## Automatické odpovědi (`reply`)
+
+Pole `reply` je mapa. Klíčem je párovací hodnota a hodnotou objekt s texty odpovědí pro jednotlivé kanály. Zadat můžete nejvýše 10 záznamů. Každý záznam musí obsahovat alespoň jedno pole.
+
+| Pole záznamu | Typ | Popis |
+| --- | --- | --- |
+| `sms` | string | Odpověď, když příchozí zpráva dorazila přes SMS. Max. 1 000 znaků. |
+| `whatsapp` | string | Odpověď, když příchozí zpráva dorazila přes WhatsApp. Max. 1 000 znaků. |
+| `rcs` | string | Odpověď, když příchozí zpráva dorazila přes RCS. Max. 1 000 znaků. |
+| `viber` | string | Odpověď, když příchozí zpráva dorazila přes Viber. Max. 1 000 znaků. |
+| `callback` | string | Webhook URL, kterou notifikujeme jen při shodě tohoto záznamu. |
+| `email_to` | string nebo array | E-mailová adresa (nebo pole až 5 adres), kterou notifikujeme jen při shodě tohoto záznamu. |
+
+Při shodě SmsManager:
+
+- odešle text nastavený pro kanál, kterým odpověď přišla, a to stejným kanálem,
+- neodešle nic, pokud pro tento kanál text nenastavíte,
+- notifikuje `callback` a `email_to` záznamu, a to navíc k polím na úrovni `_incoming`.
+
+Záznam, který obsahuje jen `callback` nebo `email_to`, tedy při shodě nic neodešle a pouze vás upozorní.
+
+<Note>
+  Automatické odpovědi se účtují jako běžné zprávy. Ceny podle kanálu popisuje [Účtování zpráv podle kanálu](/concepts/message-billing).
+</Note>
+
+### Jak se párovací hodnota porovnává
+
+SmsManager porovná párovací hodnotu s příchozí odpovědí bez ohledu na velikost písmen. S čím přesně ji porovná, závisí na kanálu:
+
+| Kanál | Párovací hodnota se porovnává s |
+| --- | --- |
+| SMS | textem příchozí zprávy (klíčové slovo) |
+| WhatsApp | `id` tlačítka interaktivní zprávy (`whatsapp_text.buttons[].id`), nebo payload quick-reply tlačítka šablony z `params_buttons` |
+| RCS | hodnotou `postback` tlačítka, nebo viditelným textem tlačítka |
+
+Klíč `ANO` tak zachytí odpověď `ano`, `Ano` i `ANO`.
+
+---
+
+## Časové okno pro párování
+
+Příchozí události se k odeslané zprávě párují jen omezenou dobu od odeslání:
+
+| Kanál | Okno párování |
+| --- | --- |
+| SMS | přibližně 2 dny |
+| Viber, WhatsApp, RCS | přibližně 1 měsíc |
+
+Pozdější odpovědi se se zprávou nespárují. Nespustí automatickou odpověď, e-mail ani `callback` z objektu `_incoming`.
+
+---
+
+## Opt-out odpovědi
+
+Odpovědi `STOP`, `UNSUBSCRIBE` a `SUBSCRIBE` jsou klíčová slova pro odhlášení a přihlášení odběru (opt-out). SmsManager je přepošle e-mailem na `email_to` s prefixem `[OPT-OUT]` v předmětu. Přepošle je také na `callback`. Automatickou odpověď ale nikdy nespustí, proto opt-out klíčová slova nepoužívejte jako klíče v `reply`.
+
+---
+
+## Příklady
+
+### SMS: odpověď na klíčové slovo
+
+Zákazník potvrdí termín odpovědí `ANO`, nebo jej zruší odpovědí `NE`. Na obě klíčová slova přijde automatická odpověď. Každá odpověď se zároveň přepošle na e-mail recepce. Odpověď `NE` navíc upozorní váš systém přes `callback` záznamu.
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Připomínáme termín 12. 11. v 10:00. Potvrďte odpovědí ANO, nebo zrušte odpovědí NE.",
+    "sender": "420777654321",
+    "to": [{ "phone_number": "420777123456" }],
+    "payload": { "booking_id": "BK-2041" },
+    "params": {
+      "_incoming": {
+        "email_to": "recepce@example.com",
+        "reply": {
+          "ANO": {
+            "sms": "Děkujeme, termín je potvrzený. Těšíme se na vás."
+          },
+          "NE": {
+            "sms": "Termín jsme zrušili. Nový si vyberete na https://example.com/rezervace",
+            "callback": "https://example.com/hooks/booking-cancelled"
+          }
+        }
+      }
+    }
+  }'
+```
+
+<Tip>
+  Pro obousměrnou SMS komunikaci použijte jako odesílatele vyhrazené virtuální číslo. Jak SmsManager podle odesílatele zvolí bránu, popisuje [Odesílatelé, aliasy a výchozí odesílatel](/concepts/senders).
+</Tip>
+
+### WhatsApp: interaktivní tlačítka
+
+Interaktivní zprávu `whatsapp_text` můžete poslat jen v otevřeném 24hodinovém zákaznickém okně (viz [Typy WhatsApp zpráv](/concepts/whatsapp-message-types)). Hodnoty `id` tlačítek použijte jako klíče v `reply`:
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": [{ "phone_number": "420777123456" }],
+    "flow": [
+      {
+        "whatsapp_text": {
+          "sender": "514578330250514",
+          "body": "Děkujeme za dotaz. Co pro vás můžeme udělat?",
+          "buttons": [
+            { "id": "MORE_INFO", "title": "Více informací" },
+            { "id": "CALL_ME", "title": "Zavolejte mi" }
+          ]
+        }
+      }
+    ],
+    "params": {
+      "_incoming": {
+        "callback": "https://example.com/incoming-events",
+        "reply": {
+          "MORE_INFO": {
+            "whatsapp": "Děkujeme za zájem! 🎉 Více najdete na https://example.com/info"
+          },
+          "CALL_ME": {
+            "whatsapp": "Děkujeme, brzy se vám ozveme.",
+            "email_to": "obchod@example.com"
+          }
+        }
+      }
+    }
+  }'
+```
+
+Klepnutí na **Více informací** pošle automatickou odpověď přes WhatsApp. Klepnutí na **Zavolejte mi** pošle odpověď a navíc e-mail obchodnímu týmu. Obě kliknutí dorazí také na `callback` s objektem `whatsapp`. Všechna pole tlačítek popisuje reference [WhatsApp text](/reference/whatsapp-text).
+
+Pro proaktivní oslovení použijte šablonu s quick-reply tlačítky. Payload tlačítka předáte v `params_buttons` a stejnou hodnotu použijete jako klíč v `reply`:
+
+```json Tělo požadavku
+{
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "whatsapp_template": {
+        "sender": "514578330250514",
+        "template_name": "product_launch",
+        "language": "cs",
+        "params_buttons": ["MORE_INFO"]
+      }
+    }
+  ],
+  "params": {
+    "_incoming": {
+      "reply": {
+        "MORE_INFO": {
+          "whatsapp": "Děkujeme za zájem! 🎉 Více najdete na https://example.com/info"
+        }
+      }
+    }
+  }
+}
+```
+
+### RCS: tlačítka s hodnotou `postback`
+
+Tlačítka typu `reply` vrátí po klepnutí svou hodnotu `postback`. Tu použijte jako klíč v `reply`:
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": [{ "phone_number": "420777123456" }],
+    "flow": [
+      {
+        "rcs": {
+          "sender": "muj_rcs_agent",
+          "body": "Nová kolekce je tady. Chcete vědět víc?",
+          "buttons": [
+            { "type": "reply", "text": "Více informací", "postback": "MORE_INFO" },
+            { "type": "reply", "text": "Nemám zájem", "postback": "NOT_INTERESTED" }
+          ]
+        }
+      }
+    ],
+    "params": {
+      "_incoming": {
+        "reply": {
+          "MORE_INFO": {
+            "rcs": "Děkujeme za zájem! Více najdete na https://example.com/info"
+          },
+          "NOT_INTERESTED": {
+            "rcs": "Rozumíme, děkujeme za odpověď.",
+            "callback": "https://example.com/hooks/not-interested"
+          }
+        }
+      }
+    }
+  }'
+```
+
+Místo hodnoty `postback` můžete jako klíč použít i viditelný text tlačítka, například `Více informací`. Pole tlačítek popisuje reference [Parametry RCS zpráv](/reference/rcs).
+
+---
+
+## Dohledání příchozích zpráv přes REST API
+
+Příchozí zprávy můžete stáhnout i zpětně přes REST endpoint `GET /inbox`. U spárované odpovědi obsahuje pole `original` odchozí zprávu, na kterou příjemce odpověděl. Postup popisuje návod [Stav zpráv a statistiky](/guides/message-status).
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Webhooky" icon="webhook" href="/guides/webhooks">
+    Formát příchozích událostí a nastavení hlavního callbacku.
+  </Card>
+
+  <Card title="WhatsApp text" icon="whatsapp" href="/reference/whatsapp-text">
+    Interaktivní tlačítka a jejich `id`.
+  </Card>
+
+  <Card title="Parametry RCS zpráv" icon="comments" href="/reference/rcs">
+    Tlačítka s hodnotou `postback`, rich card a carousel.
+  </Card>
+
+  <Card title="Stav zpráv a statistiky" icon="inbox" href="/guides/message-status">
+    Příchozí zprávy a spárované odpovědi přes `GET /inbox`.
+  </Card>
+</CardGroup>
