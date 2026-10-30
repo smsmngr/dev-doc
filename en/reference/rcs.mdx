@@ -1,17 +1,17 @@
 ---
 title: "RCS Message Parameters"
 sidebarTitle: "RCS"
-description: "Reference overview of the rcs object — plain text, reply suggestions and action buttons, a standalone rich card, and a product carousel over RCS Business Messaging."
+description: "Reference overview of the rcs object — plain text, image, video, document, and audio, reply suggestions and action buttons, a standalone rich card, and a carousel of 2 to 10 cards over RCS Business Messaging."
 ---
 
-RCS (Rich Communication Services) is the successor to SMS, delivering rich content directly in the native messaging app on Android. With SmsManager you send an RCS message using the `rcs` object inside the `flow` array — from plain text through reply suggestions and action buttons all the way to rich cards and carousels. This page is a reference overview of the fields of the `rcs` object.
+RCS (Rich Communication Services) is the successor to SMS, delivering rich content directly in the native messaging app on Android. With SmsManager you send an RCS message using the `rcs` object inside the `flow` array — from plain text and media through reply suggestions and action buttons all the way to rich cards and carousels. This page is a reference overview of the fields of the `rcs` object.
 
 ## Basic fields
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `sender` | string | The ID of your RCS agent (sender). If omitted, the sender from the root of the request is used. |
-| `body` | string | The message text. If omitted, the `body` from the root of the request is used. |
+| `sender` | string | The ID of your RCS agent (sender), or a sender alias. The step needs one, but you don't have to set it in the step itself: if it's missing, the `sender` from the root of the request is used, then your account's default sender (`default_sender`). See [Senders](/concepts/senders). |
+| `body` | string | The message text. Optional — you can send a message with only media, a card, or a carousel. In a media message it serves as the caption (see [Media](#media)). If omitted, the `body` from the root of the request is used. |
 | `ttl` | integer | Time to live in **minutes**. Once it elapses, the flow advances to the next `flow` step. |
 
 ```json Plain text
@@ -34,6 +34,69 @@ RCS (Rich Communication Services) is the successor to SMS, delivering rich conte
 
 ---
 
+## Media
+
+The `image`, `video`, `document`, and `audio` fields send a file from a public URL. The value is either the URL as a string or an `RcsMedia` object with a `url` field.
+
+| Field | Example formats |
+| --- | --- |
+| `image` | JPEG, PNG, GIF, WEBP |
+| `video` | MP4, WEBM, 3GP |
+| `document` | PDF |
+| `audio` | MP3, OGG |
+
+The `RcsMedia` object accepts these fields:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `url` | string | The public URL of the file. Required. |
+| `thumbnail` | string | The public URL of a thumbnail shown while the file loads. |
+| `caption` | string | The media caption. If you omit it, `body` is used. |
+| `height` | string | The media height in a rich card: `SHORT`, `MEDIUM`, or `TALL`. Defaults to `MEDIUM`. Applies only when the message is delivered as a rich card. |
+| `forceRefresh` | boolean | Forces the RCS platform to download the file again, even if it has a cached copy. |
+
+How the message is delivered depends on the text:
+
+- **Without `caption` or `body`**, the file is sent on its own.
+- **With `caption` or `body`**, the message is delivered as a rich card, and the text becomes its description.
+
+Use at most one media field per message.
+
+```json Standalone image
+{
+  "rcs": {
+    "sender": "muj_rcs_agent",
+    "image": "https://example.com/boarding-pass.png"
+  }
+}
+```
+
+```json Image as a rich card with the description from body
+{
+  "rcs": {
+    "sender": "muj_rcs_agent",
+    "body": "Your boarding pass",
+    "image": "https://example.com/boarding-pass.png"
+  }
+}
+```
+
+```json Video with a thumbnail and a custom caption
+{
+  "rcs": {
+    "sender": "muj_rcs_agent",
+    "video": {
+      "url": "https://example.com/how-to.mp4",
+      "thumbnail": "https://example.com/how-to-thumb.jpg",
+      "caption": "Assemble your table in 5 minutes",
+      "height": "TALL"
+    }
+  }
+}
+```
+
+---
+
 ## Buttons (`buttons`)
 
 The `buttons` array adds **reply suggestions** (chips) below the message. Each button has a `type` — either `reply` (a quick reply) or `url` (opens a link).
@@ -42,10 +105,10 @@ The `buttons` array adds **reply suggestions** (chips) below the message. Each b
 | --- | --- | --- |
 | `type` | both | `reply` or `url`. |
 | `text` | both | The button label. |
-| `postback` | both | The data returned in the webhook after a tap (`postbackData`). |
-| `url` | `url` | The target URL. |
+| `postback` | both | The value returned in the incoming webhook when the recipient taps the button (`postbackData`). |
+| `url` | `url` | The target URL. Required for `url` buttons. |
 | `description` | `url` | A description of the link being opened. |
-| `webview` | `url` | The webview display mode (`webviewViewMode`). |
+| `webview` | `url` | Opens the URL in an in-app webview instead of the browser. Set the size with `FULL`, `HALF`, or `TALL` (`webviewViewMode`). |
 
 ```json
 {
@@ -72,6 +135,7 @@ The `card` field sends a single card with an image/video, a title, a description
 | `description` | string | The card description. |
 | `file` | string | The media URL (image/video). |
 | `thumbnail` | string | The thumbnail URL. |
+| `height` | string | The card's media height: `SHORT`, `MEDIUM`, or `TALL`. Defaults to `MEDIUM`. |
 | `buttons` | array | The card buttons (same shape as above). |
 
 ```json
@@ -95,15 +159,15 @@ The `card` field sends a single card with an image/video, a title, a description
 
 ## Carousel (`carousel`)
 
-The `carousel` field sends a horizontally scrollable row of cards. Each item additionally has a `type` field (the media type):
+The `carousel` field sends a horizontally scrollable row of **2 to 10** cards. Each card has the same fields as a standalone rich card:
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `title` | string | The card title. |
 | `description` | string | The card description. |
-| `type` | string | The card's media type. |
 | `file` | string | The media URL. |
 | `thumbnail` | string | The thumbnail URL. |
+| `height` | string | The card's media height: `SHORT`, `MEDIUM`, or `TALL`. Defaults to `MEDIUM`. |
 | `buttons` | array | The card buttons. |
 
 ```json
@@ -114,7 +178,6 @@ The `carousel` field sends a horizontally scrollable row of cards. Each item add
       {
         "title": "Produkt A",
         "description": "Skladem",
-        "type": "image",
         "file": "https://example.com/a.jpg",
         "thumbnail": "https://example.com/a-thumb.jpg",
         "buttons": [{ "type": "url", "text": "Detail", "postback": "A", "url": "https://example.com/a" }]
@@ -122,7 +185,6 @@ The `carousel` field sends a horizontally scrollable row of cards. Each item add
       {
         "title": "Produkt B",
         "description": "Novinka",
-        "type": "image",
         "file": "https://example.com/b.jpg",
         "thumbnail": "https://example.com/b-thumb.jpg"
       }

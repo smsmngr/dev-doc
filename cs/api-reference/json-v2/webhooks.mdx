@@ -8,7 +8,7 @@ SmsManager posílá webhook události na váš server jako HTTP POST požadavky,
 
 | Název události | Trigger | Popis |
 | --- | --- | --- |
-| `sentMessage` | Stav odchozí zprávy se mění | Potvrzení doručení pro SMS, Viber a WhatsApp. Obvykle nejprve obdržíte stav `sent` a následně finální stav jako `delivered` nebo `undelivered`. |
+| `sentMessage` | Stav odchozí zprávy se mění | Potvrzení doručení pro SMS, Viber, WhatsApp a RCS. Obvykle nejprve obdržíte stav `sent` a následně finální stav jako `delivered` nebo `undelivered`. |
 | `incomingReplyMessage` | Příjemce odpoví na jednu z vašich zpráv | Odpověď je propojena s vaší původní zprávou přes `request_id`, `message_id` a `payload`. |
 | `incomingMessage` | Dorazí nevyžádaná příchozí zpráva | Nová zpráva přijatá na jednom z vašich čísel, která není spojena s žádnou odchozí zprávou. |
 
@@ -33,7 +33,7 @@ SmsManager posílá událost `sentMessage` při každé změně stavu odchozí z
 </ResponseField>
 
 <ResponseField name="gateway" type="string">
-  Kanál, který doručil (nebo se pokoušel doručit) zprávu. Jedna z: `sms`, `viber`, `whatsapp_text`, `whatsapp_template`.
+  Kanál, který doručil (nebo se pokoušel doručit) zprávu. Jedna z: `sms`, `viber`, `whatsapp_text`, `whatsapp_template`, `rcs`.
 </ResponseField>
 
 <ResponseField name="timestamp" type="integer">
@@ -164,6 +164,10 @@ SmsManager posílá událost `sentMessage` při každé změně stavu odchozí z
 
 SmsManager posílá událost `incomingReplyMessage`, když příjemce přímo odpoví na zprávu, kterou jste odeslali. Událost obsahuje `request_id`, `message_id` a `payload` vaší původní odchozí zprávy, takže můžete odpověď okamžitě spojit s jejím kontextem.
 
+<Tip>
+  Objektem `params._incoming` můžete zprávě při odeslání nastavit automatické odpovědi podle klíčového slova nebo tlačítka a vlastní `callback` pro její příchozí události. Ten dostává odpovědi, klepnutí na tlačítka WhatsApp a RCS i opt-out klíčová slova navíc k hlavnímu poli `callback`. Klepnutí na tlačítko nese objekt `whatsapp` nebo `rcs` se stisknutým tlačítkem. Postup popisuje návod [Automatické odpovědi a příchozí zprávy](/guides/auto-replies).
+</Tip>
+
 ### Reference polí
 
 <ResponseField name="request_id" type="string">
@@ -179,7 +183,7 @@ SmsManager posílá událost `incomingReplyMessage`, když příjemce přímo od
 </ResponseField>
 
 <ResponseField name="gateway" type="string">
-  Kanál, na kterém odpověď přišla. Jedna z: `sms`, `viber`, `whatsapp`. Poznámka: pro WhatsApp je hodnota gateway vždy `whatsapp` — pro příchozí zprávy se nedělí na `whatsapp_text` nebo `whatsapp_template`.
+  Kanál, na kterém odpověď přišla. Jedna z: `sms`, `viber`, `whatsapp`, `rcs`. Poznámka: pro WhatsApp je hodnota gateway vždy `whatsapp` — pro příchozí zprávy se nedělí na `whatsapp_text` nebo `whatsapp_template`.
 </ResponseField>
 
 <ResponseField name="timestamp" type="integer">
@@ -199,7 +203,11 @@ SmsManager posílá událost `incomingReplyMessage`, když příjemce přímo od
 </ResponseField>
 
 <ResponseField name="body" type="string">
-  Text odpovědi.
+  Text odpovědi. Pokud zpráva obsahuje jen médium s popiskem, je zde popisek média.
+</ResponseField>
+
+<ResponseField name="media" type="object">
+  Nepovinné. Příloha odpovědi, například obrázek, dokument nebo sdílená poloha. Posílá se jen tehdy, když zpráva médium obsahuje. Popis polí najdete v sekci [Objekt media](#objekt-media).
 </ResponseField>
 
 ### Příkladový payload
@@ -231,7 +239,7 @@ SmsManager posílá událost `incomingMessage`, když přijde nová příchozí 
 ### Reference polí
 
 <ResponseField name="gateway" type="string">
-  Kanál, na kterém zpráva přišla. Jedna z: `sms`, `viber`, `whatsapp`.
+  Kanál, na kterém zpráva přišla. Jedna z: `sms`, `viber`, `whatsapp`, `rcs`.
 </ResponseField>
 
 <ResponseField name="timestamp" type="integer">
@@ -251,7 +259,11 @@ SmsManager posílá událost `incomingMessage`, když přijde nová příchozí 
 </ResponseField>
 
 <ResponseField name="body" type="string">
-  Text příchozí zprávy.
+  Text příchozí zprávy. Pokud zpráva obsahuje jen médium s popiskem, je zde popisek média.
+</ResponseField>
+
+<ResponseField name="media" type="object">
+  Nepovinné. Příloha zprávy, například obrázek, dokument nebo sdílená poloha. Posílá se jen tehdy, když zpráva médium obsahuje. Popis polí najdete v sekci [Objekt media](#objekt-media).
 </ResponseField>
 
 ### Příkladový payload
@@ -265,6 +277,110 @@ SmsManager posílá událost `incomingMessage`, když přijde nová příchozí 
     "sender": "420777123456",
     "recipient": "420777654321",
     "body": "Ahoj, mám otázku."
+  }
+]
+```
+
+---
+
+## Objekt media
+
+Události `incomingReplyMessage` a `incomingMessage` obsahují objekt `media`, když příchozí zpráva z WhatsAppu nebo RCS nese přílohu. Může jít o obrázek, video, audio, dokument, nálepku, sdílenou polohu nebo kontaktní karty. U souborů SmsManager uloží přílohu na trvalou veřejnou URL v poli `url`. Pokud se soubor uložit nepodaří, `url` chybí a místo něj je nastaveno pole `error`. Ostatní metadata dorazí i tak.
+
+### Reference polí
+
+<ResponseField name="type" type="string">
+  Typ přílohy. Jedna z: `image`, `video`, `audio`, `document`, `sticker`, `location`, `contacts`.
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  Trvalá veřejná URL uloženého souboru. Chybí, pokud se soubor nepodařilo uložit — pak je nastaveno `error`.
+</ResponseField>
+
+<ResponseField name="mime_type" type="string">
+  MIME typ souboru, jak ho nahlásil kanál.
+
+  Příklad: `"image/jpeg"`
+</ResponseField>
+
+<ResponseField name="filename" type="string">
+  Původní název souboru (u dokumentů).
+</ResponseField>
+
+<ResponseField name="caption" type="string">
+  Popisek odeslaný spolu s médiem. Pokud zpráva nemá text, doručí se popisek také jako `body`.
+</ResponseField>
+
+<ResponseField name="size" type="integer">
+  Velikost souboru v bajtech, pokud je známa.
+</ResponseField>
+
+<ResponseField name="animated" type="boolean">
+  Zda je nálepka animovaná. Pouze u nálepek (`sticker`).
+</ResponseField>
+
+<ResponseField name="thumbnail" type="string">
+  Trvalá veřejná URL uloženého náhledu. Pouze u RCS.
+</ResponseField>
+
+<ResponseField name="location" type="object">
+  Sdílená poloha. Pouze když `type` je `location`.
+
+  <Expandable title="pole location">
+    <ResponseField name="latitude" type="number">
+      Zeměpisná šířka.
+    </ResponseField>
+
+    <ResponseField name="longitude" type="number">
+      Zeměpisná délka.
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      Název místa.
+    </ResponseField>
+
+    <ResponseField name="address" type="string">
+      Adresa místa.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="contacts" type="object[]">
+  Sdílené kontaktní karty v podobě, v jaké je poskytl kanál. Pouze když `type` je `contacts`.
+</ResponseField>
+
+<ResponseField name="provider_id" type="string">
+  ID média nebo zprávy přidělené poskytovatelem kanálu.
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Nastaví se místo `url`, pokud se soubor nepodařilo uložit. Jedna z: `download_failed`, `too_large`, `no_token`.
+</ResponseField>
+
+### Příkladový payload s médiem
+
+```json
+[
+  {
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+    "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+    "payload": {
+      "campaign_id": "winter-sale"
+    },
+    "gateway": "whatsapp",
+    "timestamp": 1700000000,
+    "type": "incoming",
+    "sender": "420777123456",
+    "recipient": "420777654321",
+    "body": "fotka poškozeného balíku",
+    "media": {
+      "type": "image",
+      "url": "https://smsmngr-inbound-media.s3.eu-central-1.amazonaws.com/3f7a1c9b2e4d5f60718293a4b5c6d7e8.jpg",
+      "mime_type": "image/jpeg",
+      "caption": "fotka poškozeného balíku",
+      "size": 245731,
+      "provider_id": "1234567890123456"
+    }
   }
 ]
 ```

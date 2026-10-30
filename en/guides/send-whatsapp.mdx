@@ -122,6 +122,27 @@ Use `whatsapp_text` in your flow to send a free-form message during an open conv
 }
 ```
 
+### Send an image with a caption
+
+Add an `image` field with the image's public URL to the `whatsapp_text` step. The `body` text is shown as the image caption.
+
+```json Request body
+{
+  "to": [{"phone_number": "420777123456"}],
+  "flow": [
+    {
+      "whatsapp_text": {
+        "sender": "514578330250514",
+        "body": "Your QR code",
+        "image": "https://example.com/qr.png"
+      }
+    }
+  ]
+}
+```
+
+You send a video (`video`), document (`document`), or audio file (`audio`) the same way. For supported formats and the object form with a custom caption or file name, see [WhatsApp text message parameters](/reference/whatsapp-text#media).
+
 ---
 
 ## Template parameters

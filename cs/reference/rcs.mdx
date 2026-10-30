@@ -1,17 +1,17 @@
 ---
 title: "Parametry RCS zpráv"
 sidebarTitle: "RCS"
-description: "Referenční přehled objektu rcs — prostý text, návrhy odpovědí a akční tlačítka, samostatná rich card a produktový carousel přes RCS Business Messaging."
+description: "Referenční přehled objektu rcs — prostý text, obrázek, video, dokument a audio, návrhy odpovědí a akční tlačítka, samostatná rich card a carousel 2 až 10 karet přes RCS Business Messaging."
 ---
 
-RCS (Rich Communication Services) je nástupce SMS s bohatým obsahem přímo v nativní aplikaci pro zprávy na Androidu. Přes SmsManager odešlete RCS zprávu objektem `rcs` uvnitř pole `flow` — od prostého textu přes návrhy odpovědí a akční tlačítka až po rich card a carousel. Tato stránka je referenčním přehledem polí objektu `rcs`.
+RCS (Rich Communication Services) je nástupce SMS s bohatým obsahem přímo v nativní aplikaci pro zprávy na Androidu. Přes SmsManager odešlete RCS zprávu objektem `rcs` uvnitř pole `flow` — od prostého textu a médií přes návrhy odpovědí a akční tlačítka až po rich card a carousel. Tato stránka je referenčním přehledem polí objektu `rcs`.
 
 ## Základní pole
 
 | Pole | Typ | Popis |
 | --- | --- | --- |
-| `sender` | string | ID vašeho RCS agenta (odesílatele). Pokud není uvedeno, použije se odesílatel z kořene požadavku. |
-| `body` | string | Text zprávy. Pokud není uveden, použije se `body` z kořene požadavku. |
+| `sender` | string | ID vašeho RCS agenta (odesílatele) nebo alias odesílatele. Krok ho potřebuje, ale nemusíte ho uvádět přímo v něm: pokud chybí, použije se `sender` z kořene požadavku a poté výchozí odesílatel vašeho účtu (`default_sender`). Viz [Odesílatelé](/concepts/senders). |
+| `body` | string | Text zprávy. Nepovinné — zprávu můžete poslat i jen s médiem, kartou nebo carouselem. U zprávy s médiem slouží jako popisek (viz [Media](#media)). Pokud není uveden, použije se `body` z kořene požadavku. |
 | `ttl` | integer | Doba života v **minutách**. Po jejím uplynutí se přejde na další krok `flow`. |
 
 ```json Prostý text
@@ -34,6 +34,69 @@ RCS (Rich Communication Services) je nástupce SMS s bohatým obsahem přímo v 
 
 ---
 
+## Media
+
+Pole `image`, `video`, `document` a `audio` odešlou soubor z veřejné URL. Hodnotou je buď URL jako řetězec, nebo objekt `RcsMedia` s polem `url`.
+
+| Pole | Příklady formátů |
+| --- | --- |
+| `image` | JPEG, PNG, GIF, WEBP |
+| `video` | MP4, WEBM, 3GP |
+| `document` | PDF |
+| `audio` | MP3, OGG |
+
+Objekt `RcsMedia` přijímá tato pole:
+
+| Pole | Typ | Popis |
+| --- | --- | --- |
+| `url` | string | Veřejná URL souboru. Povinné. |
+| `thumbnail` | string | Veřejná URL náhledu, který se zobrazí během načítání souboru. |
+| `caption` | string | Popisek média. Pokud ho neuvedete, použije se `body`. |
+| `height` | string | Výška média v rich card: `SHORT`, `MEDIUM` nebo `TALL`. Výchozí `MEDIUM`. Uplatní se jen tehdy, když se zpráva doručí jako rich card. |
+| `forceRefresh` | boolean | Vynutí, aby si RCS platforma soubor stáhla znovu, i když má jeho kopii v cache. |
+
+Způsob doručení závisí na textu:
+
+- **Bez `caption` a bez `body`** se soubor odešle samostatně.
+- **S `caption` nebo `body`** se zpráva doručí jako rich card a text se použije jako její popis.
+
+V jedné zprávě použijte nejvýše jedno pole s médiem.
+
+```json Samostatný obrázek
+{
+  "rcs": {
+    "sender": "muj_rcs_agent",
+    "image": "https://example.com/palubni-vstupenka.png"
+  }
+}
+```
+
+```json Obrázek jako rich card s popisem z body
+{
+  "rcs": {
+    "sender": "muj_rcs_agent",
+    "body": "Vaše palubní vstupenka",
+    "image": "https://example.com/palubni-vstupenka.png"
+  }
+}
+```
+
+```json Video s náhledem a vlastním popiskem
+{
+  "rcs": {
+    "sender": "muj_rcs_agent",
+    "video": {
+      "url": "https://example.com/navod.mp4",
+      "thumbnail": "https://example.com/navod-nahled.jpg",
+      "caption": "Jak sestavit stůl za 5 minut",
+      "height": "TALL"
+    }
+  }
+}
+```
+
+---
+
 ## Tlačítka (`buttons`)
 
 Pole `buttons` přidá pod zprávu **návrhy odpovědí** (chipy). Každé tlačítko má `type` — buď `reply` (rychlá odpověď), nebo `url` (otevře odkaz).
@@ -42,10 +105,10 @@ Pole `buttons` přidá pod zprávu **návrhy odpovědí** (chipy). Každé tlač
 | --- | --- | --- |
 | `type` | oba | `reply` nebo `url`. |
 | `text` | oba | Popisek tlačítka. |
-| `postback` | oba | Data vrácená ve webhooku po klepnutí (`postbackData`). |
-| `url` | `url` | Cílová URL. |
+| `postback` | oba | Hodnota vrácená v příchozím webhooku, když příjemce na tlačítko klepne (`postbackData`). |
+| `url` | `url` | Cílová URL. Povinné u tlačítek typu `url`. |
 | `description` | `url` | Popis otevíraného odkazu. |
-| `webview` | `url` | Režim zobrazení webview (`webviewViewMode`). |
+| `webview` | `url` | Otevře URL v in-app webview místo prohlížeče. Velikost určíte hodnotou `FULL`, `HALF` nebo `TALL` (`webviewViewMode`). |
 
 ```json
 {
@@ -72,6 +135,7 @@ Pole `card` odešle jednu kartu s obrázkem/videem, nadpisem, popisem a voliteln
 | `description` | string | Popis karty. |
 | `file` | string | URL media (obrázek/video). |
 | `thumbnail` | string | URL náhledu. |
+| `height` | string | Výška média karty: `SHORT`, `MEDIUM` nebo `TALL`. Výchozí `MEDIUM`. |
 | `buttons` | array | Tlačítka karty (stejný tvar jako výše). |
 
 ```json
@@ -95,15 +159,15 @@ Pole `card` odešle jednu kartu s obrázkem/videem, nadpisem, popisem a voliteln
 
 ## Carousel (`carousel`)
 
-Pole `carousel` odešle vodorovně listovatelnou řadu karet. Každá položka přidává navíc pole `type` (typ media):
+Pole `carousel` odešle vodorovně listovatelnou řadu **2 až 10** karet. Každá karta má stejná pole jako samostatná rich card:
 
 | Pole | Typ | Popis |
 | --- | --- | --- |
 | `title` | string | Nadpis karty. |
 | `description` | string | Popis karty. |
-| `type` | string | Typ media karty. |
 | `file` | string | URL media. |
 | `thumbnail` | string | URL náhledu. |
+| `height` | string | Výška média karty: `SHORT`, `MEDIUM` nebo `TALL`. Výchozí `MEDIUM`. |
 | `buttons` | array | Tlačítka karty. |
 
 ```json
@@ -114,7 +178,6 @@ Pole `carousel` odešle vodorovně listovatelnou řadu karet. Každá položka p
       {
         "title": "Produkt A",
         "description": "Skladem",
-        "type": "image",
         "file": "https://example.com/a.jpg",
         "thumbnail": "https://example.com/a-thumb.jpg",
         "buttons": [{ "type": "url", "text": "Detail", "postback": "A", "url": "https://example.com/a" }]
@@ -122,7 +185,6 @@ Pole `carousel` odešle vodorovně listovatelnou řadu karet. Každá položka p
       {
         "title": "Produkt B",
         "description": "Novinka",
-        "type": "image",
         "file": "https://example.com/b.jpg",
         "thumbnail": "https://example.com/b-thumb.jpg"
       }

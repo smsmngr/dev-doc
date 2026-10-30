@@ -8,7 +8,7 @@ SmsManager pushes webhook events to your server as HTTP POST requests whenever a
 
 | Event name | Trigger | Description |
 | --- | --- | --- |
-| `sentMessage` | Outbound message status changes | Delivery confirmations for SMS, Viber, and WhatsApp. You typically receive a `sent` status first, followed by a final status such as `delivered` or `undelivered`. |
+| `sentMessage` | Outbound message status changes | Delivery confirmations for SMS, Viber, WhatsApp, and RCS. You typically receive a `sent` status first, followed by a final status such as `delivered` or `undelivered`. |
 | `incomingReplyMessage` | A recipient replies to one of your messages | The reply is correlated to your original message via `request_id`, `message_id`, and `payload`. |
 | `incomingMessage` | An unsolicited inbound message arrives | A new message received on one of your numbers that is not linked to any outbound message. |
 
@@ -33,7 +33,7 @@ SmsManager sends a `sentMessage` event whenever the status of an outbound messag
 </ResponseField>
 
 <ResponseField name="gateway" type="string">
-  The channel that delivered (or attempted to deliver) the message. One of: `sms`, `viber`, `whatsapp_text`, `whatsapp_template`.
+  The channel that delivered (or attempted to deliver) the message. One of: `sms`, `viber`, `whatsapp_text`, `whatsapp_template`, `rcs`.
 </ResponseField>
 
 <ResponseField name="timestamp" type="integer">
@@ -164,6 +164,10 @@ SmsManager sends a `sentMessage` event whenever the status of an outbound messag
 
 SmsManager sends an `incomingReplyMessage` event when a recipient replies directly to a message you sent. The event includes the `request_id`, `message_id`, and `payload` of your original outbound message, so you can immediately correlate the reply with its context.
 
+<Tip>
+  With the `params._incoming` object, you can set up auto-replies by keyword or button when you send a message, plus a separate `callback` for that message's incoming events. It receives replies, WhatsApp and RCS button taps, and opt-out keywords, in addition to the main `callback` field. A button tap carries a `whatsapp` or `rcs` object with the tapped button. For the setup, see [Auto-replies and incoming handling](/guides/auto-replies).
+</Tip>
+
 ### Field reference
 
 <ResponseField name="request_id" type="string">
@@ -181,7 +185,7 @@ SmsManager sends an `incomingReplyMessage` event when a recipient replies direct
 </ResponseField>
 
 <ResponseField name="gateway" type="string">
-  The channel on which the reply arrived. One of: `sms`, `viber`, `whatsapp`. Note: for WhatsApp, the gateway value is always `whatsapp` — it is not split into `whatsapp_text` or `whatsapp_template` for incoming messages.
+  The channel on which the reply arrived. One of: `sms`, `viber`, `whatsapp`, `rcs`. Note: for WhatsApp, the gateway value is always `whatsapp` — it is not split into `whatsapp_text` or `whatsapp_template` for incoming messages.
 </ResponseField>
 
 <ResponseField name="timestamp" type="integer">
@@ -205,9 +209,13 @@ SmsManager sends an `incomingReplyMessage` event when a recipient replies direct
 </ResponseField>
 
 <ResponseField name="body" type="string">
-  The text of the reply message.
+  The text of the reply message. If the message contains only media with a caption, this holds the media caption.
 
   Example: `"Thank you!"`
+</ResponseField>
+
+<ResponseField name="media" type="object">
+  Optional. The attachment of the reply, such as an image, a document, or a shared location. It's sent only when the message contains media. For the fields, see [media object](#media-object).
 </ResponseField>
 
 ### Example payload
@@ -239,7 +247,7 @@ SmsManager sends an `incomingMessage` event when a new inbound message arrives o
 ### Field reference
 
 <ResponseField name="gateway" type="string">
-  The channel on which the message arrived. One of: `sms`, `viber`, `whatsapp`.
+  The channel on which the message arrived. One of: `sms`, `viber`, `whatsapp`, `rcs`.
 </ResponseField>
 
 <ResponseField name="timestamp" type="integer">
@@ -263,7 +271,11 @@ SmsManager sends an `incomingMessage` event when a new inbound message arrives o
 </ResponseField>
 
 <ResponseField name="body" type="string">
-  The text of the inbound message.
+  The text of the inbound message. If the message contains only media with a caption, this holds the media caption.
+</ResponseField>
+
+<ResponseField name="media" type="object">
+  Optional. The attachment of the message, such as an image, a document, or a shared location. It's sent only when the message contains media. For the fields, see [media object](#media-object).
 </ResponseField>
 
 ### Example payload
@@ -277,6 +289,110 @@ SmsManager sends an `incomingMessage` event when a new inbound message arrives o
     "sender": "420777123456",
     "recipient": "420777654321",
     "body": "Hello, I have a question."
+  }
+]
+```
+
+---
+
+## media object
+
+The `incomingReplyMessage` and `incomingMessage` events include a `media` object when an incoming WhatsApp or RCS message carries an attachment. It can be an image, video, audio, document, sticker, shared location, or contact cards. For files, SmsManager stores the attachment at a persistent public URL in the `url` field. If the file can't be stored, `url` is missing and the `error` field is set instead. The other metadata is still delivered.
+
+### Field reference
+
+<ResponseField name="type" type="string">
+  The attachment type. One of: `image`, `video`, `audio`, `document`, `sticker`, `location`, `contacts`.
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  The persistent public URL of the stored file. Missing if the file couldn't be stored — `error` is set instead.
+</ResponseField>
+
+<ResponseField name="mime_type" type="string">
+  The file's MIME type, as reported by the channel.
+
+  Example: `"image/jpeg"`
+</ResponseField>
+
+<ResponseField name="filename" type="string">
+  The original file name (documents).
+</ResponseField>
+
+<ResponseField name="caption" type="string">
+  The caption sent with the media. If the message has no text, the caption is also delivered as `body`.
+</ResponseField>
+
+<ResponseField name="size" type="integer">
+  The file size in bytes, if known.
+</ResponseField>
+
+<ResponseField name="animated" type="boolean">
+  Whether the sticker is animated. Stickers (`sticker`) only.
+</ResponseField>
+
+<ResponseField name="thumbnail" type="string">
+  The persistent public URL of the stored thumbnail. RCS only.
+</ResponseField>
+
+<ResponseField name="location" type="object">
+  The shared location. Only when `type` is `location`.
+
+  <Expandable title="location fields">
+    <ResponseField name="latitude" type="number">
+      The latitude.
+    </ResponseField>
+
+    <ResponseField name="longitude" type="number">
+      The longitude.
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      The name of the place.
+    </ResponseField>
+
+    <ResponseField name="address" type="string">
+      The address of the place.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="contacts" type="object[]">
+  The shared contact cards, as provided by the channel. Only when `type` is `contacts`.
+</ResponseField>
+
+<ResponseField name="provider_id" type="string">
+  The media or message ID assigned by the channel provider.
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Set instead of `url` when the file couldn't be stored. One of: `download_failed`, `too_large`, `no_token`.
+</ResponseField>
+
+### Example payload with media
+
+```json
+[
+  {
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+    "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+    "payload": {
+      "campaign_id": "winter-sale"
+    },
+    "gateway": "whatsapp",
+    "timestamp": 1700000000,
+    "type": "incoming",
+    "sender": "420777123456",
+    "recipient": "420777654321",
+    "body": "photo of the damaged package",
+    "media": {
+      "type": "image",
+      "url": "https://smsmngr-inbound-media.s3.eu-central-1.amazonaws.com/3f7a1c9b2e4d5f60718293a4b5c6d7e8.jpg",
+      "mime_type": "image/jpeg",
+      "caption": "photo of the damaged package",
+      "size": 245731,
+      "provider_id": "1234567890123456"
+    }
   }
 ]
 ```

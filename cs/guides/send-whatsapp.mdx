@@ -119,6 +119,27 @@ Použijte `whatsapp_text` ve svém flow k odeslání volné zprávy během otev�
 }
 ```
 
+### Odeslání obrázku s popiskem
+
+Do kroku `whatsapp_text` přidejte pole `image` s veřejnou URL obrázku. Text z `body` se zobrazí jako popisek obrázku.
+
+```json Tělo požadavku
+{
+  "to": [{"phone_number": "420777123456"}],
+  "flow": [
+    {
+      "whatsapp_text": {
+        "sender": "514578330250514",
+        "body": "Váš QR kód",
+        "image": "https://example.com/qr.png"
+      }
+    }
+  ]
+}
+```
+
+Stejně odešlete video (`video`), dokument (`document`) nebo audio (`audio`). Podporované formáty a objekt s vlastním popiskem nebo názvem souboru popisuje reference [Parametry WhatsApp textových zpráv](/reference/whatsapp-text#media).
+
 ---
 
 ## Parametry šablony
