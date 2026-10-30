@@ -192,6 +192,54 @@ For Viber and WhatsApp, you may also receive a `seen` event when the recipient o
 ]
 ```
 
+For incoming events, the `gateway` field is `sms`, `viber`, `whatsapp`, or `rcs`.
+
+<Tip>
+  You can respond to replies automatically. With the `params._incoming` object, you set up auto-replies by keyword or button for a message, plus a separate `callback` for its incoming events. For the setup, see [Auto-replies and incoming handling](/guides/auto-replies).
+</Tip>
+
+### Incoming messages with media
+
+When a customer sends you an attachment over WhatsApp or RCS, the event includes an optional `media` object. The attachment can be an image, video, audio, document, sticker, shared location, or contact cards. SmsManager stores the file at a persistent public URL in the `url` field. The media caption arrives in `media.caption` and, if the message has no other text, also in `body`.
+
+```json incomingMessage with media
+[
+  {
+    "gateway": "whatsapp",
+    "timestamp": 1700000000,
+    "type": "incoming",
+    "sender": "420777123456",
+    "recipient": "420777654321",
+    "body": "photo of the damaged package",
+    "media": {
+      "type": "image",
+      "url": "https://smsmngr-inbound-media.s3.eu-central-1.amazonaws.com/3f7a1c9b2e4d5f60718293a4b5c6d7e8.jpg",
+      "mime_type": "image/jpeg",
+      "caption": "photo of the damaged package",
+      "size": 245731,
+      "provider_id": "1234567890123456"
+    }
+  }
+]
+```
+
+| Field | Description |
+| --- | --- |
+| `type` | `image`, `video`, `audio`, `document`, `sticker`, `location`, or `contacts`. |
+| `url` | The persistent public URL of the stored file. Missing if the file couldn't be stored. |
+| `mime_type` | The file's MIME type, as reported by the channel. |
+| `filename` | The original file name (documents). |
+| `caption` | The media caption. If the message has no text, it's also delivered as `body`. |
+| `size` | The file size in bytes, if known. |
+| `animated` | Whether the sticker is animated (stickers only). |
+| `thumbnail` | The persistent public URL of the stored thumbnail (RCS only). |
+| `location` | The shared location with `latitude`, `longitude`, `name`, and `address` fields (only for `type: location`). |
+| `contacts` | An array of contact cards, as provided by the channel (only for `type: contacts`). |
+| `provider_id` | The media or message ID assigned by the channel provider. |
+| `error` | `download_failed`, `too_large`, or `no_token`. Set instead of `url` when the file couldn't be stored. |
+
+Before you download the file, check that `url` is set. If it's missing, `error` tells you why. For the full field reference, see the [Webhooks reference](/api-reference/json-v2/webhooks#media-object).
+
 ---
 
 ## Best practices

@@ -1,10 +1,10 @@
 ---
 title: "REST API — Account and Message Management Reference"
 sidebarTitle: "Overview"
-description: "SmsManager REST API for account management: manage API keys and child keys, handle credit and billing, track message status, read your inbox, maintain blacklist and opt-out lists, run bulk messaging, and integrate partner platforms."
+description: "SmsManager REST API for account management: manage API keys and child keys, handle credit and billing, track message status, read your inbox, maintain blacklist and opt-out lists, validate messages without sending, and run bulk messaging."
 ---
 
-The SmsManager REST API is a separate API from the JSON API v2 (the sending API). While the JSON API v2 handles outbound message delivery, the REST API covers everything around your account. You can create and manage API keys (including child keys), work with credit — browse the service catalog and price list, set low-credit alerts, and order or cancel paid services — and handle billing, from your billing contact and invoices (including PDF downloads) to bank-transfer top-ups. It also lets you track message status and sending statistics, read inbound messages in your inbox, maintain your blacklist and opt-out lists, run bulk and high-volume messaging, and connect partner accounts and platform integrations.
+The SmsManager REST API is a separate API from the JSON API v2 (the sending API). While the JSON API v2 handles outbound message delivery, the REST API covers everything around your account. You can create and manage API keys (including child keys), work with credit — browse the service catalog and price list, look up your price for a specific destination, set low-credit alerts, and order, list or cancel paid services — and handle billing, from your billing contact and invoices (including PDF downloads) to bank-transfer top-ups. It also lets you track message status and sending statistics, read inbound messages in your inbox, maintain your blacklist and opt-out lists, validate messages without sending, run bulk and high-volume messaging, and register push devices and recipients.
 
 ## Base URL
 
@@ -22,7 +22,7 @@ Every request must include your API key in the `x-api-key` request header. This 
 x-api-key: YOUR_API_KEY
 ```
 
-You can find and manage your API keys in the [SmsManager Dashboard](https://app.smsmanager.com).
+You can find and manage your API keys on the [Developers](https://app.smsmanager.com/app/developers/) page of the SmsManager Dashboard.
 
 ## Endpoints
 
@@ -32,19 +32,23 @@ You can find and manage your API keys in the [SmsManager Dashboard](https://app.
 | --- | --- | --- |
 | `GET` | `/apikey/me` | Get current API key info |
 | `POST` | `/apikey/add` | Create a child API key |
-| `POST` | `/apikey/update` | Update current API key |
+| `POST` | `/apikey/update` | Update an API key (incl. child keys) |
 | `GET` | `/apikey/list` | List child API keys |
-| `POST` | `/apikey/change` | Change a child API key |
+| `POST` | `/apikey/change` | Change a child API key (deprecated — use `/apikey/update` with the `apikey` field) |
 
 ### Credit
+
+To order a sender or a phone number and manage your orders, see the [Ordering senders and numbers](/guides/order-services) guide.
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | `GET` | `/credit` | Get credit balance |
 | `GET` | `/credit/services` | Get service catalog |
 | `GET` | `/credit/prices` | Get price list |
+| `POST` | `/credit/price` | Get price for a destination |
 | `GET` | `/credit/notify` | Get low-credit notification settings |
 | `POST` | `/credit/notify` | Set low-credit notification |
+| `GET` | `/credit/orders` | List ordered services |
 | `POST` | `/credit/order` | Order a paid service |
 | `POST` | `/credit/cancel` | Cancel a paid service |
 
@@ -59,6 +63,8 @@ You can find and manage your API keys in the [SmsManager Dashboard](https://app.
 | `GET` | `/billing/topup` | Get bank transfer top-up details |
 
 ### Message status
+
+To track message status, sending statistics and inbound messages, see the [Message status and statistics](/guides/message-status) guide.
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
@@ -88,21 +94,22 @@ You can find and manage your API keys in the [SmsManager Dashboard](https://app.
 
 Upload a JSONL file with thousands of messages via a presigned URL instead of making thousands of sending API calls. See the [Batch sending guide](/guides/batch-sending#bulk-file-upload-via-the-rest-api) for the end-to-end workflow.
 
+To check the structure of one message or an array of up to 10 messages before you send them, call `/messaging/validate`. Nothing is sent or charged. See [Testing your integration](/guides/testing#validation-without-sending) for details.
+
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | `POST` | `/messaging/url` | Get bulk upload URL |
+| `POST` | `/messaging/validate` | Validate messages without sending |
 | `POST` | `/messaging/cancel` | Cancel a scheduled message or bulk upload |
 
-### Partner & integrations
+### Devices & recipients
 
-These endpoints are intended for partner accounts and platform integrations — partner signup, device push registration, recipient registration, and third-party connector actions (such as Klaviyo).
+These endpoints register devices for push notifications, and message recipients with their phone number and push tokens.
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| `POST` | `/partner/signup` | Start partner signup flow |
 | `POST` | `/push/device` | Register push device |
 | `POST` | `/recipient/register` | Register recipient |
-| `POST` | `/connect/{connector}/{action}` | Connector action |
 
 ## For AI agents
 

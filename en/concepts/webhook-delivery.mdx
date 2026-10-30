@@ -108,6 +108,8 @@ curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
 
 Once the secret is set, all webhooks sent by that API key are signed with the `X-Request-Signature` header. The secret has no default value — until you set it, requests are not signed. Keep it secret; rotate it by calling `apikey/update` again with a new value.
 
+To check whether signing is enabled for a key, call `GET /apikey/me`. The response includes the `callback_secret` field with the current secret (64 hex characters). If the field is empty, signing is off. Protect this response as carefully as the secret itself.
+
 ---
 
 ## Custom webhook format

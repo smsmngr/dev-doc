@@ -8,7 +8,7 @@ When you send a message through SmsManager, you can define a **flow** — an ord
 
 ## What is a message flow?
 
-The `flow` property is an array of channel objects. Each object contains exactly one key — `sms`, `viber`, `whatsapp_text`, or `whatsapp_template` — along with that channel's configuration. SmsManager works through the array from first to last: it tries the first channel, and if that channel fails or is unavailable for a given recipient, it moves on to the second, and so on.
+The `flow` property is an array of channel objects. Each object contains exactly one key — `sms`, `viber`, `whatsapp_text`, `whatsapp_template`, or `rcs` — along with that channel's configuration. SmsManager works through the array from first to last: it tries the first channel, and if that channel fails or is unavailable for a given recipient, it moves on to the second, and so on.
 
 ```json
 "flow": [
@@ -21,15 +21,30 @@ In the example above, SmsManager first tries to deliver the message over Viber. 
 
 ## Default behavior (no flow)
 
-If you don't include a `flow` property in your request, SmsManager uses SMS via the `high` gateway as the default channel. This is equivalent to writing:
+If you don't include a `flow` property in your request, SmsManager uses a single `sms` step with no gateway set. This is equivalent to writing:
 
 ```json
 "flow": [
-  { "sms": { "gateway": "high" } }
+  { "sms": {} }
 ]
 ```
 
-The `body` from the root of your request is used as the message text, and standard SMS routing applies.
+SmsManager then picks the gateway from the sender:
+
+- If `sender` is a dedicated virtual number registered for your account, the `direct` gateway is used, and the message is billed at the `direct` price.
+- Otherwise, the message is routed and billed as `high`.
+
+An `sms` step in your own `flow` without a `gateway` behaves the same way. An explicit `gateway` always wins.
+
+SmsManager takes the message text and sender from the root of the request (`body`, `sender`). If you omit `sender`, your account's default sender (`default_sender`) is used.
+
+```json Message without a flow
+{
+  "body": "Your verification code is 4821.",
+  "sender": "MyCompany",
+  "to": [{ "phone_number": "420777123456" }]
+}
+```
 
 ## Flow examples
 
@@ -159,6 +174,34 @@ You can define `body` at the root level of your request and also within individu
 ```
 
 In this example, the Viber step sends the emoji-rich body, while the SMS fallback uses the plain root-level body.
+
+`sender` works the same way: the value in the step takes priority over the `sender` at the root of the request. If you don't set `sender` at either level, your account's default sender (`default_sender`) is used. A root-level `sender` is ignored in a step whose channel you don't have it registered for. Instead of a specific sender, you can also use a sender alias. For details, see [Senders](/concepts/senders).
+
+This means you can set fields that a step requires (`body`, `sender`) at the root of the request only. The value in the step always wins.
+
+```json Root sender with a step override
+{
+  "sender": "MyCompany",
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "viber": {
+        "body": "Your order is ready for pickup",
+        "sender": "MyViber",
+        "ttl": 10,
+        "ttl_condition": "delivered"
+      }
+    },
+    {
+      "sms": {
+        "body": "Your order is ready for pickup"
+      }
+    }
+  ]
+}
+```
+
+The Viber step uses its own registered sender `MyViber`, and the SMS step inherits `MyCompany` from the root of the request.
 
 <Tip>
   Always include SMS as the last channel in your `flow` for production workloads. SMS is available on every mobile device and doesn't require any app installation, making it the most reliable final fallback to ensure your message reaches every recipient.

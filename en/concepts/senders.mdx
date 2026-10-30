@@ -1,0 +1,238 @@
+---
+title: "Senders, aliases and default sender"
+sidebarTitle: "Senders"
+description: "How SmsManager picks the sender of a message — the sender in a flow step, at the request root and the account's default sender, sender aliases by recipient country, and automatic SMS gateway selection."
+---
+
+The sender is the name or number a message arrives from. This page explains how SmsManager picks the sender for each flow step. It also covers sender aliases, the account's default sender and automatic SMS gateway selection.
+
+## Sender resolution order
+
+SmsManager looks for the sender of each flow step in this order:
+
+1. **The `sender` in the flow step**, for example `flow[].sms.sender`. It has the highest priority.
+2. **The `sender` at the request root.** It applies to every flow step that has no `sender` of its own.
+3. **The account's `default_sender`.** It is used when you set `sender` at neither level.
+
+Without a `flow` field, the message is sent as a single `sms` step. A root `sender` is then all you need:
+
+```json Request body
+{
+  "body": "Test message",
+  "sender": "MyCompany",
+  "to": [{ "phone_number": "420777123456" }]
+}
+```
+
+---
+
+## Sender value by channel
+
+The `sender` value must be valid for the channel of the step it applies to:
+
+| Channel | `sender` value |
+| --- | --- |
+| `sms` | An alphanumeric name (max. 11 characters) or a dedicated virtual number without `+`. |
+| `viber` | A name or number registered for Viber Business Messages. |
+| `whatsapp_text`, `whatsapp_template` | The Phone Number ID of your WhatsApp number. |
+| `rcs` | An RCS agent registered for your account. |
+
+On every channel, you can use a [sender alias](#sender-alias) instead of a specific value.
+
+A step whose channel doesn't have that value registered ignores it. If you combine channels with different senders, override the root `sender` in the relevant step:
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sender": "MyCompany",
+    "to": [{ "phone_number": "420777123456" }],
+    "flow": [
+      {
+        "viber": {
+          "body": "Your order is ready for pickup",
+          "sender": "MyViber",
+          "ttl": 10,
+          "ttl_condition": "delivered"
+        }
+      },
+      {
+        "sms": {
+          "body": "Your order is ready for pickup"
+        }
+      }
+    ]
+  }'
+```
+
+The Viber step uses its own registered sender, `MyViber`. The SMS step has no `sender` of its own, so it inherits the root `MyCompany`.
+
+---
+
+## Sender alias
+
+A sender alias is one name configured for your account. It resolves to a different registered sender for each recipient country. The recipient's number prefix decides which sender is used. Support sets up aliases for you, so email [cc@smsmanager.com](mailto:cc@smsmanager.com) to request one.
+
+You use an alias like any other sender. In this example `brand` is an alias, so the Czech recipient gets the message from the Czech sender and the Slovak recipient from the Slovak one:
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Test message",
+    "sender": "brand",
+    "to": [
+      { "phone_number": "420777123456" },
+      { "phone_number": "421905123456" }
+    ]
+  }'
+```
+
+You can see your key's aliases in the `sender_aliases` field of the `GET /apikey/me` response:
+
+```json Excerpt from the GET /apikey/me response
+{
+  "success": true,
+  "me": {
+    "sender_aliases": [
+      {
+        "name": "brand",
+        "prefixes": {
+          "420": "MyCompany CZ",
+          "421": "MyCompany SK"
+        }
+      }
+    ]
+  }
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `name` | The alias name you use as the message `sender`. |
+| `prefixes` | A map of recipient number prefix to registered sender. |
+
+---
+
+## Account default sender (`default_sender`)
+
+The `default_sender` field is used when a message sets `sender` neither in the flow step nor at the request root. It is a default for the whole account. You set it with the REST endpoint `POST /apikey/update`:
+
+```bash Set the default sender
+curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "default_sender": "MyCompany"
+  }'
+```
+
+These rules apply to `default_sender`:
+
+- It has at most 64 characters and must not contain `,` or `:`.
+- It can be a registered sender or the name of a sender alias.
+- A sender you haven't registered is saved. The response returns it in the `warning` field, though, and it is ignored at send time.
+- A `null` value or an empty string clears the default sender.
+
+```bash Clear the default sender
+curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "default_sender": null
+  }'
+```
+
+A parent key can also set `default_sender` on one of its child keys. Add the `apikey` field with the child key to the request. The sender registration is then checked against the child key's senders:
+
+```bash Set the default sender on a child key
+curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "apikey": "cD4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40",
+    "default_sender": "MyCompany"
+  }'
+```
+
+`GET /apikey/me` returns the current value in the `default_sender` field.
+
+<Note>
+  `default_sender` is an account-wide default. It is unrelated to the per-country `default_sender_<platform>_<mcc>` settings.
+</Note>
+
+---
+
+## Automatic SMS gateway selection
+
+If you don't set `gateway` in an `sms` step, SmsManager picks it based on the sender registered for your account:
+
+| Sender | Gateway | Billing |
+| --- | --- | --- |
+| Dedicated virtual number | `direct` | `direct` gateway price |
+| Any other sender | default routing (`high`) | as `high` |
+
+An explicit `gateway` always wins. The same selection applies to a message without `flow`, because its single `sms` step has no gateway set. See the [Channels](/concepts/channels) concept for an overview of gateways and the [Message flow](/concepts/message-flow) concept for how steps are ordered.
+
+---
+
+## Listing registered senders
+
+The `GET /apikey/me` response lists all of the key's registered senders in the `senders` field. Each entry stands for one sender on one channel:
+
+```bash cURL
+curl https://rest-api.smsmngr.com/v1/apikey/me \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+```json Response excerpt
+{
+  "success": true,
+  "me": {
+    "senders": [
+      { "flow": "sms", "value": "MyCompany", "name": "MyCompany" },
+      { "flow": "sms", "value": "MyCompany CZ", "name": "MyCompany CZ" },
+      { "flow": "sms", "value": "MyCompany SK", "name": "MyCompany SK" }
+    ],
+    "default_sender": "MyCompany",
+    "sender_aliases": [
+      {
+        "name": "brand",
+        "prefixes": { "420": "MyCompany CZ", "421": "MyCompany SK" }
+      }
+    ]
+  }
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `flow` | The sender's channel (`sms`, `viber`, `whatsapp`, …). |
+| `value` | The sender value (name or number). |
+| `name` | The sender's display name. |
+
+You can order new senders and dedicated numbers through the REST API, see [Ordering senders and numbers](/guides/order-services).
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Channels" icon="layer-group" href="/concepts/channels">
+    Each channel's fields, including `sender` and `gateway`.
+  </Card>
+
+  <Card title="Message flow" icon="timeline" href="/concepts/message-flow">
+    How flow steps are ordered and when the next channel takes over.
+  </Card>
+
+  <Card title="Ordering senders and numbers" icon="receipt" href="/guides/order-services">
+    Order an alphanumeric sender or a dedicated number.
+  </Card>
+
+  <Card title="REST API" icon="code" href="/api-reference/rest/overview">
+    The `GET /apikey/me` and `POST /apikey/update` endpoints.
+  </Card>
+</CardGroup>

@@ -1,0 +1,238 @@
+---
+title: "Odesílatelé, aliasy a výchozí odesílatel"
+sidebarTitle: "Odesílatelé"
+description: "Jak SmsManager určí odesílatele zprávy — sender v kroku flow, v kořeni požadavku a výchozí odesílatel účtu, aliasy odesílatele podle země příjemce a automatická volba SMS brány."
+---
+
+Odesílatel je název nebo číslo, pod kterým zpráva příjemci dorazí. Tato stránka vysvětluje, jak SmsManager odesílatele pro každý krok flow určí. Popisuje také aliasy odesílatele, výchozího odesílatele účtu a automatickou volbu SMS brány.
+
+## Pořadí určení odesílatele
+
+SmsManager hledá odesílatele pro každý krok flow v tomto pořadí:
+
+1. **`sender` v kroku flow**, například `flow[].sms.sender`. Má nejvyšší prioritu.
+2. **`sender` v kořeni požadavku.** Platí pro všechny kroky flow, které vlastní `sender` nemají.
+3. **`default_sender` účtu.** Použije se, když `sender` neuvedete ani na jedné úrovni.
+
+Bez pole `flow` se zpráva odešle jako jeden krok `sms`. Kořenový `sender` pak stačí:
+
+```json Tělo požadavku
+{
+  "body": "Testovací zpráva",
+  "sender": "Mojefirma",
+  "to": [{ "phone_number": "420777123456" }]
+}
+```
+
+---
+
+## Hodnota odesílatele podle kanálu
+
+Hodnota `sender` musí být platná pro kanál kroku, na který se použije:
+
+| Kanál | Hodnota `sender` |
+| --- | --- |
+| `sms` | Alfanumerický název (max. 11 znaků) nebo vyhrazené virtuální číslo bez `+`. |
+| `viber` | Název nebo číslo zaregistrované pro Viber Business Messages. |
+| `whatsapp_text`, `whatsapp_template` | Phone Number ID vašeho WhatsApp čísla. |
+| `rcs` | RCS agent zaregistrovaný pro váš účet. |
+
+Ve všech kanálech můžete místo konkrétní hodnoty použít [alias odesílatele](#alias-odesílatele).
+
+Krok, jehož kanál nemá danou hodnotu zaregistrovanou, ji ignoruje. Pokud kombinujete kanály s různými odesílateli, přepište kořenový `sender` v příslušném kroku:
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sender": "Mojefirma",
+    "to": [{ "phone_number": "420777123456" }],
+    "flow": [
+      {
+        "viber": {
+          "body": "Vaše objednávka je připravena k vyzvednutí",
+          "sender": "MyViber",
+          "ttl": 10,
+          "ttl_condition": "delivered"
+        }
+      },
+      {
+        "sms": {
+          "body": "Vaše objednávka je připravena k vyzvednutí"
+        }
+      }
+    ]
+  }'
+```
+
+Krok Viber použije vlastního zaregistrovaného odesílatele `MyViber`. Krok SMS vlastní `sender` nemá, a proto zdědí kořenový `Mojefirma`.
+
+---
+
+## Alias odesílatele
+
+Alias odesílatele je jeden název nastavený pro váš účet. Pro každou zemi příjemce se přeloží na jiného zaregistrovaného odesílatele. Rozhoduje o tom předvolba čísla příjemce. Alias pro vás nastaví podpora, o nastavení požádejte na [cc@smsmanager.cz](mailto:cc@smsmanager.cz).
+
+Alias použijete stejně jako běžného odesílatele. V tomto příkladu je `brand` alias, takže českému příjemci přijde zpráva od českého odesílatele a slovenskému od slovenského:
+
+```bash cURL
+curl -X POST https://api.smsmngr.com/v2/message \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Testovací zpráva",
+    "sender": "brand",
+    "to": [
+      { "phone_number": "420777123456" },
+      { "phone_number": "421905123456" }
+    ]
+  }'
+```
+
+Aliasy svého klíče najdete v odpovědi `GET /apikey/me` v poli `sender_aliases`:
+
+```json Výňatek z odpovědi GET /apikey/me
+{
+  "success": true,
+  "me": {
+    "sender_aliases": [
+      {
+        "name": "brand",
+        "prefixes": {
+          "420": "Mojefirma CZ",
+          "421": "Mojefirma SK"
+        }
+      }
+    ]
+  }
+}
+```
+
+| Pole | Popis |
+| --- | --- |
+| `name` | Název aliasu, který použijete jako `sender` zprávy. |
+| `prefixes` | Mapa předvolby čísla příjemce na zaregistrovaného odesílatele. |
+
+---
+
+## Výchozí odesílatel účtu (`default_sender`)
+
+Pole `default_sender` se použije, když zpráva neuvádí `sender` v kroku flow ani v kořeni požadavku. Jde o výchozí hodnotu pro celý účet. Nastavíte ji přes REST endpoint `POST /apikey/update`:
+
+```bash Nastavit výchozího odesílatele
+curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "default_sender": "Mojefirma"
+  }'
+```
+
+Pro hodnotu `default_sender` platí:
+
+- Má nejvýše 64 znaků a nesmí obsahovat `,` ani `:`.
+- Může jít o zaregistrovaného odesílatele, nebo o název aliasu odesílatele.
+- Odesílatele, kterého nemáte zaregistrovaného, uložíme. Odpověď jej ale vrátí v poli `warning` a při odeslání se ignoruje.
+- Hodnota `null` nebo prázdný řetězec výchozího odesílatele smaže.
+
+```bash Smazat výchozího odesílatele
+curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "default_sender": null
+  }'
+```
+
+Nadřazený klíč může nastavit `default_sender` i svému podřízenému klíči. Do požadavku přidejte pole `apikey` s podřízeným klíčem. Registrace odesílatele se pak ověřuje proti odesílatelům podřízeného klíče:
+
+```bash Nastavit výchozího odesílatele podřízenému klíči
+curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "apikey": "cD4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40",
+    "default_sender": "Mojefirma"
+  }'
+```
+
+Aktuální hodnotu vrací `GET /apikey/me` v poli `default_sender`.
+
+<Note>
+  `default_sender` je výchozí hodnota pro celý účet. Nesouvisí s nastaveními `default_sender_<platform>_<mcc>` pro jednotlivé země.
+</Note>
+
+---
+
+## Automatická volba SMS brány
+
+Pokud v kroku `sms` neuvedete `gateway`, SmsManager ji určí podle odesílatele zaregistrovaného pro váš účet:
+
+| Odesílatel | Brána | Účtování |
+| --- | --- | --- |
+| Vyhrazené virtuální číslo | `direct` | cena brány `direct` |
+| Jiný odesílatel | výchozí směrování (`high`) | jako `high` |
+
+Explicitně uvedená `gateway` má vždy přednost. Stejně se brána určí i u zprávy bez `flow`, protože její jediný krok `sms` nemá bránu nastavenou. Přehled bran najdete v konceptu [Kanály](/concepts/channels) a řazení kroků v konceptu [Tok zpráv](/concepts/message-flow).
+
+---
+
+## Přehled registrovaných odesílatelů
+
+Odpověď `GET /apikey/me` vrací v poli `senders` všechny registrované odesílatele klíče. Každá položka odpovídá jednomu odesílateli v jednom kanálu:
+
+```bash cURL
+curl https://rest-api.smsmngr.com/v1/apikey/me \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+```json Výňatek z odpovědi
+{
+  "success": true,
+  "me": {
+    "senders": [
+      { "flow": "sms", "value": "Mojefirma", "name": "Mojefirma" },
+      { "flow": "sms", "value": "Mojefirma CZ", "name": "Mojefirma CZ" },
+      { "flow": "sms", "value": "Mojefirma SK", "name": "Mojefirma SK" }
+    ],
+    "default_sender": "Mojefirma",
+    "sender_aliases": [
+      {
+        "name": "brand",
+        "prefixes": { "420": "Mojefirma CZ", "421": "Mojefirma SK" }
+      }
+    ]
+  }
+}
+```
+
+| Pole | Popis |
+| --- | --- |
+| `flow` | Kanál odesílatele (`sms`, `viber`, `whatsapp`, …). |
+| `value` | Hodnota odesílatele (název nebo číslo). |
+| `name` | Zobrazovaný název odesílatele. |
+
+Nové odesílatele a vyhrazená čísla si objednáte přes REST API, viz [Objednání odesílatelů a čísel](/guides/order-services).
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Kanály" icon="layer-group" href="/concepts/channels">
+    Pole jednotlivých kanálů včetně `sender` a `gateway`.
+  </Card>
+
+  <Card title="Tok zpráv" icon="timeline" href="/concepts/message-flow">
+    Jak se kroky flow řadí a kdy se přejde na další kanál.
+  </Card>
+
+  <Card title="Objednání odesílatelů a čísel" icon="receipt" href="/guides/order-services">
+    Objednejte alfanumerického odesílatele nebo vyhrazené číslo.
+  </Card>
+
+  <Card title="REST API" icon="code" href="/api-reference/rest/overview">
+    Endpointy `GET /apikey/me` a `POST /apikey/update`.
+  </Card>
+</CardGroup>

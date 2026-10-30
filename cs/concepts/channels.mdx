@@ -18,7 +18,7 @@ SmsManager podporuje pět messagingových kanálů, každý s vlastními předno
 
     | Pole | Typ | Výchozí | Popis |
     | --- | --- | --- | --- |
-    | `sender` | string | — | Alfanumerické jméno odesílatele (max 11 znaků) nebo vyhrazené virtuální číslo bez úvodního `+`. Pro alfanumerické odesílatele může být vyžadována předregistrace. |
+    | `sender` | string | — | Alfanumerické jméno odesílatele (max 11 znaků) nebo vyhrazené virtuální číslo bez úvodního `+`, případně alias odesílatele. Pro alfanumerické odesílatele může být vyžadována předregistrace. Pokud ho v kroku neuvedete, použije se `sender` z kořene požadavku a poté výchozí odesílatel vašeho účtu (`default_sender`). Viz [Odesílatelé](/concepts/senders). |
     | `gateway` | string | `high` | Směrovací brána. Použijte `high` pro standardní doručení, `direct` při odesílání z vyhrazeného virtuálního čísla nebo `custom` pro nastavení SIM hostování. |
     | `ttl` | integer | — | Doba života v minutách. Pokud nelze zprávu v tomto okně doručit, je vyřazena. |
     | `type` | string | `utf` | Kódování znaků. `utf` zachovává Unicode znaky (emoji, cyrilice atd.). `sms` odstraňuje nebo převádí Unicode pro maximalizaci počtu znaků na SMS část. |
@@ -30,7 +30,7 @@ SmsManager podporuje pět messagingových kanálů, každý s vlastními předno
     ### Průvodce bránami
 
     - **`high`** — Výchozí sdílená brána, vhodná pro drtivou většinu SMS odeslání.
-    - **`direct`** — Použijte, pokud jste zakoupili vyhrazené virtuální číslo a chcete obousměrnou komunikaci. Nastavte `sender` na vaše virtuální číslo (bez `+`). Nemusí být vždy nezbytné, pokud je přidělené číslo ze zámého rozsahu, nastavíme bránu `direct` automaticky na základě formátu čísla `sender`.
+    - **`direct`** — Použijte, pokud jste zakoupili vyhrazené virtuální číslo a chcete obousměrnou komunikaci. Nastavte `sender` na vaše virtuální číslo (bez `+`). Pokud `gateway` neuvedete a `sender` je vyhrazené virtuální číslo registrované pro váš účet, zvolíme `direct` automaticky, včetně ceny `direct`. Podrobnosti najdete v popisu [toku zpráv](/concepts/message-flow).
     - **`custom`** — Použijte při používání hostování SIM karet. Kontaktujte podporu SmsManager pro konfiguraci této brány.
 
     ### Příklad
@@ -62,7 +62,7 @@ SmsManager podporuje pět messagingových kanálů, každý s vlastními předno
     | Pole | Typ | Popis |
     | --- | --- | --- |
     | `body` | string | Text zprávy (max 1 000 znaků). |
-    | `sender` | string | Předregistrované jméno Viber Business odesílatele. Musí přesně odpovídat jménu registrovanému přes SmsManager. |
+    | `sender` | string | Předregistrované jméno Viber Business odesílatele nebo alias odesílatele. Musí přesně odpovídat jménu registrovanému přes SmsManager. Pokud ho v kroku neuvedete, použije se `sender` z kořene požadavku a poté výchozí odesílatel vašeho účtu (`default_sender`). Viz [Odesílatelé](/concepts/senders). |
 
     ### Volitelná pole
 
@@ -118,8 +118,14 @@ SmsManager podporuje pět messagingových kanálů, každý s vlastními předno
 
     | Pole | Typ | Popis |
     | --- | --- | --- |
-    | `body` | string | Text zprávy (max 1 000 znaků). Povoleno pouze v rámci 24hodinového zákaznického okna. |
-    | `sender` | string | Phone Number ID vašeho registrovaného WhatsApp čísla. |
+    | `body` | string | Text zprávy (max 1 000 znaků). Povoleno pouze v rámci 24hodinového zákaznického okna. U zprávy s médiem slouží jako popisek a můžete ho vynechat. |
+    | `sender` | string | Phone Number ID vašeho registrovaného WhatsApp čísla nebo alias odesílatele. Pokud ho v kroku neuvedete, použije se `sender` z kořene požadavku a poté výchozí odesílatel vašeho účtu (`default_sender`). Viz [Odesílatelé](/concepts/senders). |
+
+    ### Volitelná pole
+
+    | Pole | Typ | Popis |
+    | --- | --- | --- |
+    | `image`, `video`, `document`, `audio` | string nebo object | Médium z veřejné URL — buď URL jako řetězec, nebo objekt s `url`. V jedné zprávě použijte nejvýše jedno. Formáty a další pole najdete v referenci [WhatsApp text](/reference/whatsapp-text#media). |
 
     ### Požadavky na nastavení
 
@@ -162,7 +168,7 @@ SmsManager podporuje pět messagingových kanálů, každý s vlastními předno
     | Pole | Typ | Popis |
     | --- | --- | --- |
     | `template_name` | string | Přesný název schválené šablony (max 100 znaků). |
-    | `sender` | string | Phone Number ID vašeho registrovaného WhatsApp čísla. |
+    | `sender` | string | Phone Number ID vašeho registrovaného WhatsApp čísla nebo alias odesílatele. Pokud ho v kroku neuvedete, použije se `sender` z kořene požadavku a poté výchozí odesílatel vašeho účtu (`default_sender`). Viz [Odesílatelé](/concepts/senders). |
     | `language` | string | Kód jazyka verze šablony (např. `en`, `cs`, `de`). |
 
     ### Volitelná pole
@@ -215,23 +221,24 @@ SmsManager podporuje pět messagingových kanálů, každý s vlastními předno
   <Tab title="RCS">
     ## RCS kanál
 
-    RCS (Rich Communication Services) je nástupce SMS s bohatým obsahem přímo v nativní aplikaci pro zprávy na Androidu. Umožňuje odesílat text, návrhy odpovědí a akční tlačítka, samostatnou rich card i produktový carousel. RCS zprávy se doručí jen příjemcům s aktivním RCS, proto je vhodné za RCS krok vždy zařadit SMS zálohu.
+    RCS (Rich Communication Services) je nástupce SMS s bohatým obsahem přímo v nativní aplikaci pro zprávy na Androidu. Umožňuje odesílat text, obrázky, videa, dokumenty a audio, návrhy odpovědí a akční tlačítka, samostatnou rich card i produktový carousel. RCS zprávy se doručí jen příjemcům s aktivním RCS, proto je vhodné za RCS krok vždy zařadit SMS zálohu.
 
     ### Povinná pole
 
     | Pole | Typ | Popis |
     | --- | --- | --- |
-    | `sender` | string | ID vašeho RCS agenta (odesílatele). |
+    | `sender` | string | ID vašeho RCS agenta (odesílatele) nebo alias odesílatele. Pokud ho v kroku neuvedete, použije se `sender` z kořene požadavku a poté výchozí odesílatel vašeho účtu (`default_sender`). Viz [Odesílatelé](/concepts/senders). |
 
     ### Volitelná pole
 
     | Pole | Typ | Popis |
     | --- | --- | --- |
-    | `body` | string | Text zprávy. |
+    | `body` | string | Text zprávy. U zprávy s médiem slouží jako popisek. |
     | `ttl` | integer | Doba života v minutách. Po jejím uplynutí se přejde na další kanál ve flow. |
+    | `image`, `video`, `document`, `audio` | string nebo object | Médium z veřejné URL — buď URL jako řetězec, nebo objekt s `url`. V jedné zprávě použijte nejvýše jedno. Viz [Media](/reference/rcs#media). |
     | `buttons` | array | Návrhy odpovědí a akční tlačítka (`reply` / `url`). |
     | `card` | object | Samostatná rich card s media, nadpisem, popisem a tlačítky. |
-    | `carousel` | array | Vodorovně listovatelná řada karet. |
+    | `carousel` | array | Vodorovně listovatelná řada 2 až 10 karet. |
 
     Úplný přehled polí a příklady najdete v referenci [Parametry RCS zpráv](/reference/rcs).
 

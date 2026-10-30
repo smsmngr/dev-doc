@@ -10,8 +10,8 @@ Objekt `whatsapp_text` odesílá volný obsah přes WhatsApp v otevřeném **24h
 
 | Pole | Typ | Popis |
 | --- | --- | --- |
-| `sender` | string | **Phone Number ID** vašeho WhatsApp odesílatele (číselné ID, ne telefonní číslo). Povinné. |
-| `body` | string | Text zprávy. Zároveň slouží jako popisek (caption) u media a jako text u interaktivních zpráv. Pokud není uveden, použije se `body` z kořene požadavku. |
+| `sender` | string | **Phone Number ID** vašeho WhatsApp odesílatele (číselné ID, ne telefonní číslo) nebo alias odesílatele. Krok ho potřebuje, ale nemusíte ho uvádět přímo v něm: pokud chybí, použije se `sender` z kořene požadavku a poté výchozí odesílatel vašeho účtu (`default_sender`). Viz [Odesílatelé](/concepts/senders). |
+| `body` | string | Text zprávy. U zprávy s médiem slouží jako popisek (caption) a můžete ho vynechat. U interaktivních zpráv je to text zprávy. Pokud není uveden, použije se `body` z kořene požadavku. |
 | `preview` | boolean | U prostého textu zapíná náhled odkazu (`preview_url`). Výchozí `false`. |
 
 ```json Prostý text s náhledem odkazu
@@ -44,23 +44,44 @@ Media lze odeslat dvěma způsoby.
 | `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`, `.txt` | Dokument |
 | `.mp3`, `.acc`, `.m4a`, `.ogg`, `.amr` | Audio |
 
-**2. Explicitním objektem** — předáte objekt `image`, `video`, `document` nebo `audio` s polem `link`. U obrázku, videa a dokumentu se `body` použije jako popisek (caption), pokud objekt vlastní `caption` neobsahuje.
+**2. Polem s médiem** — předáte pole `image`, `video`, `document` nebo `audio`. Hodnotou je buď URL souboru jako řetězec, nebo objekt s polem `url`. Soubor musí být dostupný na veřejné URL.
 
-```json Obrázek s popiskem
+| Pole | Podporované formáty | Popisek (`caption`) |
+| --- | --- | --- |
+| `image` | JPEG, PNG | Ano |
+| `video` | MP4, 3GP | Ano |
+| `document` | Například PDF, DOCX, XLSX | Ano, navíc `filename` |
+| `audio` | Například MP3, OGG | Ne |
+
+Objekt média přijímá tato pole:
+
+| Pole | Typ | Popis |
+| --- | --- | --- |
+| `url` | string | Veřejná URL souboru. Povinné. |
+| `caption` | string | Popisek zobrazený u média. Pokud ho neuvedete, použije se `body`. Audio popisek nepodporuje. |
+| `filename` | string | Název souboru zobrazený příjemci. Pouze u dokumentů. |
+
+V jedné zprávě použijte nejvýše jedno pole s médiem. Pokud zpráva obsahuje médium, `body` se použije jako popisek a můžete ho vynechat.
+
+```json Obrázek s popiskem z body
 {
   "whatsapp_text": {
     "sender": "514578330250514",
     "body": "Náhled produktu",
-    "image": { "link": "https://example.com/produkt.jpg" }
+    "image": "https://example.com/produkt.jpg"
   }
 }
 ```
 
-```json Dokument s vlastním názvem souboru
+```json Dokument s popiskem a vlastním názvem souboru
 {
   "whatsapp_text": {
     "sender": "514578330250514",
-    "document": { "link": "https://example.com/faktura.pdf", "filename": "faktura.pdf" }
+    "document": {
+      "url": "https://example.com/faktura.pdf",
+      "caption": "Faktura za říjen",
+      "filename": "faktura-2026-10.pdf"
+    }
   }
 }
 ```
@@ -144,7 +165,7 @@ Pro pokročilé případy, které toto rozhraní nepokrývá, můžete předat o
 ```
 
 <Note>
-  Pole se vyhodnocují v pořadí: media v `body` → objekty `document`/`audio`/`image`/`video` → `buttons` → `url` → `raw` → prostý text. Uplatní se první, které v požadavku najdeme, proto v jedné zprávě kombinujte jen jeden typ obsahu.
+  Pole se vyhodnocují v pořadí: media v `body` → pole `document`/`audio`/`image`/`video` → `buttons` → `url` → `raw` → prostý text. Uplatní se první, které v požadavku najdeme, proto v jedné zprávě kombinujte jen jeden typ obsahu.
 </Note>
 
 ---

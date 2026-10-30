@@ -1,0 +1,522 @@
+---
+title: "Stav zpráv a statistiky"
+sidebarTitle: "Stav a statistiky"
+description: "Zjistěte stav konkrétní zprávy, projděte odeslané zprávy za den, stáhněte statistiky požadavků a tagů a čtěte přijaté zprávy přes REST API endpointy /message, /messages, /request, /requests a /inbox."
+---
+
+Webhooky vám posílají změny stavu ve chvíli, kdy nastanou. REST API vám stejné informace vydá na vyžádání. Můžete se zeptat na stav jedné zprávy, projít všechny zprávy odeslané za den, stáhnout souhrnné statistiky nebo načíst přijaté zprávy.
+
+<Note>
+  Všechny endpointy na této stránce patří do [REST API](/api-reference/rest/overview). Základní URL je `https://rest-api.smsmngr.com/v1`. Autentizace je stejná jako u JSON API v2: hlavička `x-api-key` se stejným API klíčem. Svůj API klíč najdete v sekci [Vývojáři](https://app.smsmanager.com/app/developers/).
+</Note>
+
+<Tip>
+  Skill `smsmanager-message-status` z balíčku [SmsManager skills](/ai/skills) zná všechny endpointy z této stránky. AI asistent připojený přes [MCP server](/ai/mcp-server) zjistí stav zprávy nástrojem `get_message_status` a přehled dne nástrojem `list_messages`.
+</Tip>
+
+---
+
+## Webhooky, nebo dotazování
+
+Pro sledování v reálném čase použijte [webhooky](/guides/webhooks). O každé změně se dozvíte hned a nemusíte se opakovaně ptát. Dotazování přes REST API se hodí jako doplněk:
+
+- **Dohledání stavu** — když webhook nedorazil nebo ho váš server nezpracoval.
+- **Kontrola proti vlastní databázi** — například jednou denně porovnáte odeslané zprávy se svými záznamy.
+- **Reporty a dashboardy** — počty odeslaných, doručených a prokliknutých zpráv po dnech a tazích.
+- **Integrace bez veřejné callback URL** — například interní skript, na který SmsManager nemůže posílat webhooky.
+
+<Warning>
+  Neptejte se na stav každé zprávy v krátké smyčce. Pro průběžné sledování jsou webhooky efektivnější a nezatěžují vaši integraci zbytečnými požadavky.
+</Warning>
+
+| Endpoint | Co vrací | Typické použití |
+| --- | --- | --- |
+| `GET /message?id=` | Úplný stav jedné zprávy | Detail zprávy, ladění |
+| `GET /messages?date=` | Řádky po příjemcích za jeden den | Kontrola a export odeslaných zpráv |
+| `GET /request?date=&id=` | Statistiky jednoho požadavku (`request_id`) | Výsledek jednoho odesílacího volání |
+| `GET /requests?dates=` | Souhrnné statistiky po dnech, volitelně po tazích | Reporty a dashboardy |
+| `GET /inbox?date=` | Přijaté zprávy za jeden den | Zpracování odpovědí, záloha k webhookům |
+
+---
+
+## Stav jedné zprávy
+
+`GET /message` vrací úplný stav jedné zprávy podle jejího `message_id`.
+
+```bash cURL
+curl "https://rest-api.smsmngr.com/v1/message?id=e27ff0ac-87b5-4e1d-b644-5fc6029e2a11" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+```json Odpověď
+{
+  "success": true,
+  "message": {
+    "status_code": "200",
+    "delivery_code": "201",
+    "status_info": "Delivered",
+    "tag": "newsletter",
+    "body": "Dobrý den, vaše objednávka je na cestě.",
+    "to": { "phone_number": "420777123456" },
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+    "ts_created": "2026-07-30T10:00:00Z",
+    "ts_sent": "2026-07-30T10:00:01Z",
+    "ts_delivered": "2026-07-30T10:00:04Z",
+    "ts_seen": null,
+    "ts_clicked": null,
+    "ts_updated": "2026-07-30T10:00:05Z",
+    "flow": [{ "sms": {} }],
+    "flow_index": "0",
+    "flow_status": {
+      "0": { "status_code": "200", "delivery_code": "201" }
+    },
+    "price": 1.2
+  }
+}
+```
+
+| Pole | Popis |
+| --- | --- |
+| `status_code` | Stavový kód odeslání. `200` znamená odesláno. |
+| `delivery_code` | Stavový kód doručení. `201` znamená doručeno, `202` zobrazeno. |
+| `status_info` | Textový popis stavu, například `Delivered`. |
+| `tag`, `body`, `to` | Tag, text a příjemce zprávy tak, jak jste je odeslali. |
+| `request_id` | ID požadavku, ve kterém jste zprávu odeslali. |
+| `ts_created`, `ts_sent`, `ts_delivered`, `ts_seen`, `ts_clicked`, `ts_updated` | Čas vytvoření, odeslání, doručení, zobrazení, prokliku a poslední změny. Dokud událost nenastane, je hodnota `null`. |
+| `flow` | Původní `flow` zprávy. |
+| `flow_index` | Index kroku `flow`, který se použil. |
+| `flow_status` | Stavové kódy (`status_code`, `delivery_code`) jednotlivých kroků, klíčované indexem kroku. |
+| `price` | Cena zprávy. |
+
+Stavové kódy jsou řetězce (`"200"`, ne `200`), proto je tak i porovnávejte. Význam všech kódů najdete v [přehledu chyb](/reference/errors).
+
+U zprávy s více kroky, například Viber se zálohou na SMS, vám `flow_index` řekne, který krok se použil. V `flow_status` vidíte stav každého kroku zvlášť.
+
+<Note>
+  `GET /message` vrací jen zprávy odeslané stejným API klíčem, kterým se ptáte. Pokud zprávu odeslal jiný klíč, třeba váš podřízený klíč, dostanete `"message": null`. Stejnou odpověď dostanete i pro neexistující ID.
+</Note>
+
+Zprávy odeslané přes `POST /messages` v JSON API v2 mají ID s příponou indexu příjemce, například `e27ff0ac-87b5-4e1d-b644-5fc6029e2a11-1`. Na stav se ptejte právě tímto ID. Jak se ID skládají, popisuje koncept [message_id a request_id](/concepts/message-ids).
+
+---
+
+## Odeslané zprávy za den
+
+`GET /messages` vrací přehled zpráv odeslaných v jeden den, jeden řádek na příjemce. Výsledky se stránkují kurzorem.
+
+| Parametr | Povinný | Popis |
+| --- | --- | --- |
+| `date` | ano | Den ve formátu `YYYY-MM-DD`. |
+| `tag` | ne | Vrátí jen zprávy s tímto tagem. Tagy oddělené čárkou se před porovnáním normalizují a seřadí, takže na jejich pořadí nezáleží. |
+| `phone_number` | ne | Vrátí jen zprávy pro toto telefonní číslo příjemce. |
+| `subid` | ne | ID podúčtu. Výchozí hodnota je `default`. |
+| `cursor` | ne | Kurzor další stránky z pole `next_cursor` předchozí odpovědi. |
+
+```bash cURL
+curl "https://rest-api.smsmngr.com/v1/messages?date=2026-07-30&tag=newsletter" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+```json Odpověď
+{
+  "success": true,
+  "messages": [
+    {
+      "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+      "message_parts": 1,
+      "ts_sent": "2026-07-30T10:00:01Z",
+      "ts_delivered": "2026-07-30T10:00:04Z",
+      "ts_updated": "2026-07-30T10:00:05Z",
+      "ts_clicked": null,
+      "ts_seen": null,
+      "ts_replied": null,
+      "ts_optout": null,
+      "sent": 1,
+      "delivered": 1,
+      "seen": 0,
+      "clicked": 0,
+      "replied": 0,
+      "optout": 0,
+      "nondelivered": 0,
+      "body": "Dobrý den, vaše objednávka je na cestě.",
+      "flow": "sms",
+      "sender": "Mojefirma",
+      "phone_number": "420777123456",
+      "price_czk": "1.2",
+      "price_eur": "0.05"
+    }
+  ],
+  "next_cursor": null
+}
+```
+
+| Pole | Popis |
+| --- | --- |
+| `message_id` | ID zprávy. Úplný detail získáte přes `GET /message`. |
+| `phone_number`, `sender`, `body` | Příjemce, odesílatel a text zprávy. |
+| `flow` | Kanál, přes který zpráva odešla, například `sms`. Na rozdíl od `GET /message` jde o řetězec, ne o celé `flow`. |
+| `message_parts` | Počet částí zprávy. |
+| `sent`, `delivered`, `nondelivered`, `seen`, `clicked`, `replied`, `optout` | Čítače jednotlivých událostí zprávy. |
+| `ts_sent`, `ts_delivered`, `ts_seen`, `ts_clicked`, `ts_replied`, `ts_optout`, `ts_updated` | Čas události. Dokud událost nenastane, je hodnota `null`. |
+| `price_czk`, `price_eur` | Cena v CZK a EUR jako číselný řetězec. |
+
+### Stránkování
+
+Pokud `next_cursor` v odpovědi není `null`, pošlete jeho hodnotu v parametru `cursor` a dostanete další stránku. Ostatní parametry nechte stejné. Jakmile je `next_cursor` `null`, máte všechny řádky.
+
+<CodeGroup>
+
+```javascript Node.js
+const rows = [];
+let cursor = null;
+
+do {
+  const params = new URLSearchParams({ date: "2026-07-30" });
+  if (cursor) params.set("cursor", cursor);
+
+  const response = await fetch(
+    `https://rest-api.smsmngr.com/v1/messages?${params}`,
+    { headers: { "x-api-key": "YOUR_API_KEY" } }
+  );
+  const data = await response.json();
+
+  rows.push(...data.messages);
+  cursor = data.next_cursor;
+} while (cursor);
+```
+
+```python Python
+import requests
+
+rows, cursor = [], None
+
+while True:
+    params = {"date": "2026-07-30"}
+    if cursor:
+        params["cursor"] = cursor
+
+    data = requests.get(
+        "https://rest-api.smsmngr.com/v1/messages",
+        headers={"x-api-key": "YOUR_API_KEY"},
+        params=params,
+    ).json()
+
+    rows.extend(data["messages"])
+    cursor = data["next_cursor"]
+    if not cursor:
+        break
+```
+
+</CodeGroup>
+
+---
+
+## Statistiky jednoho požadavku
+
+`GET /request` vrací souhrnné statistiky jednoho odesílacího požadavku. Jako `id` použijte `request_id`, které vám JSON API v2 vrátilo při odeslání. Statistiky se vedou po dnech, proto zadejte i `date`.
+
+```bash cURL
+curl "https://rest-api.smsmngr.com/v1/request?date=2026-07-30&id=bc36f3d1-d284-463a-921b-a3560c154649" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+```json Odpověď
+{
+  "success": true,
+  "request": {
+    "count_delivered": "120",
+    "count_nondelivered": "3",
+    "count_sent": "125",
+    "count_notsent": "2",
+    "count_replied": "5",
+    "count_optout": "1",
+    "msg_sent": "130",
+    "price_czk": "150.5",
+    "price_eur": "6.1",
+    "first_ts_sent": "1785402000",
+    "last_ts_sent": "1785402300"
+  }
+}
+```
+
+| Pole | Popis |
+| --- | --- |
+| `count_sent`, `count_notsent` | Počet odeslaných a neodeslaných zpráv. |
+| `count_delivered`, `count_nondelivered` | Počet doručených a nedoručených zpráv. |
+| `count_replied` | Počet zpráv, na které příjemce odpověděl. |
+| `count_optout` | Počet odhlášení z odběru (opt-out). |
+| `price_czk`, `price_eur` | Celková cena v CZK a EUR. |
+| `first_ts_sent`, `last_ts_sent` | Unixový čas (v sekundách) prvního a posledního odeslání. |
+
+Všechny hodnoty v objektu `request` jsou řetězce, včetně čítačů a časů. Pokud pro zadaný den a `id` žádné statistiky neexistují, dostanete `"request": null`. Volitelný parametr `subid` funguje stejně jako u `GET /messages`.
+
+---
+
+## Statistiky po dnech a tazích
+
+`GET /requests` sčítá statistiky za celé dny. V parametru `dates` předejte jedno nebo více dat oddělených čárkou.
+
+| Parametr | Povinný | Popis |
+| --- | --- | --- |
+| `dates` | ano | Data oddělená čárkou, například `2026-07-29,2026-07-30`. |
+| `tag` | ne | Vrátí jen statistiky zpráv s tímto tagem. |
+| `group` | ne | Hodnota `tag` vrátí rozpad po tazích místo souhrnu za den. |
+| `subid` | ne | ID podúčtu. Výchozí hodnota je `default`. |
+
+```bash cURL
+curl "https://rest-api.smsmngr.com/v1/requests?dates=2026-07-29,2026-07-30" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Pole `requests` obsahuje jednu položku za každý den, pro který existují data. Dny bez záznamů se vynechají. Každá položka obsahuje `date`, seznam nalezených tagů v `tags` a statistiky ve `stats`.
+
+```json Odpověď
+{
+  "success": true,
+  "requests": [
+    {
+      "date": "2026-07-30",
+      "tags": ["newsletter", "promo"],
+      "stats": {
+        "count_delivered": 120,
+        "count_seen": 40,
+        "count_clicked": 10,
+        "count_nondelivered": 3,
+        "count_sent": 125,
+        "count_notsent": 29,
+        "count_replied": 5,
+        "count_optout": 1,
+        "msg_sent": 130,
+        "price_czk": 118.75,
+        "price_eur": 0,
+        "first_ts_sent": "1785402000",
+        "last_ts_sent": "1785434400",
+        "msg_mccmnc": { "23001": 50, "23002": 80 },
+        "count_notsent_codes": { "300": 27, "303": 2 },
+        "flow_stats": {
+          "0": {
+            "viber": { "sent": 100, "notsent": 27, "delivered": 98, "nondelivered": 1, "seen": 40, "clicked": 10, "replied": 5, "optout": 1 }
+          },
+          "1": {
+            "sms": { "sent": 25, "notsent": 2, "delivered": 22, "nondelivered": 2, "seen": 0, "clicked": 0, "replied": 0, "optout": 0 }
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+| Pole | Popis |
+| --- | --- |
+| `count_sent`, `count_notsent` | Počet odeslaných a neodeslaných zpráv. |
+| `count_delivered`, `count_nondelivered` | Počet doručených a nedoručených zpráv. |
+| `count_seen`, `count_clicked` | Počet unikátních zobrazených a prokliknutých zpráv, odvozený z čítačů jednotlivých kroků `flow`. |
+| `count_replied`, `count_optout` | Počet zpráv s odpovědí a počet odhlášení z odběru. |
+| `price_czk`, `price_eur` | Celková cena v CZK a EUR. Vratky za neodeslané zprávy jsou už odečtené. |
+| `first_ts_sent`, `last_ts_sent` | Unixový čas (v sekundách) prvního a posledního odeslání, jako řetězec. |
+| `msg_mccmnc` | Počty zpráv podle mobilní sítě. Klíčem je MCC+MNC, například `23001`. |
+| `count_notsent_codes` | Rozpad `count_notsent` podle stavového kódu. |
+| `flow_stats` | Čítače po krocích `flow` a kanálech. |
+
+Na rozdíl od `GET /request` jsou čítače v `GET /requests` čísla, ne řetězce.
+
+### Proč zprávy neodešly
+
+`count_notsent_codes` rozkládá `count_notsent` podle stavového kódu zamítnutí (`300`–`399`). Klíčem je kód, hodnotou počet zpráv. Součet hodnot vždy odpovídá `count_notsent`. V příkladu výše skončilo 27 zpráv s kódem `300` a 2 s kódem `303`. Význam kódů najdete v [přehledu chyb](/reference/errors).
+
+### Statistiky po krocích flow
+
+`flow_stats` je klíčovaný indexem kroku (`"0"`, `"1"`, …) a dále názvem kanálu, například `sms`, `viber` nebo `whatsapp_template`. Pro každý kanál dostanete čítače `sent`, `notsent`, `delivered`, `nondelivered`, `seen`, `clicked`, `replied` a `optout`.
+
+Čítače fungují dvěma způsoby:
+
+- **Doručovací metriky** (`delivered`, `nondelivered`, `seen`, `clicked`, `replied`, `optout`) započítají každou zprávu v rámci kroku nejvýše jednou.
+- **`sent` a `notsent`** počítají pokusy o odeslání.
+
+V příkladu má Viber krok (`"0"`) 100 odeslaných a 27 neodeslaných pokusů. SMS krok (`"1"`) má 25 odeslaných a 2 neodeslané. Tak vidíte, jakou část provozu nesl záložní SMS kanál.
+
+### Rozpad po tazích
+
+S parametrem `group=tag` je `stats` pole místo jednoho objektu. Každá položka patří jednomu tagu, jehož hodnota je v poli `key`. Obsahuje stejné čítače jako souhrn za den.
+
+Zpráva s více tagy se mezi jednotlivé tagy nerozpočítá. Zůstane pod jedním klíčem s kombinací tagů spojenou čárkou, například `newsletter,promo`.
+
+```bash cURL
+curl "https://rest-api.smsmngr.com/v1/requests?dates=2026-07-30&group=tag" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+```json Odpověď (zkráceno)
+{
+  "success": true,
+  "requests": [
+    {
+      "date": "2026-07-30",
+      "tags": ["newsletter", "promo"],
+      "stats": [
+        {
+          "key": "newsletter",
+          "count_sent": 72,
+          "count_delivered": 70,
+          "count_seen": 25,
+          "count_clicked": 6,
+          "count_notsent": 15,
+          "count_notsent_codes": { "300": 14, "303": 1 },
+          "price_czk": 68.4
+        },
+        {
+          "key": "promo",
+          "count_sent": 53,
+          "count_delivered": 50,
+          "count_seen": 15,
+          "count_clicked": 4,
+          "count_notsent": 14,
+          "count_notsent_codes": { "300": 13, "303": 1 },
+          "price_czk": 50.35
+        }
+      ]
+    }
+  ]
+}
+```
+
+Skutečná odpověď obsahuje u každého tagu všechna pole souhrnu, včetně `msg_mccmnc` a `flow_stats`.
+
+---
+
+## Přijaté zprávy
+
+`GET /inbox` vrací zprávy, které jste přijali v zadaný den. Najdete tu odpovědi na vaše zprávy i nevyžádané příchozí zprávy.
+
+```bash cURL
+curl "https://rest-api.smsmngr.com/v1/inbox?date=2026-07-30" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+```json Odpověď
+{
+  "success": true,
+  "inbox": [
+    {
+      "ts_received": "2026-07-30T11:22:33Z",
+      "body": "STOP",
+      "from": "420777123456",
+      "to": "Mojefirma",
+      "gateway": "sms",
+      "payload": null,
+      "original": null,
+      "media": null
+    },
+    {
+      "ts_received": "2026-07-30T11:25:02Z",
+      "body": "ANO",
+      "from": "420777654321",
+      "to": "Mojefirma",
+      "gateway": "sms",
+      "payload": { "order_id": 42 },
+      "original": {
+        "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+        "body": "Potvrďte objednávku odpovědí ANO.",
+        "sender": "Mojefirma",
+        "created": 1785410553
+      },
+      "media": null
+    },
+    {
+      "ts_received": "2026-07-30T12:34:56Z",
+      "body": "fotka poškozeného balíku",
+      "from": "420777123456",
+      "to": "420736352552",
+      "gateway": "whatsapp",
+      "payload": null,
+      "original": null,
+      "media": {
+        "type": "image",
+        "url": "https://smsmngr-inbound-media.s3.eu-central-1.amazonaws.com/3f7a1c9b2e4d5f60718293a4b5c6d7e8.jpg",
+        "mime_type": "image/jpeg",
+        "caption": "fotka poškozeného balíku",
+        "size": 245731,
+        "provider_id": "1234567890123456"
+      }
+    }
+  ]
+}
+```
+
+| Pole | Popis |
+| --- | --- |
+| `ts_received` | Čas přijetí zprávy. |
+| `body` | Text zprávy. |
+| `from` | Telefonní číslo, ze kterého zpráva přišla. |
+| `to` | Vaše číslo nebo odesílatel, na kterého zpráva přišla. |
+| `gateway` | Kanál, například `sms` nebo `whatsapp`. |
+| `payload` | `payload` související odchozí zprávy, pokud existuje. Jinak `null`. |
+| `original` | Odchozí zpráva, na kterou příchozí zpráva odpovídá. |
+| `media` | Příloha zprávy. |
+
+### Spárovaná odchozí zpráva
+
+Pokud se příchozí zprávu podaří spárovat s vaší odchozí zprávou, najdete ji v objektu `original`. U nevyžádaných příchozích zpráv je `original` `null`.
+
+| Pole | Popis |
+| --- | --- |
+| `message_id` | ID původní odchozí zprávy. Její stav zjistíte přes `GET /message`. |
+| `body` | Text původní zprávy. |
+| `sender` | Odesílatel původní zprávy. U short kódu je prázdný. |
+| `created` | Kdy byla původní zpráva vytvořena (unixový čas v sekundách). |
+
+### Přílohy
+
+Pokud příchozí zpráva z WhatsAppu nebo RCS obsahuje médium, popisuje ho objekt `media`. Může jít o obrázek, video, audio, dokument, nálepku, sdílenou polohu nebo kontaktní karty. U čistě textových zpráv je `media` `null`. Objekt má stejnou strukturu jako `media` v příchozím webhooku, viz [Webhooky](/guides/webhooks).
+
+| Pole | Popis |
+| --- | --- |
+| `type` | Typ přílohy: `image`, `video`, `audio`, `document`, `sticker`, `location` nebo `contacts`. |
+| `url` | Trvalá veřejná URL uloženého souboru. Chybí, pokud se soubor nepodařilo uložit. |
+| `error` | Proč se soubor nepodařilo uložit: `download_failed`, `too_large` nebo `no_token`. Nastaví se místo `url`. |
+| `mime_type` | MIME typ, jak ho nahlásil kanál. |
+| `filename` | Původní název souboru (jen dokumenty). |
+| `caption` | Popisek odeslaný s médiem. Pokud zpráva nemá text, vrátí se popisek také v `body`. |
+| `size` | Velikost souboru v bajtech, pokud je známá. |
+| `thumbnail` | Trvalá veřejná URL uloženého náhledu (jen RCS). |
+| `animated` | Zda je nálepka animovaná (jen nálepky). |
+| `location` | Sdílená poloha s poli `latitude`, `longitude`, `name` a `address` (jen pro `type` `location`). |
+| `contacts` | Sdílené kontaktní karty tak, jak je poskytl kanál (jen pro `type` `contacts`). |
+| `provider_id` | ID média nebo zprávy u poskytovatele kanálu. |
+
+Když se soubor nepodaří uložit, ostatní metadata dostanete i tak. Před stažením proto zkontrolujte, jestli je vyplněné `url`, nebo `error`.
+
+<Tip>
+  Na příchozí zprávy můžete odpovídat automaticky nebo si je nechat přeposílat e-mailem. Postup najdete v návodu [Automatické odpovědi a příchozí zprávy](/guides/auto-replies).
+</Tip>
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Webhooky" icon="webhook" href="/guides/webhooks">
+    Dostávejte změny stavu a příchozí zprávy v reálném čase místo dotazování.
+  </Card>
+
+  <Card title="message_id a request_id" icon="fingerprint" href="/concepts/message-ids">
+    Jak se skládají ID zpráv a požadavků, včetně přípony indexu příjemce.
+  </Card>
+
+  <Card title="Chybové kódy" icon="triangle-exclamation" href="/reference/errors">
+    Význam kódů `status_code`, `delivery_code` a kódů v `count_notsent_codes`.
+  </Card>
+
+  <Card title="Tok zpráv" icon="arrow-right-arrow-left" href="/concepts/message-flow">
+    Jak fungují kroky `flow` a záložní kanály, které vidíte ve `flow_stats`.
+  </Card>
+
+  <Card title="Automatické odpovědi" icon="reply" href="/guides/auto-replies">
+    Odpovídejte na příchozí zprávy automaticky podle klíčového slova nebo tlačítka.
+  </Card>
+
+  <Card title="REST API reference" icon="book" href="/api-reference/rest/overview">
+    Úplný popis parametrů a odpovědí endpointů `/message`, `/messages`, `/request`, `/requests` a `/inbox`.
+  </Card>
+</CardGroup>

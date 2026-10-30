@@ -10,8 +10,8 @@ The `whatsapp_text` object sends free-form content over WhatsApp within the open
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `sender` | string | The **Phone Number ID** of your WhatsApp sender (the numeric ID, not the phone number). Required. |
-| `body` | string | The message text. It also serves as the caption for media and as the text for interactive messages. If omitted, the `body` from the root of the request is used. |
+| `sender` | string | The **Phone Number ID** of your WhatsApp sender (the numeric ID, not the phone number), or a sender alias. The step needs one, but you don't have to set it in the step itself: if it's missing, the `sender` from the root of the request is used, then your account's default sender (`default_sender`). See [Senders](/concepts/senders). |
+| `body` | string | The message text. In a media message it serves as the caption, and you can omit it. In interactive messages it's the message text. If omitted, the `body` from the root of the request is used. |
 | `preview` | boolean | For plain text, enables the link preview (`preview_url`). Defaults to `false`. |
 
 ```json Plain text with a link preview
@@ -44,23 +44,44 @@ Media can be sent in two ways.
 | `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`, `.txt` | Document |
 | `.mp3`, `.acc`, `.m4a`, `.ogg`, `.amr` | Audio |
 
-**2. Explicit object** — you pass an `image`, `video`, `document`, or `audio` object with a `link` field. For an image, video, and document, `body` is used as the caption if the object does not contain its own `caption`.
+**2. Media field** — you pass an `image`, `video`, `document`, or `audio` field. Its value is either the file URL as a string or an object with a `url` field. The file must be available at a public URL.
 
-```json Image with a caption
+| Field | Supported formats | Caption (`caption`) |
+| --- | --- | --- |
+| `image` | JPEG, PNG | Yes |
+| `video` | MP4, 3GP | Yes |
+| `document` | For example PDF, DOCX, XLSX | Yes, plus `filename` |
+| `audio` | For example MP3, OGG | No |
+
+The media object accepts these fields:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `url` | string | The public URL of the file. Required. |
+| `caption` | string | The caption shown with the media. If you omit it, `body` is used. Audio doesn't support captions. |
+| `filename` | string | The file name shown to the recipient. Documents only. |
+
+Use at most one media field per message. When the message contains media, `body` is used as the caption, and you can omit it.
+
+```json Image with the caption from body
 {
   "whatsapp_text": {
     "sender": "514578330250514",
-    "body": "Náhled produktu",
-    "image": { "link": "https://example.com/produkt.jpg" }
+    "body": "Product preview",
+    "image": "https://example.com/product.jpg"
   }
 }
 ```
 
-```json Document with a custom file name
+```json Document with a caption and a custom file name
 {
   "whatsapp_text": {
     "sender": "514578330250514",
-    "document": { "link": "https://example.com/faktura.pdf", "filename": "faktura.pdf" }
+    "document": {
+      "url": "https://example.com/invoice.pdf",
+      "caption": "Your October invoice",
+      "filename": "invoice-2026-10.pdf"
+    }
   }
 }
 ```
@@ -144,7 +165,7 @@ For advanced cases this interface does not cover, you can pass a `raw` object wi
 ```
 
 <Note>
-  Fields are evaluated in order: media in `body` → `document`/`audio`/`image`/`video` objects → `buttons` → `url` → `raw` → plain text. The first one found in the request wins, so combine only one type of content in a single message.
+  Fields are evaluated in order: media in `body` → `document`/`audio`/`image`/`video` fields → `buttons` → `url` → `raw` → plain text. The first one found in the request wins, so combine only one type of content in a single message.
 </Note>
 
 ---

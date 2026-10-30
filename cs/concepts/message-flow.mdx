@@ -2,7 +2,7 @@ Při odesílání zprávy přes SmsManager můžete definovat **flow** — seřa
 
 ## Co je flow zpráv?
 
-Vlastnost `flow` je pole objektů kanálů. Každý objekt obsahuje přesně jeden klíč — `sms`, `viber`, `whatsapp_text` nebo `whatsapp_template` — spolu s konfigurací toho kanálu. SmsManager prochází pole od prvního k poslednímu: vyzkouší první kanál, a pokud selže nebo je nedostupný pro daného příjemce, přejde na druhý a tak dále.
+Vlastnost `flow` je pole objektů kanálů. Každý objekt obsahuje přesně jeden klíč — `sms`, `viber`, `whatsapp_text`, `whatsapp_template` nebo `rcs` — spolu s konfigurací toho kanálu. SmsManager prochází pole od prvního k poslednímu: vyzkouší první kanál, a pokud selže nebo je nedostupný pro daného příjemce, přejde na druhý a tak dále.
 
 ```json
 "flow": [
@@ -15,15 +15,30 @@ Ve výše uvedeném příkladu se SmsManager nejprve pokusí doručit zprávu p�
 
 ## Výchozí chování (bez flow)
 
-Pokud do svého požadavku nezahrnete vlastnost `flow`, SmsManager použije SMS přes bránu `high` jako výchozí kanál. To je ekvivalentní zápisu:
+Pokud do svého požadavku nezahrnete vlastnost `flow`, SmsManager použije jeden krok `sms` bez nastavené brány. To odpovídá zápisu:
 
 ```json
 "flow": [
-  { "sms": { "gateway": "high" } }
+  { "sms": {} }
 ]
 ```
 
-Pole `body` z kořene vašeho požadavku se použije jako text zprávy a platí standardní směrování SMS.
+Bránu pak SmsManager určí podle odesílatele:
+
+- Pokud je `sender` vyhrazené virtuální číslo registrované pro váš účet, použije se brána `direct` a zpráva se účtuje za cenu `direct`.
+- Jinak se zpráva směruje i účtuje jako `high`.
+
+Stejně se chová i krok `sms` ve vlastním `flow`, kterému `gateway` nenastavíte. Explicitně uvedená `gateway` má vždy přednost.
+
+Text zprávy a odesílatele vezme SmsManager z kořene požadavku (`body`, `sender`). Pokud `sender` neuvedete, použije se výchozí odesílatel vašeho účtu (`default_sender`).
+
+```json Zpráva bez flow
+{
+  "body": "Váš ověřovací kód je 4821.",
+  "sender": "MojeFirma",
+  "to": [{ "phone_number": "420777123456" }]
+}
+```
 
 ## Příklady flow
 
@@ -198,6 +213,34 @@ Pole `body` můžete definovat na kořenové úrovni požadavku i uvnitř jednot
 ```
 
 V tomto příkladu Viber krok použije tělo s emoji, zatímco SMS záloha využije prostý kořenový text.
+
+Stejně funguje `sender`: hodnota v kroku má přednost před `sender` v kořeni požadavku. Pokud `sender` neuvedete ani na jedné úrovni, použije se výchozí odesílatel vašeho účtu (`default_sender`). Kořenový `sender` se v kroku ignoruje, pokud ho pro kanál daného kroku nemáte zaregistrovaný. Místo konkrétního odesílatele můžete použít i alias odesílatele. Podrobnosti najdete v konceptu [Odesílatelé](/concepts/senders).
+
+Pole, která krok vyžaduje (`body`, `sender`), tak můžete uvést jen v kořeni požadavku. Hodnota v kroku má vždy přednost.
+
+```json Kořenový sender s přepsáním v kroku
+{
+  "sender": "MojeFirma",
+  "to": [{ "phone_number": "420777123456" }],
+  "flow": [
+    {
+      "viber": {
+        "body": "Vaše objednávka je připravena k vyzvednutí",
+        "sender": "MujViber",
+        "ttl": 10,
+        "ttl_condition": "delivered"
+      }
+    },
+    {
+      "sms": {
+        "body": "Vaše objednávka je připravena k vyzvednutí"
+      }
+    }
+  ]
+}
+```
+
+Krok Viber použije vlastního registrovaného odesílatele `MujViber`, krok SMS zdědí `MojeFirma` z kořene požadavku.
 
 <Tip>
   Vždy zahrnujte SMS jako poslední kanál ve svém `flow` pro produkční provoz. SMS je k dispozici na každém mobilním zařízení a nevyžaduje instalaci žádné aplikace, což z ní činí nejspolehlivější zálohu, která zajistí, že vaše zpráva dojde každému příjemci.

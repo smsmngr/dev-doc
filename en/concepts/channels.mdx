@@ -1,10 +1,10 @@
 ---
 title: "Messaging Channels: SMS, Viber, and WhatsApp Guide"
 sidebarTitle: "Channels"
-description: "Explore every SmsManager channel — SMS, Viber, WhatsApp text, and WhatsApp template — including required fields, optional settings, and code examples."
+description: "Explore every SmsManager channel — SMS, Viber, WhatsApp text, WhatsApp template, and RCS — including required fields, optional settings, and code examples."
 ---
 
-SmsManager supports four messaging channels, each with its own strengths and configuration options. You can use a single channel or combine them in a [message flow](/concepts/message-flow) to maximize delivery rates. This page covers what each channel can do, what fields it accepts, and how to set it up.
+SmsManager supports five messaging channels, each with its own strengths and configuration options. You can use a single channel or combine them in a [message flow](/concepts/message-flow) to maximize delivery rates. This page covers what each channel can do, what fields it accepts, and how to set it up.
 
 <Tabs>
   <Tab title="SMS">
@@ -22,7 +22,7 @@ SmsManager supports four messaging channels, each with its own strengths and con
 
     | Field | Type | Default | Description |
     | --- | --- | --- | --- |
-    | `sender` | string | — | Alphanumeric sender name (max 11 characters) or a dedicated virtual number without the leading `+`. Pre-registration may be required for alphanumeric senders. |
+    | `sender` | string | — | Alphanumeric sender name (max 11 characters) or a dedicated virtual number without the leading `+`, or a sender alias. Pre-registration may be required for alphanumeric senders. If you don't set it in the step, the `sender` from the root of the request is used, then your account's default sender (`default_sender`). See [Senders](/concepts/senders). |
     | `gateway` | string | `high` | Routing gateway. Use `high` for standard delivery, `direct` when sending from a dedicated virtual number, or `custom` for SIM hosting setups. |
     | `ttl` | integer | — | Time to live in minutes. If the message can't be delivered within this window, it's discarded. |
     | `type` | string | `utf` | Character encoding. `utf` preserves Unicode characters (emoji, Cyrillic, etc.). `sms` strips or converts Unicode to maximise the number of characters per SMS part. |
@@ -34,7 +34,7 @@ SmsManager supports four messaging channels, each with its own strengths and con
     ### Gateway guide
 
     - **`high`** — Default shared gateway, suitable for the vast majority of SMS sends.
-    - **`direct`** — Use this when you've purchased a dedicated virtual number and want two-way messaging. Set `sender` to your virtual number (without `+`).
+    - **`direct`** — Use this when you've purchased a dedicated virtual number and want two-way messaging. Set `sender` to your virtual number (without `+`). If you don't set `gateway` and `sender` is a dedicated virtual number registered for your account, we pick `direct` automatically, including `direct` pricing. For details, see [message flow](/concepts/message-flow).
     - **`custom`** — Use this when you're using SIM-card hosting. Contact SmsManager support to configure this gateway.
 
     ### Example
@@ -66,7 +66,7 @@ SmsManager supports four messaging channels, each with its own strengths and con
     | Field | Type | Description |
     | --- | --- | --- |
     | `body` | string | The message text (max 1,000 chars). |
-    | `sender` | string | The pre-registered Viber Business sender name. Must match exactly the name registered through SmsManager. |
+    | `sender` | string | The pre-registered Viber Business sender name, or a sender alias. Must match exactly the name registered through SmsManager. If you don't set it in the step, the `sender` from the root of the request is used, then your account's default sender (`default_sender`). See [Senders](/concepts/senders). |
 
     ### Optional fields
 
@@ -122,8 +122,14 @@ SmsManager supports four messaging channels, each with its own strengths and con
 
     | Field | Type | Description |
     | --- | --- | --- |
-    | `body` | string | The message text (max 1,000 chars). Only allowed within the 24-hour customer service window. |
-    | `sender` | string | The Phone Number ID of your registered WhatsApp number. |
+    | `body` | string | The message text (max 1,000 chars). Only allowed within the 24-hour customer service window. In a media message it serves as the caption, and you can omit it. |
+    | `sender` | string | The Phone Number ID of your registered WhatsApp number, or a sender alias. If you don't set it in the step, the `sender` from the root of the request is used, then your account's default sender (`default_sender`). See [Senders](/concepts/senders). |
+
+    ### Optional fields
+
+    | Field | Type | Description |
+    | --- | --- | --- |
+    | `image`, `video`, `document`, `audio` | string or object | Media from a public URL — either the URL as a string or an object with `url`. Use at most one per message. For formats and the other fields, see the [WhatsApp text](/reference/whatsapp-text#media) reference. |
 
     ### Setup requirements
 
@@ -166,7 +172,7 @@ SmsManager supports four messaging channels, each with its own strengths and con
     | Field | Type | Description |
     | --- | --- | --- |
     | `template_name` | string | The exact name of the approved template (max 100 chars). |
-    | `sender` | string | The Phone Number ID of your registered WhatsApp number. |
+    | `sender` | string | The Phone Number ID of your registered WhatsApp number, or a sender alias. If you don't set it in the step, the `sender` from the root of the request is used, then your account's default sender (`default_sender`). See [Senders](/concepts/senders). |
     | `language` | string | The language code for the template version to use (e.g., `en`, `cs`, `de`). |
 
     ### Optional fields
@@ -214,6 +220,60 @@ SmsManager supports four messaging channels, each with its own strengths and con
 
     <Note>
       If the template hasn't been approved yet or the approval has been revoked, the `whatsapp_template` channel will fail and SmsManager will fall back to the next channel in your flow.
+    </Note>
+  </Tab>
+  <Tab title="RCS">
+    ## RCS channel
+
+    RCS (Rich Communication Services) is the successor to SMS, delivering rich content directly in the native messaging app on Android. It lets you send text, images, videos, documents, and audio, reply suggestions and action buttons, a standalone rich card, and a product carousel. RCS messages are delivered only to recipients with RCS enabled, so always place an SMS fallback after the RCS step.
+
+    ### Required fields
+
+    | Field | Type | Description |
+    | --- | --- | --- |
+    | `sender` | string | The ID of your RCS agent (sender), or a sender alias. If you don't set it in the step, the `sender` from the root of the request is used, then your account's default sender (`default_sender`). See [Senders](/concepts/senders). |
+
+    ### Optional fields
+
+    | Field | Type | Description |
+    | --- | --- | --- |
+    | `body` | string | The message text. In a media message it serves as the caption. |
+    | `ttl` | integer | Time to live in minutes. Once it elapses, the flow moves to the next channel. |
+    | `image`, `video`, `document`, `audio` | string or object | Media from a public URL — either the URL as a string or an object with `url`. Use at most one per message. See [Media](/reference/rcs#media). |
+    | `buttons` | array | Reply suggestions and action buttons (`reply` / `url`). |
+    | `card` | object | A standalone rich card with media, a title, a description, and buttons. |
+    | `carousel` | array | A horizontally scrollable row of 2 to 10 cards. |
+
+    For the full field reference and examples, see [RCS message parameters](/reference/rcs).
+
+    ### Example
+
+    ```json
+    {
+      "body": "Your order #5821 is ready for pickup!",
+      "to": [{ "phone_number": "420777123456" }],
+      "flow": [
+        {
+          "rcs": {
+            "sender": "my_rcs_agent",
+            "body": "Your order #5821 is ready for pickup!",
+            "buttons": [
+              { "type": "url", "text": "View order", "postback": "ORDER", "url": "https://example.com/orders/5821" }
+            ]
+          }
+        },
+        {
+          "sms": {
+            "sender": "MyShop",
+            "body": "Your order #5821 is ready for pickup!"
+          }
+        }
+      ]
+    }
+    ```
+
+    <Note>
+      RCS messages are only delivered to recipients with RCS enabled. Always include an SMS fallback in your flow to reach everyone else.
     </Note>
   </Tab>
 </Tabs>

@@ -6,7 +6,7 @@ info:
 
     ## JSON API v2
 
-    API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+    API key is required for all requests. You can find your API key in the [Developers section](https://app.smsmanager.com/app/developers/).
 
     Older API versions (http-api and xml-api) are deprecated and you should use this JSON API v2 instead.
   version: v2
@@ -45,7 +45,7 @@ components:
               - phone_number
         sender:
           type: string
-          description: Default sender for all flow steps. If a flow step defines its own `sender`, the flow step value has higher priority. Alphanumeric sender name (max. 11 characters, pre-registration may be required) or dedicated virtual number (without `+`).
+          description: Default sender for all flow steps. If a flow step defines its own `sender`, the flow step value has higher priority. Alphanumeric sender name (max. 11 characters, pre-registration may be required) or dedicated virtual number (without `+`). The value must be valid for the channel of the flow step it applies to (a name or number for `sms` and `viber`, a Phone Number ID for `whatsapp_text` and `whatsapp_template`, an agent for `rcs`); it is ignored for any step whose channel you don't have it registered for. You can also use a **sender alias**, a single name configured for your account that resolves to a different registered sender for each recipient country. If you don't set `sender` at any level, your account's default sender (`default_sender`, set via `POST /apikey/update` in the REST API) is used. `default_sender` is an account-wide default and is unrelated to the per-country `default_sender_<platform>_<mcc>` settings.
           examples:
             - Mojefirma
             - "420777123456"
@@ -65,7 +65,7 @@ components:
           description: Deprecated alias of `tag`. Use `tag` instead.
         params:
           type: object
-          description: 'By providing this object, you can pass special parameters to the message, e.g. automatic link shortening via the `_url` object. Ask us how to use this parameter for other features.'
+          description: 'By providing this object, you can pass special parameters to the message, e.g. automatic link shortening via the `_url` object or handling of incoming replies via the `_incoming` object. Ask us how to use this parameter for other features.'
           properties:
             _url:
               type: object
@@ -94,6 +94,73 @@ components:
                   type: integer
                   description: Unix timestamp of the shortened link expiration. Defaults to 7 days from now. (Deprecated alias `expires` is still accepted.)
                   example: 1736589600
+            _incoming:
+              type: object
+              description: 'Handling of incoming events (replies, button clicks) for this message. At least one of `email_to`, `reply` and `callback` must be set. Incoming events are matched to the sent message only for a limited time after sending: about 2 days for SMS and about 1 month for Viber, WhatsApp and RCS; later replies are not matched and trigger no action. Opt-out replies (STOP/UNSUBSCRIBE/SUBSCRIBE) are forwarded by email (with an `[OPT-OUT]` prefix in the subject) and to `callback`, but never trigger an auto-reply (use `_optout.reply` to confirm an opt-out).'
+              properties:
+                email_to:
+                  description: Email address (or an array of up to 5 addresses) that every incoming reply is forwarded to.
+                  oneOf:
+                    - type: string
+                      format: email
+                    - type: array
+                      minItems: 1
+                      maxItems: 5
+                      items:
+                        type: string
+                        format: email
+                  example: agent@example.com
+                callback:
+                  type: string
+                  format: uri
+                  description: 'Webhook URL (http(s)) that receives every incoming event matched to this message (text replies, WhatsApp/RCS button clicks and opt-out keywords), in addition to the main `callback` field. The payload is a standard incoming webhook event (`type: incoming`); a button click carries a `whatsapp`/`rcs` object with the pressed button. Clicks on shortened links (`_url`) are not included.'
+                  example: 'https://example.com/incoming-events'
+                reply:
+                  type: object
+                  minProperties: 1
+                  maxProperties: 10
+                  description: 'Auto-replies as a map of match value to an object of per-channel replies (max. 10 entries). The match value is compared case-insensitively with the incoming reply: for SMS with the message text (keyword), for WhatsApp with the `buttons[].id` of an interactive button or with the payload of a template quick-reply button from `params_buttons`, for RCS with the `postback` value of a button or with the visible button text. On a match, the text set for the incoming channel (`sms`, `whatsapp`, `rcs`, `viber`) is sent automatically over the same channel; a channel without a text sends nothing. The optional `callback` and `email_to` of the matched entry are notified about that specific match, in addition to the fields at the `_incoming` level. Auto-replies are billed as regular messages.'
+                  additionalProperties:
+                    type: object
+                    minProperties: 1
+                    additionalProperties: false
+                    properties:
+                      sms:
+                        type: string
+                        maxLength: 1000
+                        description: Reply text sent when the incoming message arrived via SMS.
+                      whatsapp:
+                        type: string
+                        maxLength: 1000
+                        description: Reply text sent when the incoming message arrived via WhatsApp.
+                      rcs:
+                        type: string
+                        maxLength: 1000
+                        description: Reply text sent when the incoming message arrived via RCS.
+                      viber:
+                        type: string
+                        maxLength: 1000
+                        description: Reply text sent when the incoming message arrived via Viber.
+                      callback:
+                        type: string
+                        format: uri
+                        description: Webhook URL (http(s)) notified only when this entry matches.
+                      email_to:
+                        description: Email address (or an array of up to 5 addresses) notified only when this entry matches.
+                        oneOf:
+                          - type: string
+                            format: email
+                          - type: array
+                            minItems: 1
+                            maxItems: 5
+                            items:
+                              type: string
+                              format: email
+                  example:
+                    MORE_INFO:
+                      sms: 'Thank you for your interest! Read more at https://example.com/info'
+                      whatsapp: 'Thank you for your interest! 🎉 Read more at https://example.com/info'
+                      callback: 'https://example.com/hooks/more-info'
         datetime:
           type: string
           format: date-time
@@ -132,7 +199,9 @@ components:
         flow:
           type: array
           description: |
-            A list of communication channels for the message flow. If defined, must not be empty. You can use multiple channels, the order of channels is important (first channel is the first to be used; when the step defines `ttl` and its `ttl_condition` is not met within the TTL, the next channel is used, etc.). If `flow` is not defined, the default `[{"sms": {"gateway": "high"}}]` is used.
+            A list of communication channels for the message flow. If defined, must not be empty. You can use multiple channels, the order of channels is important (first channel is the first to be used; when the step defines `ttl` and its `ttl_condition` is not met within the TTL, the next channel is used, etc.). If `flow` is not defined, a single `sms` step is used. Its gateway is left unset so that it can be determined from the sender (see `gateway`); an unset gateway is routed and billed as `high`.
+
+            Fields marked as required inside a flow step (`body`, `sender`) can be set in the root object instead; the flow step value has higher priority.
           items:
             type: object
             additionalProperties: false
@@ -148,7 +217,7 @@ components:
                     description: This definition of message body here have higher priority than the one defined in the root object.
                   sender:
                     type: string
-                    description: Alphanumeric sender name (max. 11 characters, pre-registration may be required) or dedicated virtual number (without `+`). If not set, the root object `sender` is used.
+                    description: Alphanumeric sender name (max. 11 characters, pre-registration may be required) or dedicated virtual number (without `+`), or a sender alias. If not set, the root object `sender` is used, then your account's default sender (`default_sender`).
                     examples:
                       - Mojefirma
                       - 420777123456
@@ -162,7 +231,7 @@ components:
                       - simhost
                       - gsm
                     default: high
-                    description: Use `high` for the default high-quality routing, `lowcost` for low-cost routing. Use `direct` if you use dedicated virtual number. Use `custom` or `simhost` if you use SIM hosting, `gsm` for your own GSM gateway.
+                    description: Use `high` for the default high-quality routing, `lowcost` for low-cost routing. Use `direct` if you use dedicated virtual number. Use `custom` or `simhost` if you use SIM hosting, `gsm` for your own GSM gateway. If not set, the gateway can be determined automatically from the sender registered for your account. A dedicated virtual number selects `direct` (including `direct` pricing); otherwise the default routing is used. An explicitly set `gateway` always takes precedence.
                   ttl:
                     type: number
                     minimum: 0.5
@@ -193,7 +262,7 @@ components:
                     description: This definition of message body here have higher priority than the one defined in the root object.
                   sender:
                     type: string
-                    description: Use the name of the sender you have pre-registered for your Viber Business Message.
+                    description: Use the name of the sender you have pre-registered for your Viber Business Message, or a sender alias. If not set, the root object `sender` is used, then your account's default sender (`default_sender`).
                   buttons:
                     type: array
                     maxItems: 1
@@ -228,15 +297,38 @@ components:
                 properties:
                   body:
                     type: string
-                    description: This definition of message body here have higher priority than the one defined in the root object. You can use custom body of message only when the recipient already reply to your template message or send you a message first.
+                    description: This definition of message body here have higher priority than the one defined in the root object. You can use custom body of message only when the recipient already reply to your template message or send you a message first. If a media field (`image`, `video`, `document`, `audio`) is set, the body is used as the media caption and can be omitted.
                     maxLength: 1000
                   sender:
                     type: string
-                    description: Phone Number ID of registered WhatsApp number. You can find it in your [WhatsApp settings](https://app.smsmanager.com/whatsapp).
+                    description: Phone Number ID of registered WhatsApp number. You can find it in your [WhatsApp settings](https://app.smsmanager.com/whatsapp). You can use a sender alias instead. If not set, the root object `sender` is used, then your account's default sender (`default_sender`).
                     examples:
                       - "514578330250514"
+                  image:
+                    description: Image to send (JPEG or PNG at a public URL). Either the URL as a string, or an object with `url` and an optional `caption`. If no caption is set, the message body is used as the caption. Use at most one media field per message.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/WhatsappMedia'
+                  video:
+                    description: Video to send (MP4 or 3GP at a public URL). Either the URL as a string, or an object with `url` and an optional `caption`. If no caption is set, the message body is used as the caption. Use at most one media field per message.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/WhatsappMedia'
+                  document:
+                    description: Document to send (for example PDF, DOCX or XLSX at a public URL). Either the URL as a string, or an object with `url`, an optional `caption` and an optional `filename` shown to the recipient. Use at most one media field per message.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/WhatsappMedia'
+                  audio:
+                    description: Audio to send (for example MP3 or OGG at a public URL). Either the URL as a string, or an object with `url`. WhatsApp doesn't support captions on audio messages. Use at most one media field per message.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/WhatsappMedia'
                 required:
-                  - body
                   - sender
               whatsapp_template:
                 type: object
@@ -247,7 +339,7 @@ components:
                     maxLength: 100
                   sender:
                     type: string
-                    description: Phone Number ID of registered WhatsApp number. You can find it in your [WhatsApp settings](https://app.smsmanager.com/whatsapp).
+                    description: Phone Number ID of registered WhatsApp number. You can find it in your [WhatsApp settings](https://app.smsmanager.com/whatsapp). You can use a sender alias instead. If not set, the root object `sender` is used, then your account's default sender (`default_sender`).
                     examples:
                       - "514578330250514"
                   params:
@@ -293,10 +385,49 @@ components:
                   body:
                     type: string
                     maxLength: 1000
-                    description: This definition of message body here have higher priority than the one defined in the root object.
+                    description: This definition of message body here have higher priority than the one defined in the root object. If a media field (`image`, `video`, `document`, `audio`) is set, the body is used as the caption (the message is then delivered as a rich card with the body as its description) and can be omitted.
                   sender:
                     type: string
-                    description: Use the RCS agent you have pre-registered for your account.
+                    description: Use the RCS agent you have pre-registered for your account, or a sender alias. If not set, the root object `sender` is used, then your account's default sender (`default_sender`).
+                  image:
+                    description: Image to send (for example JPEG, PNG, GIF or WEBP at a public URL). Either the URL as a string, or an object with `url` and optional `thumbnail`, `caption` and `height`. Without a caption (and without a body), the file is sent on its own; with a caption, it is delivered as a rich card. Use at most one media field per message.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/RcsMedia'
+                  video:
+                    description: Video to send (for example MP4, WEBM or 3GP at a public URL). Either the URL as a string, or an object with `url` and optional `thumbnail`, `caption` and `height`. Use at most one media field per message.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/RcsMedia'
+                  document:
+                    description: Document to send (for example PDF at a public URL). Either the URL as a string, or an object with `url` and optional `thumbnail`, `caption` and `height`. Use at most one media field per message.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/RcsMedia'
+                  audio:
+                    description: Audio to send (for example MP3 or OGG at a public URL). Either the URL as a string, or an object with `url` and optional `thumbnail`, `caption` and `height`. Use at most one media field per message.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/RcsMedia'
+                  buttons:
+                    type: array
+                    description: Suggested replies and actions shown as a row of buttons below the message.
+                    items:
+                      $ref: '#/components/schemas/RcsButton'
+                  card:
+                    description: Rich card with media, title, description and optional buttons.
+                    $ref: '#/components/schemas/RcsCard'
+                  carousel:
+                    type: array
+                    minItems: 2
+                    maxItems: 10
+                    description: Carousel of 2 to 10 rich cards that the recipient can scroll through.
+                    items:
+                      $ref: '#/components/schemas/RcsCard'
                   ttl:
                     type: number
                     minimum: 0.5
@@ -309,14 +440,191 @@ components:
                       - seen
                     default: delivered
                     description: Condition evaluated after the TTL expires. If the message already reached this state, the next flow step is not used.
-                required:
-                  - body
         payload:
           type: object
           description: |
             You can send the message payload, where you can define any parameters for the message. This object is returned in the delivery notification and replies.
           example:
             user_id: "123456"
+
+    WhatsappMedia:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Public URL of the file.
+        caption:
+          type: string
+          description: Caption shown with the media. If not set, the message body is used. Not supported for audio.
+        filename:
+          type: string
+          description: File name shown to the recipient (documents only).
+
+    RcsMedia:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Public URL of the file.
+        thumbnail:
+          type: string
+          format: uri
+          description: Public URL of a thumbnail shown while the file is loading.
+        caption:
+          type: string
+          description: Media caption. If not set, the message body is used. With a caption, the message is delivered as a rich card with the caption as its description.
+        height:
+          type: string
+          enum:
+            - SHORT
+            - MEDIUM
+            - TALL
+          default: MEDIUM
+          description: Height of the rich card media (applies only when the message is delivered as a rich card).
+        forceRefresh:
+          type: boolean
+          description: Forces the RCS platform to download the file again, even if it has a cached copy.
+
+    IncomingMedia:
+      type: object
+      description: >-
+        Media attached to an incoming message (WhatsApp/RCS image, video, audio, document,
+        sticker, shared location or contact cards). Sent only when the incoming
+        message contains media. For binary types, the file is stored at a persistent public URL
+        in the `url` field; if the file could not be stored, `url` is missing and the
+        `error` field is set instead. The other metadata is delivered either way.
+      properties:
+        type:
+          type: string
+          enum:
+            - image
+            - video
+            - audio
+            - document
+            - sticker
+            - location
+            - contacts
+          description: Content type of the attachment.
+        url:
+          type: string
+          format: uri
+          description: Persistent public URL of the stored file. Missing if the file could not be stored.
+        mime_type:
+          type: string
+          description: MIME type as reported by the channel.
+        filename:
+          type: string
+          description: Original file name (documents).
+        caption:
+          type: string
+          description: Caption sent with the media. If the message has no text, it is also delivered as `body`.
+        size:
+          type: integer
+          description: File size in bytes, if known.
+        animated:
+          type: boolean
+          description: Whether the sticker is animated (stickers only).
+        thumbnail:
+          type: string
+          format: uri
+          description: Persistent public URL of the stored thumbnail (RCS only).
+        location:
+          type: object
+          description: Shared location (only when `type` is `location`).
+          properties:
+            latitude:
+              type: number
+            longitude:
+              type: number
+            name:
+              type: string
+            address:
+              type: string
+        contacts:
+          type: array
+          description: Shared contact cards (only when `type` is `contacts`), as provided by the channel.
+          items:
+            type: object
+        provider_id:
+          type: string
+          description: Media/message ID assigned by the channel provider.
+        error:
+          type: string
+          enum:
+            - download_failed
+            - too_large
+            - no_token
+          description: Set instead of `url` if the file could not be stored.
+
+    RcsButton:
+      type: object
+      required:
+        - type
+        - text
+      properties:
+        type:
+          type: string
+          enum:
+            - reply
+            - url
+          description: '`reply` sends the `postback` value back as an incoming message; `url` opens the target URL.'
+        text:
+          type: string
+          description: Button text.
+        postback:
+          type: string
+          description: Value returned in the incoming webhook when the recipient taps the button.
+        url:
+          type: string
+          format: uri
+          description: Target URL (required for `url` buttons).
+        description:
+          type: string
+          description: Description of the URL action, for accessibility.
+        webview:
+          type: string
+          enum:
+            - FULL
+            - HALF
+            - TALL
+          description: Opens the URL in an in-app webview of the given size instead of the browser.
+
+    RcsCard:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Card title.
+        description:
+          type: string
+          description: Card text below the title.
+        file:
+          type: string
+          format: uri
+          description: Public URL of the card media.
+        thumbnail:
+          type: string
+          format: uri
+          description: Public URL of a thumbnail shown while the media is loading.
+        height:
+          type: string
+          enum:
+            - SHORT
+            - MEDIUM
+            - TALL
+          default: MEDIUM
+          description: Height of the card media.
+        buttons:
+          type: array
+          description: Buttons shown on the card.
+          items:
+            $ref: '#/components/schemas/RcsButton'
 
     MessagesResponse:
       type: object
@@ -402,7 +710,7 @@ paths:
         metadata:
           sidebarTitle: "Send message"
       security:
-        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+        - x-api-key: [] # API key is required for all requests. You can find your API key in the [Developers section](https://app.smsmanager.com/app/developers/).
       tags:
         - sending
       summary: Send a message
@@ -420,6 +728,35 @@ paths:
                   body: "Test message"
                   to:
                     - phone_number: "420777123456"
+              Sender alias (per-country sender):
+                description: Here `brand` is a sender alias configured for the account, so a Czech recipient gets the message from a Czech sender and a Slovak recipient from a Slovak one. Ask support to set up an alias.
+                value:
+                  body: "Test message"
+                  sender: "brand"
+                  to:
+                    - phone_number: "420777123456"
+                    - phone_number: "421905123456"
+              Message with sender:
+                description: The sender is set once in the root object, so no `flow` is needed.
+                value:
+                  body: "Test message"
+                  sender: "Mojefirma"
+                  to:
+                    - phone_number: "420777123456"
+              Root sender with a flow step override:
+                description: The root `sender` applies to all flow steps. The Viber step overrides it with its own registered sender; the SMS step inherits `Mojefirma`.
+                value:
+                  sender: "Mojefirma"
+                  to:
+                    - phone_number: "420777123456"
+                  flow:
+                    - viber:
+                        body: "Your order is ready for pickup"
+                        sender: "MyViber"
+                        ttl: 10
+                        ttl_condition: "delivered"
+                    - sms:
+                        body: "Your order is ready for pickup"
               Message with flow:
                 value:
                   body: "Test message"
@@ -497,6 +834,26 @@ paths:
                         sender: "SmsManager"
                         type: "utf"
                         ttl: 5
+              RCS image message:
+                description: An image sent via RCS. Without a body, the file is delivered on its own; with a body, the message is delivered as a rich card with the body as the caption.
+                value:
+                  to:
+                    - phone_number: "420777123456"
+                  flow:
+                    - rcs:
+                        sender: "mybrand_agent"
+                        body: "Your boarding pass"
+                        image: "https://example.com/boarding-pass.png"
+              WhatsApp image with caption:
+                description: An image sent as a WhatsApp session message. The body is used as the image caption.
+                value:
+                  to:
+                    - phone_number: "420777123456"
+                  flow:
+                    - whatsapp_text:
+                        sender: "514578330250514"
+                        body: "Your QR code"
+                        image: "https://example.com/qr.png"
       responses:
         '200':
           description: Messages sent successfully
@@ -538,7 +895,7 @@ paths:
         metadata:
           sidebarTitle: "Priority message"
       security:
-        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+        - x-api-key: [] # API key is required for all requests. You can find your API key in the [Developers section](https://app.smsmanager.com/app/developers/).
       tags:
         - sending
       summary: Send a priority message
@@ -599,7 +956,7 @@ paths:
         metadata:
           sidebarTitle: "Send multiple"
       security:
-        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+        - x-api-key: [] # API key is required for all requests. You can find your API key in the [Developers section](https://app.smsmanager.com/app/developers/).
       tags:
         - sending
       summary: Send multiple messages
@@ -723,7 +1080,7 @@ paths:
         metadata:
           sidebarTitle: "Simple send (GET)"
       security:
-        - apikey: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+        - apikey: [] # API key is required for all requests. You can find your API key in the [Developers section](https://app.smsmanager.com/app/developers/).
       tags:
         - sending
       summary: Send a simple message (GET request)
@@ -822,7 +1179,7 @@ paths:
         metadata:
           sidebarTitle: "Simple send (POST)"
       security:
-        - x-api-key: [] # API key is required for all requests. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+        - x-api-key: [] # API key is required for all requests. You can find your API key in the [Developers section](https://app.smsmanager.com/app/developers/).
       tags:
         - sending
       summary: Send a simple message (POST request)
@@ -1124,6 +1481,7 @@ x-webhooks:
                     to:
                       phone_number: "420777123456"
                     result: delivered
+                    result_info: "[0] Delivered"
               Message rejected insufficient credit:
                 value:
                   - request_id: "bc36f3d1-d284-463a-921b-a3560c154649"
@@ -1168,6 +1526,7 @@ x-webhooks:
                       - sms
                       - viber
                       - whatsapp
+                      - rcs
                   timestamp:
                     description: Timestamp of the message in Unix timestamp format. This is the timestamp of the message has been sent by the sender (if that infomration is not available, then you will receive timestamp of the message has been received by our system).
                     type: integer
@@ -1188,6 +1547,8 @@ x-webhooks:
                     description: Body of the message.
                     type: string
                     example: "Thank you!"
+                  media:
+                    $ref: '#/components/schemas/IncomingMedia'
             examples:
               Incoming reply message:
                 value:
@@ -1201,6 +1562,25 @@ x-webhooks:
                     sender: "420777123456"
                     recipient: "420777654321"
                     body: "Thank you!"
+              Incoming reply with media:
+                value:
+                  - request_id: "bc36f3d1-d284-463a-921b-a3560c154649"
+                    message_id: "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"
+                    payload:
+                      campaign_id: "winter-sale"
+                    gateway: whatsapp
+                    timestamp: 1700000000
+                    type: incoming
+                    sender: "420777123456"
+                    recipient: "420777654321"
+                    body: "photo of the damaged package"
+                    media:
+                      type: "image"
+                      url: "https://smsmngr-inbound-media.s3.eu-central-1.amazonaws.com/3f7a1c9b2e4d5f60718293a4b5c6d7e8.jpg"
+                      mime_type: "image/jpeg"
+                      caption: "photo of the damaged package"
+                      size: 245731
+                      provider_id: "1234567890123456"
   incomingMessage:
     post:
       tags:
@@ -1222,6 +1602,7 @@ x-webhooks:
                       - sms
                       - viber
                       - whatsapp
+                      - rcs
                   timestamp:
                     description: Timestamp of the message in Unix timestamp format. This is the timestamp of the message has been sent by the sender (if that information is not available, then you will receive timestamp of the message has been received by our system).
                     type: integer
@@ -1240,6 +1621,8 @@ x-webhooks:
                     example: "420777654321"
                   body:
                     type: string
+                  media:
+                    $ref: '#/components/schemas/IncomingMedia'
             examples:
               Incoming message:
                 value:
@@ -1249,6 +1632,21 @@ x-webhooks:
                     sender: "420777123456"
                     recipient: "420777654321"
                     body: "Hello, I have a question."
+              Incoming message with media:
+                value:
+                  - gateway: whatsapp
+                    timestamp: 1700000000
+                    type: incoming
+                    sender: "420777123456"
+                    recipient: "420777654321"
+                    body: "photo of the damaged package"
+                    media:
+                      type: "image"
+                      url: "https://smsmngr-inbound-media.s3.eu-central-1.amazonaws.com/3f7a1c9b2e4d5f60718293a4b5c6d7e8.jpg"
+                      mime_type: "image/jpeg"
+                      caption: "photo of the damaged package"
+                      size: 245731
+                      provider_id: "1234567890123456"
 
 tags:
   - name: sending

@@ -198,6 +198,54 @@ Pro Viber a WhatsApp můžete také obdržet událost `seen`, když příjemce z
 ]
 ```
 
+Pole `gateway` u příchozích událostí nabývá hodnot `sms`, `viber`, `whatsapp` nebo `rcs`.
+
+<Tip>
+  Na odpovědi můžete reagovat automaticky. Objektem `params._incoming` nastavíte zprávě automatické odpovědi podle klíčového slova nebo tlačítka a vlastní `callback` pro její příchozí události. Postup popisuje návod [Automatické odpovědi a příchozí zprávy](/guides/auto-replies).
+</Tip>
+
+### Příchozí zprávy s médiem
+
+Když vám zákazník přes WhatsApp nebo RCS pošle přílohu, událost obsahuje nepovinný objekt `media`. Příloha může být obrázek, video, audio, dokument, nálepka, sdílená poloha nebo kontaktní karty. Soubor SmsManager uloží na trvalou veřejnou URL v poli `url`. Popisek média dorazí v `media.caption` a, pokud zpráva nemá jiný text, také v `body`.
+
+```json incomingMessage s médiem
+[
+  {
+    "gateway": "whatsapp",
+    "timestamp": 1700000000,
+    "type": "incoming",
+    "sender": "420777123456",
+    "recipient": "420777654321",
+    "body": "fotka poškozeného balíku",
+    "media": {
+      "type": "image",
+      "url": "https://smsmngr-inbound-media.s3.eu-central-1.amazonaws.com/3f7a1c9b2e4d5f60718293a4b5c6d7e8.jpg",
+      "mime_type": "image/jpeg",
+      "caption": "fotka poškozeného balíku",
+      "size": 245731,
+      "provider_id": "1234567890123456"
+    }
+  }
+]
+```
+
+| Pole | Popis |
+| --- | --- |
+| `type` | `image`, `video`, `audio`, `document`, `sticker`, `location` nebo `contacts`. |
+| `url` | Trvalá veřejná URL uloženého souboru. Chybí, pokud se soubor nepodařilo uložit. |
+| `mime_type` | MIME typ souboru, jak ho nahlásil kanál. |
+| `filename` | Původní název souboru (u dokumentů). |
+| `caption` | Popisek média. Pokud zpráva nemá text, dorazí také jako `body`. |
+| `size` | Velikost souboru v bajtech, pokud je známa. |
+| `animated` | Zda je nálepka animovaná (pouze nálepky). |
+| `thumbnail` | Trvalá veřejná URL uloženého náhledu (pouze RCS). |
+| `location` | Sdílená poloha s poli `latitude`, `longitude`, `name` a `address` (pouze `type: location`). |
+| `contacts` | Pole kontaktních karet v podobě, v jaké je poskytl kanál (pouze `type: contacts`). |
+| `provider_id` | ID média nebo zprávy přidělené poskytovatelem kanálu. |
+| `error` | `download_failed`, `too_large` nebo `no_token`. Nastaví se místo `url`, pokud se soubor nepodařilo uložit. |
+
+Než soubor stáhnete, ověřte, že objekt obsahuje pole `url`. Pokud chybí, důvod najdete v `error`. Úplný popis polí najdete v [referenci webhooků](/api-reference/json-v2/webhooks#objekt-media).
+
 ---
 
 ## Osvědčené postupy

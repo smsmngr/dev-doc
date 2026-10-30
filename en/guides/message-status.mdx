@@ -1,0 +1,522 @@
+---
+title: "Message status and statistics"
+sidebarTitle: "Status and statistics"
+description: "Look up the status of a single message, list the messages sent on a given day, pull request and per-tag statistics, and read received messages with the REST API endpoints /message, /messages, /request, /requests and /inbox."
+---
+
+Webhooks push status changes to you the moment they happen. The REST API gives you the same information on demand. You can ask for the status of one message, list every message sent on a given day, pull aggregated statistics or read the messages you received.
+
+<Note>
+  All endpoints on this page belong to the [REST API](/api-reference/rest/overview). The base URL is `https://rest-api.smsmngr.com/v1`. Authentication is the same as for JSON API v2: the `x-api-key` header with the same API key. Find your API key under [Developers](https://app.smsmanager.com/app/developers/).
+</Note>
+
+<Tip>
+  The `smsmanager-message-status` skill from the [SmsManager skills](/ai/skills) package knows every endpoint on this page. An AI assistant connected through the [MCP server](/ai/mcp-server) can look up a message with the `get_message_status` tool and get a day's overview with `list_messages`.
+</Tip>
+
+---
+
+## Webhooks or polling
+
+Use [webhooks](/guides/webhooks) for real-time tracking. You learn about every change right away and don't have to keep asking. Polling the REST API works well as a complement:
+
+- **Recovering a status** — when a webhook didn't arrive or your server failed to process it.
+- **Reconciling with your database** — for example, once a day you compare sent messages with your own records.
+- **Reports and dashboards** — counts of sent, delivered and clicked messages per day and per tag.
+- **Integrations without a public callback URL** — for example, an internal script that SmsManager can't send webhooks to.
+
+<Warning>
+  Don't poll the status of every message in a tight loop. For ongoing tracking, webhooks are more efficient and spare your integration needless requests.
+</Warning>
+
+| Endpoint | What it returns | Typical use |
+| --- | --- | --- |
+| `GET /message?id=` | The full status of one message | Message detail, debugging |
+| `GET /messages?date=` | Per-recipient rows for one day | Reconciling and exporting sent messages |
+| `GET /request?date=&id=` | Statistics for one request (`request_id`) | The outcome of one send call |
+| `GET /requests?dates=` | Aggregated statistics per day, optionally per tag | Reports and dashboards |
+| `GET /inbox?date=` | Messages received on one day | Processing replies, a backup for webhooks |
+
+---
+
+## Status of a single message
+
+`GET /message` returns the full status of one message by its `message_id`.
+
+```bash cURL
+curl "https://rest-api.smsmngr.com/v1/message?id=e27ff0ac-87b5-4e1d-b644-5fc6029e2a11" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+```json Response
+{
+  "success": true,
+  "message": {
+    "status_code": "200",
+    "delivery_code": "201",
+    "status_info": "Delivered",
+    "tag": "newsletter",
+    "body": "Hello, your order is on its way.",
+    "to": { "phone_number": "420777123456" },
+    "request_id": "bc36f3d1-d284-463a-921b-a3560c154649",
+    "ts_created": "2026-07-30T10:00:00Z",
+    "ts_sent": "2026-07-30T10:00:01Z",
+    "ts_delivered": "2026-07-30T10:00:04Z",
+    "ts_seen": null,
+    "ts_clicked": null,
+    "ts_updated": "2026-07-30T10:00:05Z",
+    "flow": [{ "sms": {} }],
+    "flow_index": "0",
+    "flow_status": {
+      "0": { "status_code": "200", "delivery_code": "201" }
+    },
+    "price": 1.2
+  }
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `status_code` | The sending status code. `200` means sent. |
+| `delivery_code` | The delivery status code. `201` means delivered, `202` means seen. |
+| `status_info` | A text description of the status, for example `Delivered`. |
+| `tag`, `body`, `to` | The tag, text and recipient of the message as you sent them. |
+| `request_id` | The ID of the request you sent the message in. |
+| `ts_created`, `ts_sent`, `ts_delivered`, `ts_seen`, `ts_clicked`, `ts_updated` | When the message was created, sent, delivered, seen, clicked and last updated. The value is `null` until the event happens. |
+| `flow` | The original `flow` of the message. |
+| `flow_index` | The index of the `flow` step that was used. |
+| `flow_status` | Status codes (`status_code`, `delivery_code`) for each step, keyed by step index. |
+| `price` | The price of the message. |
+
+Status codes are strings (`"200"`, not `200`), so compare them as strings. For the meaning of every code, see the [error reference](/reference/errors).
+
+For a message with several steps, such as Viber with an SMS fallback, `flow_index` tells you which step was used. `flow_status` shows the status of each step separately.
+
+<Note>
+  `GET /message` returns only messages sent by the same API key you query with. If another key sent the message, such as one of your sub-keys, you get `"message": null`. You get the same response for an ID that doesn't exist.
+</Note>
+
+Messages sent through `POST /messages` in JSON API v2 have IDs with a recipient index suffix, for example `e27ff0ac-87b5-4e1d-b644-5fc6029e2a11-1`. Query the status with exactly that ID. The [message_id and request_id](/concepts/message-ids) concept explains how the IDs are built.
+
+---
+
+## Messages sent on a given day
+
+`GET /messages` returns an overview of the messages sent on one day, one row per recipient. The results are paginated with a cursor.
+
+| Parameter | Required | Description |
+| --- | --- | --- |
+| `date` | yes | The day, as `YYYY-MM-DD`. |
+| `tag` | no | Returns only messages with this tag. Comma-separated tags are normalized and sorted before comparison, so their order doesn't matter. |
+| `phone_number` | no | Returns only messages for this recipient phone number. |
+| `subid` | no | The sub-account ID. The default is `default`. |
+| `cursor` | no | The next-page cursor from the `next_cursor` field of the previous response. |
+
+```bash cURL
+curl "https://rest-api.smsmngr.com/v1/messages?date=2026-07-30&tag=newsletter" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+```json Response
+{
+  "success": true,
+  "messages": [
+    {
+      "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+      "message_parts": 1,
+      "ts_sent": "2026-07-30T10:00:01Z",
+      "ts_delivered": "2026-07-30T10:00:04Z",
+      "ts_updated": "2026-07-30T10:00:05Z",
+      "ts_clicked": null,
+      "ts_seen": null,
+      "ts_replied": null,
+      "ts_optout": null,
+      "sent": 1,
+      "delivered": 1,
+      "seen": 0,
+      "clicked": 0,
+      "replied": 0,
+      "optout": 0,
+      "nondelivered": 0,
+      "body": "Hello, your order is on its way.",
+      "flow": "sms",
+      "sender": "Mojefirma",
+      "phone_number": "420777123456",
+      "price_czk": "1.2",
+      "price_eur": "0.05"
+    }
+  ],
+  "next_cursor": null
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `message_id` | The message ID. Get the full detail with `GET /message`. |
+| `phone_number`, `sender`, `body` | The recipient, sender and text of the message. |
+| `flow` | The channel the message went out on, for example `sms`. Unlike in `GET /message`, this is a string, not the whole `flow`. |
+| `message_parts` | The number of message parts. |
+| `sent`, `delivered`, `nondelivered`, `seen`, `clicked`, `replied`, `optout` | Counters for each message event. |
+| `ts_sent`, `ts_delivered`, `ts_seen`, `ts_clicked`, `ts_replied`, `ts_optout`, `ts_updated` | When the event happened. The value is `null` until the event happens. |
+| `price_czk`, `price_eur` | The price in CZK and EUR, as a numeric string. |
+
+### Pagination
+
+If `next_cursor` in the response isn't `null`, send its value in the `cursor` parameter to get the next page. Keep the other parameters the same. Once `next_cursor` is `null`, you have all the rows.
+
+<CodeGroup>
+
+```javascript Node.js
+const rows = [];
+let cursor = null;
+
+do {
+  const params = new URLSearchParams({ date: "2026-07-30" });
+  if (cursor) params.set("cursor", cursor);
+
+  const response = await fetch(
+    `https://rest-api.smsmngr.com/v1/messages?${params}`,
+    { headers: { "x-api-key": "YOUR_API_KEY" } }
+  );
+  const data = await response.json();
+
+  rows.push(...data.messages);
+  cursor = data.next_cursor;
+} while (cursor);
+```
+
+```python Python
+import requests
+
+rows, cursor = [], None
+
+while True:
+    params = {"date": "2026-07-30"}
+    if cursor:
+        params["cursor"] = cursor
+
+    data = requests.get(
+        "https://rest-api.smsmngr.com/v1/messages",
+        headers={"x-api-key": "YOUR_API_KEY"},
+        params=params,
+    ).json()
+
+    rows.extend(data["messages"])
+    cursor = data["next_cursor"]
+    if not cursor:
+        break
+```
+
+</CodeGroup>
+
+---
+
+## Statistics for one request
+
+`GET /request` returns aggregated statistics for one send request. Use the `request_id` that JSON API v2 returned when you sent the messages as `id`. Statistics are kept per day, so you also pass `date`.
+
+```bash cURL
+curl "https://rest-api.smsmngr.com/v1/request?date=2026-07-30&id=bc36f3d1-d284-463a-921b-a3560c154649" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+```json Response
+{
+  "success": true,
+  "request": {
+    "count_delivered": "120",
+    "count_nondelivered": "3",
+    "count_sent": "125",
+    "count_notsent": "2",
+    "count_replied": "5",
+    "count_optout": "1",
+    "msg_sent": "130",
+    "price_czk": "150.5",
+    "price_eur": "6.1",
+    "first_ts_sent": "1785402000",
+    "last_ts_sent": "1785402300"
+  }
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `count_sent`, `count_notsent` | The number of sent and unsent messages. |
+| `count_delivered`, `count_nondelivered` | The number of delivered and undelivered messages. |
+| `count_replied` | The number of messages the recipient replied to. |
+| `count_optout` | The number of opt-outs. |
+| `price_czk`, `price_eur` | The total price in CZK and EUR. |
+| `first_ts_sent`, `last_ts_sent` | The Unix time (in seconds) of the first and last send. |
+
+Every value in the `request` object is a string, including counters and times. If no statistics exist for the given day and `id`, you get `"request": null`. The optional `subid` parameter works the same as in `GET /messages`.
+
+---
+
+## Statistics per day and per tag
+
+`GET /requests` aggregates statistics for whole days. Pass one or more comma-separated dates in the `dates` parameter.
+
+| Parameter | Required | Description |
+| --- | --- | --- |
+| `dates` | yes | Comma-separated dates, for example `2026-07-29,2026-07-30`. |
+| `tag` | no | Returns statistics only for messages with this tag. |
+| `group` | no | The value `tag` returns a per-tag breakdown instead of a daily total. |
+| `subid` | no | The sub-account ID. The default is `default`. |
+
+```bash cURL
+curl "https://rest-api.smsmngr.com/v1/requests?dates=2026-07-29,2026-07-30" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+The `requests` array holds one item for each day that has data. Days without records are left out. Each item contains `date`, the list of tags found in `tags`, and the statistics in `stats`.
+
+```json Response
+{
+  "success": true,
+  "requests": [
+    {
+      "date": "2026-07-30",
+      "tags": ["newsletter", "promo"],
+      "stats": {
+        "count_delivered": 120,
+        "count_seen": 40,
+        "count_clicked": 10,
+        "count_nondelivered": 3,
+        "count_sent": 125,
+        "count_notsent": 29,
+        "count_replied": 5,
+        "count_optout": 1,
+        "msg_sent": 130,
+        "price_czk": 118.75,
+        "price_eur": 0,
+        "first_ts_sent": "1785402000",
+        "last_ts_sent": "1785434400",
+        "msg_mccmnc": { "23001": 50, "23002": 80 },
+        "count_notsent_codes": { "300": 27, "303": 2 },
+        "flow_stats": {
+          "0": {
+            "viber": { "sent": 100, "notsent": 27, "delivered": 98, "nondelivered": 1, "seen": 40, "clicked": 10, "replied": 5, "optout": 1 }
+          },
+          "1": {
+            "sms": { "sent": 25, "notsent": 2, "delivered": 22, "nondelivered": 2, "seen": 0, "clicked": 0, "replied": 0, "optout": 0 }
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `count_sent`, `count_notsent` | The number of sent and unsent messages. |
+| `count_delivered`, `count_nondelivered` | The number of delivered and undelivered messages. |
+| `count_seen`, `count_clicked` | The number of unique seen and clicked messages, derived from the per-step `flow` counters. |
+| `count_replied`, `count_optout` | The number of messages with a reply and the number of opt-outs. |
+| `price_czk`, `price_eur` | The total price in CZK and EUR. Refunds for unsent messages are already deducted. |
+| `first_ts_sent`, `last_ts_sent` | The Unix time (in seconds) of the first and last send, as a string. |
+| `msg_mccmnc` | Message counts per mobile network. The key is MCC+MNC, for example `23001`. |
+| `count_notsent_codes` | A breakdown of `count_notsent` by status code. |
+| `flow_stats` | Counters per `flow` step and channel. |
+
+Unlike in `GET /request`, the counters in `GET /requests` are numbers, not strings.
+
+### Why messages weren't sent
+
+`count_notsent_codes` breaks `count_notsent` down by rejection status code (`300`–`399`). The key is the code and the value is the number of messages. The values always add up to `count_notsent`. In the example above, 27 messages ended with code `300` and 2 with code `303`. For the meaning of each code, see the [error reference](/reference/errors).
+
+### Statistics per flow step
+
+`flow_stats` is keyed by step index (`"0"`, `"1"`, …) and then by channel name, for example `sms`, `viber` or `whatsapp_template`. For each channel you get the counters `sent`, `notsent`, `delivered`, `nondelivered`, `seen`, `clicked`, `replied` and `optout`.
+
+The counters work in two ways:
+
+- **Delivery metrics** (`delivered`, `nondelivered`, `seen`, `clicked`, `replied`, `optout`) count each message at most once per step.
+- **`sent` and `notsent`** count send attempts.
+
+In the example, the Viber step (`"0"`) has 100 sent and 27 unsent attempts. The SMS step (`"1"`) has 25 sent and 2 unsent. This shows you how much of the traffic the SMS fallback carried.
+
+### Breakdown by tag
+
+With `group=tag`, `stats` is an array instead of a single object. Each item belongs to one tag, whose value is in the `key` field. It holds the same counters as the daily total.
+
+A message with several tags isn't split across the individual tags. It stays under a single key with the tag combination joined by commas, for example `newsletter,promo`.
+
+```bash cURL
+curl "https://rest-api.smsmngr.com/v1/requests?dates=2026-07-30&group=tag" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+```json Response (trimmed)
+{
+  "success": true,
+  "requests": [
+    {
+      "date": "2026-07-30",
+      "tags": ["newsletter", "promo"],
+      "stats": [
+        {
+          "key": "newsletter",
+          "count_sent": 72,
+          "count_delivered": 70,
+          "count_seen": 25,
+          "count_clicked": 6,
+          "count_notsent": 15,
+          "count_notsent_codes": { "300": 14, "303": 1 },
+          "price_czk": 68.4
+        },
+        {
+          "key": "promo",
+          "count_sent": 53,
+          "count_delivered": 50,
+          "count_seen": 15,
+          "count_clicked": 4,
+          "count_notsent": 14,
+          "count_notsent_codes": { "300": 13, "303": 1 },
+          "price_czk": 50.35
+        }
+      ]
+    }
+  ]
+}
+```
+
+The real response includes every field of the daily total for each tag, including `msg_mccmnc` and `flow_stats`.
+
+---
+
+## Received messages
+
+`GET /inbox` returns the messages you received on the given day. It includes replies to your messages as well as unsolicited inbound messages.
+
+```bash cURL
+curl "https://rest-api.smsmngr.com/v1/inbox?date=2026-07-30" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+```json Response
+{
+  "success": true,
+  "inbox": [
+    {
+      "ts_received": "2026-07-30T11:22:33Z",
+      "body": "STOP",
+      "from": "420777123456",
+      "to": "Mojefirma",
+      "gateway": "sms",
+      "payload": null,
+      "original": null,
+      "media": null
+    },
+    {
+      "ts_received": "2026-07-30T11:25:02Z",
+      "body": "YES",
+      "from": "420777654321",
+      "to": "Mojefirma",
+      "gateway": "sms",
+      "payload": { "order_id": 42 },
+      "original": {
+        "message_id": "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11",
+        "body": "Confirm your order by replying YES.",
+        "sender": "Mojefirma",
+        "created": 1785410553
+      },
+      "media": null
+    },
+    {
+      "ts_received": "2026-07-30T12:34:56Z",
+      "body": "photo of the damaged package",
+      "from": "420777123456",
+      "to": "420736352552",
+      "gateway": "whatsapp",
+      "payload": null,
+      "original": null,
+      "media": {
+        "type": "image",
+        "url": "https://smsmngr-inbound-media.s3.eu-central-1.amazonaws.com/3f7a1c9b2e4d5f60718293a4b5c6d7e8.jpg",
+        "mime_type": "image/jpeg",
+        "caption": "photo of the damaged package",
+        "size": 245731,
+        "provider_id": "1234567890123456"
+      }
+    }
+  ]
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `ts_received` | When the message was received. |
+| `body` | The message text. |
+| `from` | The phone number the message came from. |
+| `to` | Your number or sender that received the message. |
+| `gateway` | The channel, for example `sms` or `whatsapp`. |
+| `payload` | The `payload` of the related outgoing message, if there is one. Otherwise `null`. |
+| `original` | The outgoing message this message replies to. |
+| `media` | The attachment of the message. |
+
+### Matched outgoing message
+
+If the inbound message can be matched to one of your outgoing messages, you find it in the `original` object. For unsolicited inbound messages, `original` is `null`.
+
+| Field | Description |
+| --- | --- |
+| `message_id` | The ID of the original outgoing message. Look up its status with `GET /message`. |
+| `body` | The text of the original message. |
+| `sender` | The sender of the original message. Empty for a short code. |
+| `created` | When the original message was created (Unix time in seconds). |
+
+### Attachments
+
+If an inbound WhatsApp or RCS message contains media, the `media` object describes it. It can be an image, video, audio, document, sticker, shared location or contact cards. For text-only messages, `media` is `null`. The object has the same shape as `media` in the inbound webhook; see [Webhooks](/guides/webhooks).
+
+| Field | Description |
+| --- | --- |
+| `type` | The attachment type: `image`, `video`, `audio`, `document`, `sticker`, `location` or `contacts`. |
+| `url` | The persistent public URL of the stored file. Missing if the file couldn't be stored. |
+| `error` | Why the file couldn't be stored: `download_failed`, `too_large` or `no_token`. Set instead of `url`. |
+| `mime_type` | The MIME type as reported by the channel. |
+| `filename` | The original file name (documents only). |
+| `caption` | The caption sent with the media. If the message has no text, the caption is also returned as `body`. |
+| `size` | The file size in bytes, if known. |
+| `thumbnail` | The persistent public URL of the stored thumbnail (RCS only). |
+| `animated` | Whether the sticker is animated (stickers only). |
+| `location` | The shared location with the fields `latitude`, `longitude`, `name` and `address` (only when `type` is `location`). |
+| `contacts` | The shared contact cards as provided by the channel (only when `type` is `contacts`). |
+| `provider_id` | The media or message ID assigned by the channel provider. |
+
+If the file can't be stored, you still get the other metadata. So before downloading, check whether `url` or `error` is set.
+
+<Tip>
+  You can reply to inbound messages automatically or have them forwarded by email. See the [Auto-replies and incoming handling](/guides/auto-replies) guide.
+</Tip>
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    Receive status changes and inbound messages in real time instead of polling.
+  </Card>
+
+  <Card title="message_id and request_id" icon="fingerprint" href="/concepts/message-ids">
+    How message and request IDs are built, including the recipient index suffix.
+  </Card>
+
+  <Card title="Error codes" icon="triangle-exclamation" href="/reference/errors">
+    The meaning of `status_code`, `delivery_code` and the codes in `count_notsent_codes`.
+  </Card>
+
+  <Card title="Message flow" icon="arrow-right-arrow-left" href="/concepts/message-flow">
+    How `flow` steps and fallback channels work, as you see them in `flow_stats`.
+  </Card>
+
+  <Card title="Auto-replies" icon="reply" href="/guides/auto-replies">
+    Reply to inbound messages automatically by keyword or button.
+  </Card>
+
+  <Card title="REST API reference" icon="book" href="/api-reference/rest/overview">
+    The full parameters and responses of `/message`, `/messages`, `/request`, `/requests` and `/inbox`.
+  </Card>
+</CardGroup>

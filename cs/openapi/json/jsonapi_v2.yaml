@@ -6,7 +6,7 @@ info:
 
     ## JSON API v2
 
-    API klíč je vyžadován pro všechny požadavky. Svůj API klíč najdete v sekci [Výojáři](https://app.smsmanager.com/app/developers/).
+    API klíč je vyžadován pro všechny požadavky. Svůj API klíč najdete v sekci [Vývojáři](https://app.smsmanager.com/app/developers/).
 
     Starší verze API (http-api a xml-api) jsou zastaralé a místo nich byste měli používat toto JSON API v2.
   version: v2
@@ -45,7 +45,7 @@ components:
               - phone_number
         sender:
           type: string
-          description: Výchozí odesílatel pro všechny kroky flow. Pokud krok flow definuje vlastní `sender`, má hodnota z kroku flow vyšší prioritu. Alfanumerický název odesílatele (max. 11 znaků, může být vyžadována předchozí registrace) nebo dedikované virtuální číslo (bez `+`).
+          description: Výchozí odesílatel pro všechny kroky flow. Pokud krok flow definuje vlastní `sender`, má hodnota z kroku flow vyšší prioritu. Alfanumerický název odesílatele (max. 11 znaků, může být vyžadována předchozí registrace) nebo dedikované virtuální číslo (bez `+`). Hodnota musí být platná pro kanál kroku flow, na který se použije (název nebo číslo pro `sms` a `viber`, Phone Number ID pro `whatsapp_text` a `whatsapp_template`, agent pro `rcs`); u kroku, jehož kanál pro ni nemáte zaregistrovaný, se ignoruje. Můžete použít i **alias odesílatele** — jeden název nastavený pro váš účet, který se pro každou zemi příjemce přeloží na jiného zaregistrovaného odesílatele. Pokud `sender` neuvedete ani na jedné úrovni, použije se výchozí odesílatel vašeho účtu (`default_sender`, nastavíte jej přes `POST /apikey/update` v REST API). `default_sender` je výchozí hodnota pro celý účet a nesouvisí s nastavením `default_sender_<platform>_<mcc>` pro jednotlivé země.
           examples:
             - Mojefirma
             - "420777123456"
@@ -65,7 +65,7 @@ components:
           description: Zastaralý alias pole `tag`. Použijte `tag`.
         params:
           type: object
-          description: 'Tímto objektem můžete zprávě předat speciální parametry, např. automatické zkracování odkazů přes objekt `_url`. Zeptejte se nás, jak tento parametr použít pro další funkce.'
+          description: 'Tímto objektem můžete zprávě předat speciální parametry, např. automatické zkracování odkazů přes objekt `_url` nebo zpracování příchozích odpovědí přes objekt `_incoming`. Zeptejte se nás, jak tento parametr použít pro další funkce.'
           properties:
             _url:
               type: object
@@ -94,6 +94,73 @@ components:
                   type: integer
                   description: Unix timestamp expirace zkráceného odkazu. Výchozí hodnota je 7 dní od odeslání. (Zastaralý alias `expires` je stále akceptován.)
                   example: 1736589600
+            _incoming:
+              type: object
+              description: 'Zpracování příchozích událostí (odpovědi, kliknutí na tlačítka) této zprávy. Musí být uvedeno alespoň jedno z polí `email_to`, `reply` a `callback`. Příchozí události se k odeslané zprávě párují jen po omezenou dobu od odeslání: přibližně 2 dny pro SMS a přibližně 1 měsíc pro Viber, WhatsApp a RCS; pozdější odpovědi se nespárují a žádnou akci nevyvolají. Opt-out odpovědi (STOP/UNSUBSCRIBE/SUBSCRIBE) jsou přeposílány e-mailem (s prefixem `[OPT-OUT]` v předmětu) a na `callback`, ale nikdy nespustí automatickou odpověď (pro potvrzení opt-outu použijte `_optout.reply`).'
+              properties:
+                email_to:
+                  description: E-mailová adresa (nebo pole až 5 adres), na kterou je přeposlána každá příchozí odpověď.
+                  oneOf:
+                    - type: string
+                      format: email
+                    - type: array
+                      minItems: 1
+                      maxItems: 5
+                      items:
+                        type: string
+                        format: email
+                  example: agent@example.com
+                callback:
+                  type: string
+                  format: uri
+                  description: 'Webhook URL (http(s)), na kterou je odeslána každá příchozí událost spárovaná s touto zprávou — textové odpovědi, kliknutí na WhatsApp/RCS tlačítka a opt-out klíčová slova — navíc k hlavnímu poli `callback`. Payload je standardní příchozí webhook událost (`type: incoming`); kliknutí na tlačítko nese objekt `whatsapp`/`rcs` se stisknutým tlačítkem. Kliknutí na zkrácené odkazy (`_url`) zahrnuta nejsou.'
+                  example: 'https://example.com/incoming-events'
+                reply:
+                  type: object
+                  minProperties: 1
+                  maxProperties: 10
+                  description: 'Automatické odpovědi jako mapa párovací hodnoty na objekt odpovědí podle kanálu (max. 10 záznamů). Párovací hodnota se porovnává bez ohledu na velikost písmen s příchozí odpovědí: u SMS s textem zprávy (klíčové slovo), u WhatsApp s `buttons[].id` interaktivního tlačítka nebo s payload hodnotou quick-reply tlačítka šablony z `params_buttons`, u RCS s hodnotou `postback` tlačítka nebo s viditelným textem tlačítka. Při shodě je automaticky odeslán text nastavený pro příchozí kanál (`sms`, `whatsapp`, `rcs`, `viber`) stejným kanálem — kanál bez nastaveného textu nic neodešle. Volitelné `callback` a `email_to` spárovaného záznamu jsou notifikovány o této konkrétní shodě, navíc k polím na úrovni `_incoming`. Automatické odpovědi jsou účtovány jako běžné zprávy.'
+                  additionalProperties:
+                    type: object
+                    minProperties: 1
+                    additionalProperties: false
+                    properties:
+                      sms:
+                        type: string
+                        maxLength: 1000
+                        description: Text odpovědi odeslaný, když příchozí zpráva dorazila přes SMS.
+                      whatsapp:
+                        type: string
+                        maxLength: 1000
+                        description: Text odpovědi odeslaný, když příchozí zpráva dorazila přes WhatsApp.
+                      rcs:
+                        type: string
+                        maxLength: 1000
+                        description: Text odpovědi odeslaný, když příchozí zpráva dorazila přes RCS.
+                      viber:
+                        type: string
+                        maxLength: 1000
+                        description: Text odpovědi odeslaný, když příchozí zpráva dorazila přes Viber.
+                      callback:
+                        type: string
+                        format: uri
+                        description: Webhook URL (http(s)) notifikovaná pouze při shodě tohoto záznamu.
+                      email_to:
+                        description: E-mailová adresa (nebo pole až 5 adres) notifikovaná pouze při shodě tohoto záznamu.
+                        oneOf:
+                          - type: string
+                            format: email
+                          - type: array
+                            minItems: 1
+                            maxItems: 5
+                            items:
+                              type: string
+                              format: email
+                  example:
+                    MORE_INFO:
+                      sms: 'Thank you for your interest! Read more at https://example.com/info'
+                      whatsapp: 'Thank you for your interest! 🎉 Read more at https://example.com/info'
+                      callback: 'https://example.com/hooks/more-info'
         datetime:
           type: string
           format: date-time
@@ -132,7 +199,9 @@ components:
         flow:
           type: array
           description: |
-            Seznam komunikačních kanálů pro flow zprávy. Pokud je definován, nesmí být prázdný. Můžete použít více kanálů, na pořadí záleží (první kanál se použije jako první; pokud krok definuje `ttl` a jeho `ttl_condition` není v rámci TTL splněna, použije se další kanál, atd.). Pokud `flow` není definováno, použije se výchozí `[{"sms": {"gateway": "high"}}]`.
+            Seznam komunikačních kanálů pro flow zprávy. Pokud je definován, nesmí být prázdný. Můžete použít více kanálů, na pořadí záleží (první kanál se použije jako první; pokud krok definuje `ttl` a jeho `ttl_condition` není v rámci TTL splněna, použije se další kanál, atd.). Pokud `flow` není definováno, použije se jeden krok `sms`. Jeho gateway zůstane nenastavená, aby mohla být určena podle odesílatele (viz `gateway`); nenastavená gateway se směruje i účtuje jako `high`.
+
+            Pole označená jako povinná uvnitř kroku flow (`body`, `sender`) můžete místo toho uvést v kořenovém objektu; hodnota z kroku flow má vyšší prioritu.
           items:
             type: object
             additionalProperties: false
@@ -148,7 +217,7 @@ components:
                     description: Tato definice těla zprávy má vyšší prioritu než definice v kořenovém objektu.
                   sender:
                     type: string
-                    description: Alfanumerický název odesílatele (max. 11 znaků, může být vyžadována předchozí registrace) nebo dedikované virtuální číslo (bez `+`). Pokud není nastaven, použije se `sender` z kořenového objektu.
+                    description: Alfanumerický název odesílatele (max. 11 znaků, může být vyžadována předchozí registrace) nebo dedikované virtuální číslo (bez `+`), případně alias odesílatele. Pokud není nastaven, použije se `sender` z kořenového objektu a poté výchozí odesílatel vašeho účtu (`default_sender`).
                     examples:
                       - Mojefirma
                       - 420777123456
@@ -162,7 +231,7 @@ components:
                       - simhost
                       - gsm
                     default: high
-                    description: Použijte `high` pro výchozí vysoce kvalitní směrování, `lowcost` pro nízkonákladové směrování. Použijte `direct`, pokud používáte dedikované virtuální číslo. Použijte `custom` nebo `simhost`, pokud používáte SIM hosting, `gsm` pro vlastní GSM bránu.
+                    description: Použijte `high` pro výchozí vysoce kvalitní směrování, `lowcost` pro nízkonákladové směrování. Použijte `direct`, pokud používáte dedikované virtuální číslo. Použijte `custom` nebo `simhost`, pokud používáte SIM hosting, `gsm` pro vlastní GSM bránu. Pokud není uveden, může být gateway určena automaticky podle odesílatele registrovaného pro váš účet — dedikované virtuální číslo zvolí `direct` (včetně ceny `direct`); jinak se použije výchozí směrování. Explicitně uvedená `gateway` má vždy přednost.
                   ttl:
                     type: number
                     minimum: 0.5
@@ -193,7 +262,7 @@ components:
                     description: Tato definice těla zprávy má vyšší prioritu než definice v kořenovém objektu.
                   sender:
                     type: string
-                    description: Použijte název odesílatele, který máte předem zaregistrovaný pro Viber Business Message.
+                    description: Použijte název odesílatele, který máte předem zaregistrovaný pro Viber Business Message, případně alias odesílatele. Pokud není nastaven, použije se `sender` z kořenového objektu a poté výchozí odesílatel vašeho účtu (`default_sender`).
                   buttons:
                     type: array
                     maxItems: 1
@@ -228,15 +297,38 @@ components:
                 properties:
                   body:
                     type: string
-                    description: Tato definice těla zprávy má vyšší prioritu než definice v kořenovém objektu. Vlastní tělo zprávy můžete použít pouze v případě, že příjemce již odpověděl na vaši šablonovou zprávu nebo vám první napsal.
+                    description: Tato definice těla zprávy má vyšší prioritu než definice v kořenovém objektu. Vlastní tělo zprávy můžete použít pouze v případě, že příjemce již odpověděl na vaši šablonovou zprávu nebo vám první napsal. Pokud je nastaveno pole s médiem (`image`, `video`, `document`, `audio`), tělo se použije jako popisek média a lze jej vynechat.
                     maxLength: 1000
                   sender:
                     type: string
-                    description: Phone Number ID registrovaného WhatsApp čísla. Najdete jej ve svém [nastavení WhatsApp](https://app.smsmanager.com/whatsapp).
+                    description: Phone Number ID registrovaného WhatsApp čísla. Najdete jej ve svém [nastavení WhatsApp](https://app.smsmanager.com/whatsapp). Místo něj lze použít alias odesílatele. Pokud není nastaven, použije se `sender` z kořenového objektu a poté výchozí odesílatel vašeho účtu (`default_sender`).
                     examples:
                       - "514578330250514"
+                  image:
+                    description: Obrázek k odeslání (JPEG nebo PNG na veřejné URL). Buď URL jako řetězec, nebo objekt s `url` a volitelným `caption`. Pokud popisek není nastaven, použije se jako popisek tělo zprávy. Použijte nejvýše jedno pole s médiem na zprávu.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/WhatsappMedia'
+                  video:
+                    description: Video k odeslání (MP4 nebo 3GP na veřejné URL). Buď URL jako řetězec, nebo objekt s `url` a volitelným `caption`. Pokud popisek není nastaven, použije se jako popisek tělo zprávy. Použijte nejvýše jedno pole s médiem na zprávu.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/WhatsappMedia'
+                  document:
+                    description: Dokument k odeslání (například PDF, DOCX nebo XLSX na veřejné URL). Buď URL jako řetězec, nebo objekt s `url`, volitelným `caption` a volitelným `filename` zobrazeným příjemci. Použijte nejvýše jedno pole s médiem na zprávu.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/WhatsappMedia'
+                  audio:
+                    description: Audio k odeslání (například MP3 nebo OGG na veřejné URL). Buď URL jako řetězec, nebo objekt s `url`. WhatsApp nepodporuje popisky u audio zpráv. Použijte nejvýše jedno pole s médiem na zprávu.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/WhatsappMedia'
                 required:
-                  - body
                   - sender
               whatsapp_template:
                 type: object
@@ -247,7 +339,7 @@ components:
                     maxLength: 100
                   sender:
                     type: string
-                    description: Phone Number ID registrovaného WhatsApp čísla. Najdete jej ve svém [nastavení WhatsApp](https://app.smsmanager.com/whatsapp).
+                    description: Phone Number ID registrovaného WhatsApp čísla. Najdete jej ve svém [nastavení WhatsApp](https://app.smsmanager.com/whatsapp). Místo něj lze použít alias odesílatele. Pokud není nastaven, použije se `sender` z kořenového objektu a poté výchozí odesílatel vašeho účtu (`default_sender`).
                     examples:
                       - "514578330250514"
                   params:
@@ -293,10 +385,49 @@ components:
                   body:
                     type: string
                     maxLength: 1000
-                    description: Tato definice těla zprávy má vyšší prioritu než definice v kořenovém objektu.
+                    description: Tato definice těla zprávy má vyšší prioritu než definice v kořenovém objektu. Pokud je nastaveno pole s médiem (`image`, `video`, `document`, `audio`), tělo se použije jako popisek — zpráva se pak doručí jako rich card s tělem jako jejím popisem — a lze jej vynechat.
                   sender:
                     type: string
-                    description: Použijte RCS agenta, kterého máte předem zaregistrovaného pro váš účet.
+                    description: Použijte RCS agenta, kterého máte předem zaregistrovaného pro váš účet, případně alias odesílatele. Pokud není nastaven, použije se `sender` z kořenového objektu a poté výchozí odesílatel vašeho účtu (`default_sender`).
+                  image:
+                    description: Obrázek k odeslání (například JPEG, PNG, GIF nebo WEBP na veřejné URL). Buď URL jako řetězec, nebo objekt s `url` a volitelnými `thumbnail`, `caption` a `height`. Bez popisku (a bez těla) se soubor pošle samostatně; s popiskem se doručí jako rich card. Použijte nejvýše jedno pole s médiem na zprávu.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/RcsMedia'
+                  video:
+                    description: Video k odeslání (například MP4, WEBM nebo 3GP na veřejné URL). Buď URL jako řetězec, nebo objekt s `url` a volitelnými `thumbnail`, `caption` a `height`. Použijte nejvýše jedno pole s médiem na zprávu.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/RcsMedia'
+                  document:
+                    description: Dokument k odeslání (například PDF na veřejné URL). Buď URL jako řetězec, nebo objekt s `url` a volitelnými `thumbnail`, `caption` a `height`. Použijte nejvýše jedno pole s médiem na zprávu.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/RcsMedia'
+                  audio:
+                    description: Audio k odeslání (například MP3 nebo OGG na veřejné URL). Buď URL jako řetězec, nebo objekt s `url` a volitelnými `thumbnail`, `caption` a `height`. Použijte nejvýše jedno pole s médiem na zprávu.
+                    oneOf:
+                      - type: string
+                        format: uri
+                      - $ref: '#/components/schemas/RcsMedia'
+                  buttons:
+                    type: array
+                    description: Navrhované odpovědi a akce zobrazené jako řádek tlačítek pod zprávou.
+                    items:
+                      $ref: '#/components/schemas/RcsButton'
+                  card:
+                    description: Rich card s médiem, titulkem, popisem a volitelnými tlačítky.
+                    $ref: '#/components/schemas/RcsCard'
+                  carousel:
+                    type: array
+                    minItems: 2
+                    maxItems: 10
+                    description: Karusel 2 až 10 rich card, mezi kterými může příjemce listovat.
+                    items:
+                      $ref: '#/components/schemas/RcsCard'
                   ttl:
                     type: number
                     minimum: 0.5
@@ -309,14 +440,191 @@ components:
                       - seen
                     default: delivered
                     description: Podmínka vyhodnocená po vypršení TTL. Pokud zpráva již dosáhla tohoto stavu, další krok flow se nepoužije.
-                required:
-                  - body
         payload:
           type: object
           description: |
             Můžete odeslat payload zprávy, kde si můžete definovat libovolné parametry zprávy. Tento objekt je vrácen v notifikaci o doručení a v odpovědích.
           example:
             user_id: "123456"
+
+    WhatsappMedia:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Veřejná URL souboru.
+        caption:
+          type: string
+          description: Popisek zobrazený u média. Pokud není nastaven, použije se tělo zprávy. Není podporován pro audio.
+        filename:
+          type: string
+          description: Název souboru zobrazený příjemci (pouze u dokumentů).
+
+    RcsMedia:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Veřejná URL souboru.
+        thumbnail:
+          type: string
+          format: uri
+          description: Veřejná URL náhledu zobrazeného během načítání souboru.
+        caption:
+          type: string
+          description: Popisek média. Pokud není nastaven, použije se tělo zprávy. S popiskem se zpráva doručí jako rich card s popiskem jako jejím popisem.
+        height:
+          type: string
+          enum:
+            - SHORT
+            - MEDIUM
+            - TALL
+          default: MEDIUM
+          description: Výška média rich card (použije se pouze v případě, že se zpráva doručí jako rich card).
+        forceRefresh:
+          type: boolean
+          description: Vynutí, aby si RCS platforma soubor stáhla znovu, i když má jeho kopii v cache.
+
+    IncomingMedia:
+      type: object
+      description: >-
+        Médium přiložené k příchozí zprávě (WhatsApp/RCS obrázek, video, audio, dokument,
+        nálepka, sdílená poloha nebo kontaktní karty). Posílá se pouze tehdy, když příchozí
+        zpráva médium obsahuje. U binárních typů je soubor uložen na trvalé veřejné URL
+        v poli `url`; pokud se soubor nepodařilo uložit, `url` chybí a místo něj je
+        nastaveno pole `error` — ostatní metadata jsou doručena i tak.
+      properties:
+        type:
+          type: string
+          enum:
+            - image
+            - video
+            - audio
+            - document
+            - sticker
+            - location
+            - contacts
+          description: Typ obsahu přílohy.
+        url:
+          type: string
+          format: uri
+          description: Trvalá veřejná URL uloženého souboru. Chybí, pokud se soubor nepodařilo uložit.
+        mime_type:
+          type: string
+          description: MIME typ, jak jej nahlásil kanál.
+        filename:
+          type: string
+          description: Původní název souboru (dokumenty).
+        caption:
+          type: string
+          description: Popisek odeslaný spolu s médiem. Pokud zpráva nemá text, doručí se také jako `body`.
+        size:
+          type: integer
+          description: Velikost souboru v bajtech, pokud je známa.
+        animated:
+          type: boolean
+          description: Zda je nálepka animovaná (pouze nálepky).
+        thumbnail:
+          type: string
+          format: uri
+          description: Trvalá veřejná URL uloženého náhledu (pouze RCS).
+        location:
+          type: object
+          description: Sdílená poloha (pouze když `type` je `location`).
+          properties:
+            latitude:
+              type: number
+            longitude:
+              type: number
+            name:
+              type: string
+            address:
+              type: string
+        contacts:
+          type: array
+          description: Sdílené kontaktní karty (pouze když `type` je `contacts`), tak jak je poskytl kanál.
+          items:
+            type: object
+        provider_id:
+          type: string
+          description: ID média/zprávy přidělené poskytovatelem kanálu.
+        error:
+          type: string
+          enum:
+            - download_failed
+            - too_large
+            - no_token
+          description: Nastaveno místo `url`, pokud se soubor nepodařilo uložit.
+
+    RcsButton:
+      type: object
+      required:
+        - type
+        - text
+      properties:
+        type:
+          type: string
+          enum:
+            - reply
+            - url
+          description: '`reply` pošle hodnotu `postback` zpět jako příchozí zprávu; `url` otevře cílovou URL.'
+        text:
+          type: string
+          description: Text tlačítka.
+        postback:
+          type: string
+          description: Hodnota vrácená v příchozím webhooku, když příjemce na tlačítko klepne.
+        url:
+          type: string
+          format: uri
+          description: Cílová URL (povinná pro tlačítka typu `url`).
+        description:
+          type: string
+          description: Popis URL akce pro usnadnění přístupnosti.
+        webview:
+          type: string
+          enum:
+            - FULL
+            - HALF
+            - TALL
+          description: Otevře URL v in-app webview dané velikosti místo prohlížeče.
+
+    RcsCard:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Titulek karty.
+        description:
+          type: string
+          description: Text karty pod titulkem.
+        file:
+          type: string
+          format: uri
+          description: Veřejná URL média karty.
+        thumbnail:
+          type: string
+          format: uri
+          description: Veřejná URL náhledu zobrazeného během načítání média.
+        height:
+          type: string
+          enum:
+            - SHORT
+            - MEDIUM
+            - TALL
+          default: MEDIUM
+          description: Výška média karty.
+        buttons:
+          type: array
+          description: Tlačítka zobrazená na kartě.
+          items:
+            $ref: '#/components/schemas/RcsButton'
 
     MessagesResponse:
       type: object
@@ -420,6 +728,35 @@ paths:
                   body: "Test message"
                   to:
                     - phone_number: "420777123456"
+              Sender alias (per-country sender):
+                description: Zde je `brand` alias odesílatele nastavený pro účet, takže českému příjemci přijde zpráva od českého odesílatele a slovenskému od slovenského. O nastavení aliasu požádejte podporu.
+                value:
+                  body: "Test message"
+                  sender: "brand"
+                  to:
+                    - phone_number: "420777123456"
+                    - phone_number: "421905123456"
+              Message with sender:
+                description: Odesílatel je nastaven jednou v kořenovém objektu, takže `flow` není potřeba.
+                value:
+                  body: "Test message"
+                  sender: "Mojefirma"
+                  to:
+                    - phone_number: "420777123456"
+              Root sender with a flow step override:
+                description: Kořenový `sender` platí pro všechny kroky flow. Krok Viber jej přepíše vlastním zaregistrovaným odesílatelem, krok SMS zdědí `Mojefirma`.
+                value:
+                  sender: "Mojefirma"
+                  to:
+                    - phone_number: "420777123456"
+                  flow:
+                    - viber:
+                        body: "Your order is ready for pickup"
+                        sender: "MyViber"
+                        ttl: 10
+                        ttl_condition: "delivered"
+                    - sms:
+                        body: "Your order is ready for pickup"
               Message with flow:
                 value:
                   body: "Test message"
@@ -497,6 +834,26 @@ paths:
                         sender: "SmsManager"
                         type: "utf"
                         ttl: 5
+              RCS image message:
+                description: Obrázek odeslaný přes RCS. Bez těla se soubor doručí samostatně; s tělem se zpráva doručí jako rich card s tělem jako popiskem.
+                value:
+                  to:
+                    - phone_number: "420777123456"
+                  flow:
+                    - rcs:
+                        sender: "mybrand_agent"
+                        body: "Your boarding pass"
+                        image: "https://example.com/boarding-pass.png"
+              WhatsApp image with caption:
+                description: Obrázek odeslaný jako WhatsApp session zpráva. Tělo se použije jako popisek obrázku.
+                value:
+                  to:
+                    - phone_number: "420777123456"
+                  flow:
+                    - whatsapp_text:
+                        sender: "514578330250514"
+                        body: "Your QR code"
+                        image: "https://example.com/qr.png"
       responses:
         '200':
           description: Zprávy byly úspěšně odeslány
@@ -1124,6 +1481,7 @@ x-webhooks:
                     to:
                       phone_number: "420777123456"
                     result: delivered
+                    result_info: "[0] Delivered"
               Message rejected insufficient credit:
                 value:
                   - request_id: "bc36f3d1-d284-463a-921b-a3560c154649"
@@ -1168,6 +1526,7 @@ x-webhooks:
                       - sms
                       - viber
                       - whatsapp
+                      - rcs
                   timestamp:
                     description: Timestamp zprávy v Unix formátu. Jde o čas, kdy odesílatel zprávu odeslal (pokud tato informace není k dispozici, obdržíte čas přijetí zprávy naším systémem).
                     type: integer
@@ -1188,6 +1547,8 @@ x-webhooks:
                     description: Tělo zprávy.
                     type: string
                     example: "Thank you!"
+                  media:
+                    $ref: '#/components/schemas/IncomingMedia'
             examples:
               Incoming reply message:
                 value:
@@ -1201,6 +1562,25 @@ x-webhooks:
                     sender: "420777123456"
                     recipient: "420777654321"
                     body: "Thank you!"
+              Incoming reply with media:
+                value:
+                  - request_id: "bc36f3d1-d284-463a-921b-a3560c154649"
+                    message_id: "e27ff0ac-87b5-4e1d-b644-5fc6029e2a11"
+                    payload:
+                      campaign_id: "winter-sale"
+                    gateway: whatsapp
+                    timestamp: 1700000000
+                    type: incoming
+                    sender: "420777123456"
+                    recipient: "420777654321"
+                    body: "photo of the damaged package"
+                    media:
+                      type: "image"
+                      url: "https://smsmngr-inbound-media.s3.eu-central-1.amazonaws.com/3f7a1c9b2e4d5f60718293a4b5c6d7e8.jpg"
+                      mime_type: "image/jpeg"
+                      caption: "photo of the damaged package"
+                      size: 245731
+                      provider_id: "1234567890123456"
   incomingMessage:
     post:
       tags:
@@ -1222,6 +1602,7 @@ x-webhooks:
                       - sms
                       - viber
                       - whatsapp
+                      - rcs
                   timestamp:
                     description: Timestamp zprávy v Unix formátu. Jde o čas, kdy odesílatel zprávu odeslal (pokud tato informace není k dispozici, obdržíte čas přijetí zprávy naším systémem).
                     type: integer
@@ -1240,6 +1621,8 @@ x-webhooks:
                     example: "420777654321"
                   body:
                     type: string
+                  media:
+                    $ref: '#/components/schemas/IncomingMedia'
             examples:
               Incoming message:
                 value:
@@ -1249,6 +1632,21 @@ x-webhooks:
                     sender: "420777123456"
                     recipient: "420777654321"
                     body: "Hello, I have a question."
+              Incoming message with media:
+                value:
+                  - gateway: whatsapp
+                    timestamp: 1700000000
+                    type: incoming
+                    sender: "420777123456"
+                    recipient: "420777654321"
+                    body: "photo of the damaged package"
+                    media:
+                      type: "image"
+                      url: "https://smsmngr-inbound-media.s3.eu-central-1.amazonaws.com/3f7a1c9b2e4d5f60718293a4b5c6d7e8.jpg"
+                      mime_type: "image/jpeg"
+                      caption: "photo of the damaged package"
+                      size: 245731
+                      provider_id: "1234567890123456"
 
 tags:
   - name: sending

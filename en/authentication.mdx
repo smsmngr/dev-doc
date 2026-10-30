@@ -8,7 +8,7 @@ SmsManager uses API key authentication for all requests. Every call to the JSON 
 
 ## Getting your API key
 
-Log in to your SmsManager account and go to the [API & Cloud](https://app.smsmanager.com/api-cloud) page. Your primary API key is displayed there. Copy it and store it somewhere secure — you'll use it in every request you make to the API.
+Log in to your SmsManager account and go to the [Developers](https://app.smsmanager.com/app/developers/) page. Your primary API key is displayed there. Copy it and store it somewhere secure — you'll use it in every request you make to the API.
 
 <Tip>
   You can create additional sub-keys with isolated or shared credit through the REST API. See [Managing API keys](#managing-api-keys) below for details.
@@ -64,13 +64,72 @@ When creating a sub-key you can configure:
   An AI assistant connected through the [MCP server](/ai/mcp-server) can create a sub-key for a new integration for you (the `create_child_apikey` tool) — without ever seeing the workspace's primary key. Code generated with the [AI skills](/ai/skills) reads the key from the `SMSMANAGER_API_KEY` environment variable, in line with the best practices below.
 </Tip>
 
+### Updating a key and its child keys
+
+You change a key's settings with `POST /apikey/update`. All fields are optional, and only the fields you send change. A `null` value (or an empty string) clears a setting. A request with no recognised setting returns `400`.
+
+If the settings are saved but something needs your attention, the response includes a `warning` field. For example, the callback URL may be unreachable, or the default sender may not be registered.
+
+A top-level (parent) key updates its child keys with the same endpoint. Put the child key you want to update in the `apikey` field. It must belong to the calling key (see `GET /apikey/list`). With `apikey`, you can change:
+
+- **`scope`** — the child key's permission scope (`full`, `rest-api`, or `api`),
+- **`disable`** — `1` blocks the child key, `0` unblocks it,
+- every other setting, such as `note`, `default_callback_url`, `default_sender`, or `whitelist_ip`.
+
+The settings behave exactly as if the child key updated itself. For example, `default_sender` is checked against the child key's senders. This also works for child keys with the `api` scope, which can't call `/apikey/update` themselves.
+
+```bash Block a child key
+curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "apikey": "CHILD_API_KEY",
+    "disable": 1
+  }'
+```
+
+<Note>
+  The `scope` and `disable` fields are accepted only together with `apikey`. A key can never change its own scope or its own blocking.
+</Note>
+
+<Warning>
+  The `POST /apikey/change` endpoint is deprecated. It keeps working for existing integrations, but use `POST /apikey/update` with the `apikey` field in new ones.
+</Warning>
+
+## IP whitelist
+
+You can restrict sending through an API key to selected IP addresses or internet providers. Set the whitelist with the `whitelist_ip` field via `POST /apikey/update`:
+
+```bash Set an IP whitelist
+curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "whitelist_ip": ["1.2.3.4", "internet cz"]
+  }'
+```
+
+Each entry is evaluated based on its content:
+
+- **An entry containing `.` or `:`** is matched as an exact IP address. CIDR ranges are not supported.
+- **Any other entry** is matched as a substring of the name of the ISP or organisation that the request's IP address belongs to.
+
+The whitelist can have at most 50 entries. Each entry can be at most 100 characters long and must not contain a comma (`,`).
+
+<Warning>
+  Messages sent from an address outside the whitelist are **not sent**. SmsManager holds them for manual approval instead.
+</Warning>
+
+To remove the restriction, set `null` or an empty array `[]`. `GET /apikey/me` returns the current whitelist in the `whitelist_ip` field. To set a child key's whitelist, send the same request with the `apikey` field added.
+
 ## Security best practices
 
 Follow these guidelines to keep your API keys and your users' data safe:
 
 - **Never hardcode API keys in client-side code** — keys embedded in browser JavaScript, mobile apps, or public repositories can be extracted and abused
 - **Use environment variables** — load keys from environment variables or a secrets manager (e.g. AWS Secrets Manager, HashiCorp Vault) rather than committing them to source control
-- **Rotate keys if compromised** — if you suspect a key has been leaked, create a new one immediately via [app.smsmanager.com/api-cloud](https://app.smsmanager.com/api-cloud) or the REST API, update your integrations, and delete the old key
+- **Rotate keys if compromised** — if you suspect a key has been leaked, create a new one immediately via [app.smsmanager.com/app/developers](https://app.smsmanager.com/app/developers/) or the REST API, update your integrations, and delete the old key
+- **Restrict sending to your servers** — set an [IP whitelist](#ip-whitelist) so the key sends only from addresses you know
 - **Use sub-keys per integration** — assign a dedicated sub-key to each service or environment (production, staging, etc.) so you can revoke a single key without disrupting everything else
 
 ## Authentication errors
