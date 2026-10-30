@@ -1,0 +1,324 @@
+---
+title: "Ordering senders and numbers"
+sidebarTitle: "Ordering services"
+description: "Order a text sender ID, a dedicated number or SIM hosting through the REST API: browse the service catalog, check the price with a dry run, place the order, track your orders and cancel at the end of the paid period."
+---
+
+A text sender ID, a dedicated virtual number and SIM hosting are paid services. You order them through the REST API. The order fee is deducted from your credit. For how credit works, see the [Credit and billing](/concepts/credit-billing) concept.
+
+<Note>
+  All endpoints on this page belong to the [REST API](/api-reference/rest/overview). The base URL is `https://rest-api.smsmngr.com/v1` and you send the API key in the `x-api-key` header. Find your API key under [Developers](https://app.smsmanager.com/app/developers/).
+</Note>
+
+<Tip>
+  The `smsmanager-services` skill from the [SmsManager skills](/ai/skills) package walks through an order for you, including a dry-run price check. An AI assistant connected through the [MCP server](/ai/mcp-server) uses the `list_services`, `order_service` and `cancel_service` tools.
+</Tip>
+
+---
+
+## Ordering flow
+
+<Steps>
+  <Step title="Find the service in the catalog">
+    `GET /credit/services` returns the catalog of services you can order.
+
+    ```bash cURL
+    curl https://rest-api.smsmngr.com/v1/credit/services \
+      -H "x-api-key: YOUR_API_KEY"
+    ```
+
+    ```json Response
+    {
+      "success": true,
+      "services": {
+        "sender": {
+          "sms": {
+            "420": {
+              "alnum": {
+                "name": { "cs": "Textový odesílatel", "en": "Text ID sender" },
+                "subject": "defined",
+                "status": "new",
+                "prices": {
+                  "czk": { "setup": 500, "monthly": 500 },
+                  "eur": { "setup": 20, "monthly": 20 }
+                }
+              },
+              "simhost": {
+                "name": { "cs": "SIM hosting", "en": "SIM hosting" },
+                "subject": "defined",
+                "prices": {
+                  "czk": { "setup": 200, "monthly": 100, "min_interval": "year" },
+                  "eur": { "setup": 8, "monthly": 4, "min_interval": "year" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    The catalog has the structure `services.sender.<platform>.<calling_code>.<variant>`. `platform` is the channel (for example `sms`), `calling_code` is the country calling code (for example `420`) and `variant` is the kind of service (for example `alnum`).
+
+    From these three parts you build the flat `service_id` that the order needs: `sender_<platform>_<calling_code>_<variant>`. The text sender for the Czech Republic therefore has the `service_id` `sender_sms_420_alnum`.
+
+    Each variant contains these fields:
+
+    | Field | Description |
+    | --- | --- |
+    | `name` | The localized service name (`cs`, `en`). |
+    | `requirements` | An optional description of the requirements you must meet to order. |
+    | `delay` | Optional information about how long setup takes. |
+    | `subject` | Who determines the service subject: `defined`, `assigned` or `order`. |
+    | `status` | The optional default status of the service after ordering, for example `new`. |
+    | `prices` | Prices per currency (`czk`, `eur`) with the fields `setup` (setup fee), `monthly` (monthly fee) and optionally `min_interval` (minimum interval, `month` or `year`) or `min_monthly_spend` (minimum monthly spend). |
+
+    The `subject` field determines where the service subject, meaning the sender text or phone number, comes from:
+
+    | `subject` | What it means | What you send in the order |
+    | --- | --- | --- |
+    | `defined` | You supply the subject, for example a sender text or a phone number. | The `subject` field is required. |
+    | `assigned` | A number from the pool of free numbers is assigned immediately. | Leave out the `subject` field. You find the assigned number in the response. |
+    | `order` | The operator assigns a number a few days later. | Leave out the `subject` field. The order is accepted right away with `pending: true`. |
+  </Step>
+
+  <Step title="Check the price with a dry run">
+    Before you place the real order, send the same request to `POST /credit/order` with `dryrun: true`. The API only validates the order, checks your credit and the service availability, and returns the total fee. Nothing changes.
+
+    ```bash cURL
+    curl -X POST https://rest-api.smsmngr.com/v1/credit/order \
+      -H "x-api-key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "service_id": "sender_sms_420_alnum",
+        "period": "month",
+        "subject": "Mojefirma",
+        "dryrun": true
+      }'
+    ```
+
+    ```json Response
+    {
+      "success": true,
+      "order": {
+        "dryrun": true,
+        "total_fee": 1000,
+        "currency": "czk",
+        "subject": null,
+        "service_id": "sender_sms_420_alnum"
+      }
+    }
+    ```
+
+    | Field | Required | Description |
+    | --- | --- | --- |
+    | `service_id` | yes | The flat service ID from the catalog, for example `sender_sms_420_alnum`. |
+    | `period` | yes | The requested billing period, for example `month`. The actual period follows the service's minimum interval. |
+    | `subject` | for `defined` | The service subject: a sender text or a phone number. |
+    | `payload` | no | Additional data stored with the order. |
+    | `dryrun` | no | `true` only validates the order and returns `total_fee` and `currency`. |
+
+    The total fee is `setup + monthly × months`. The number of months follows from the service's minimum interval: `year` means 12, `quarter` means 3, and anything else means 1.
+
+    | Service | Calculation | Total |
+    | --- | --- | --- |
+    | `sender_sms_420_alnum` (no `min_interval`) | 500 + 500 × 1 | 1,000 CZK |
+    | `sender_sms_420_simhost` (`min_interval: year`) | 200 + 100 × 12 | 1,400 CZK |
+  </Step>
+
+  <Step title="Place the order">
+    If the fee works for you, send the same request without `dryrun`. The total fee is deducted from your credit.
+
+    ```bash cURL
+    curl -X POST https://rest-api.smsmngr.com/v1/credit/order \
+      -H "x-api-key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "service_id": "sender_sms_420_alnum",
+        "period": "month",
+        "subject": "Mojefirma"
+      }'
+    ```
+
+    ```json Response
+    {
+      "success": true,
+      "order": {
+        "subject": "Mojefirma",
+        "status": "new"
+      }
+    }
+    ```
+
+    For a service with `subject: order`, the number doesn't exist yet. The order is still accepted right away:
+
+    ```json Response – number assigned later by the operator
+    {
+      "success": true,
+      "order": {
+        "subject": "420012345678",
+        "status": "new",
+        "pending": true
+      }
+    }
+    ```
+
+    | Field | Description |
+    | --- | --- |
+    | `subject` | The service subject. For `assigned`, this is the assigned number. With `pending: true`, it's only a placeholder. |
+    | `status` | The initial service status: `new` or `active`. |
+    | `pending` | `true` until the operator has assigned the real number. |
+
+    <Warning>
+      While `pending` is `true`, don't use the placeholder `subject` as a sender. It only identifies the order. You see the real number in `GET /credit/orders` once the operator assigns it.
+    </Warning>
+  </Step>
+
+  <Step title="Check your orders">
+    `GET /credit/orders` returns the services this API key has actually ordered. The `GET /credit/services` catalog, by contrast, shows what you can order.
+
+    ```bash cURL
+    curl https://rest-api.smsmngr.com/v1/credit/orders \
+      -H "x-api-key: YOUR_API_KEY"
+    ```
+
+    ```json Response
+    {
+      "success": true,
+      "orders": [
+        {
+          "service_id": "sender_sms_420_alnum",
+          "subject": "Mojefirma",
+          "status": "active",
+          "created": "2026-08-15",
+          "next_charge": "2026-11-15",
+          "charge_day": 15,
+          "currency": "czk",
+          "recurring_fee": 500,
+          "cancel_at_period_end": false,
+          "pending": false
+        },
+        {
+          "service_id": "sender_sms_420_mobilevn",
+          "subject": "420012345678",
+          "status": "new",
+          "created": "2026-09-10",
+          "next_charge": null,
+          "charge_day": 10,
+          "currency": "czk",
+          "recurring_fee": 3600,
+          "cancel_at_period_end": false,
+          "pending": true
+        }
+      ]
+    }
+    ```
+
+    | Field | Description |
+    | --- | --- |
+    | `service_id` | The flat service ID from the catalog. |
+    | `subject` | The service subject. While `pending` is `true`, it's only a placeholder. |
+    | `status` | The service status: `new`, `active`, `suspended` or `cancelled`. |
+    | `created` | The order date (`YYYY-MM-DD`). |
+    | `next_charge` | The date of the next recurring charge (`YYYY-MM-DD`). `null` until the service is activated. |
+    | `charge_day` | The day of the month the recurring charge is anchored to. |
+    | `currency` | The currency of the fee. |
+    | `recurring_fee` | The amount charged in each billing period. |
+    | `cancel_at_period_end` | `true` if the service is marked to end at the end of the current paid period. |
+    | `pending` | `true` until the operator has assigned the real number. |
+
+    You use the list of orders for two things:
+
+    - **Finding the exact `subject`** — cancelling a service requires exactly the value it was ordered with.
+    - **Watching a pending order** — once `pending` turns `false`, `subject` holds the assigned number. Assignment takes a few days, so checking the list about once a day is enough.
+  </Step>
+</Steps>
+
+---
+
+## Cancelling a service
+
+`POST /credit/cancel` marks a service to end at the end of the paid period. Pass the `service_id` and the exact `subject` from `GET /credit/orders`.
+
+```bash cURL
+curl -X POST https://rest-api.smsmngr.com/v1/credit/cancel \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "service_id": "sender_sms_420_alnum",
+    "subject": "Mojefirma"
+  }'
+```
+
+```json Response
+{
+  "success": true,
+  "cancel": {
+    "cancel_at_period_end": true,
+    "active_until": "2026-08-15"
+  }
+}
+```
+
+Cancelling charges or refunds nothing immediately. The service stays active until the date in `active_until` and only ends then. Until that date, it shows `cancel_at_period_end: true` in `GET /credit/orders`.
+
+The call is idempotent, so cancelling again changes nothing. In that case the API returns the `Service already cancelled` error.
+
+---
+
+## Errors
+
+| Endpoint | Code | Message | What to do |
+| --- | --- | --- | --- |
+| `/credit/order` | `400` | `Missing required service fields in request data` | Add `service_id`, `period` and, for `defined` services, `subject`. |
+| `/credit/order` | `402` | `Insufficient credit` | Your credit doesn't cover the total fee. [Top up your credit](/concepts/credit-topup) and repeat the order. |
+| `/credit/order` | `409` | `Service already ordered` | You already have this service with the same subject. Nothing was charged. |
+| `/credit/order` | `409` | `No available sender for this service` | No free sender or number is available for the service right now. Nothing was charged. |
+| `/credit/order` | `500` | `Invalid service id` | The `service_id` doesn't exist in the catalog. Check it against `GET /credit/services`. |
+| `/credit/cancel` | `400` | `Missing required service fields in request data` | Add both `service_id` and `subject`. |
+| `/credit/cancel` | `500` | `Service not found` | None of your services matches the given `service_id` and `subject`. Check both values in `GET /credit/orders`. |
+| `/credit/cancel` | `500` | `Service already cancelled` | The service is already marked for cancellation. You don't need to do anything else. |
+
+<Tip>
+  A dry run with `dryrun: true` checks your credit and the service availability. You catch insufficient credit or an unavailable service before you place the real order.
+</Tip>
+
+---
+
+## Using the ordered service
+
+Once the service is active (`status: active`), you can use it in your messages:
+
+- **Set a text sender or number** as the `sender` of a message or as the API key's default sender. The [Senders, aliases and default sender](/concepts/senders) concept explains how.
+- **Messages from a dedicated number** go out through the `direct` gateway, and messages through **SIM hosting** through the `custom` gateway. For details, see the [Channels](/concepts/channels) overview.
+- **A number for WhatsApp** must be registered in a WhatsApp Business Account. The [WhatsApp Business Account registration](/tutorials/whatsapp-business-registration) tutorial covers registration through the WhatsApp Partner API.
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Senders" icon="id-card" href="/concepts/senders">
+    How SmsManager picks the sender, and how aliases and the default sender work.
+  </Card>
+
+  <Card title="Channels" icon="layer-group" href="/concepts/channels">
+    The `high`, `direct` and `custom` gateways and the sender field for each channel.
+  </Card>
+
+  <Card title="Credit and billing" icon="coins" href="/concepts/credit-billing">
+    When credit is deducted and what happens when it runs out.
+  </Card>
+
+  <Card title="Topping up credit" icon="bolt" href="/concepts/credit-topup">
+    Bank transfer, payment card, automatic top-up, and monthly invoicing.
+  </Card>
+
+  <Card title="WhatsApp Business registration" icon="whatsapp" href="/tutorials/whatsapp-business-registration">
+    Register a WhatsApp Business Account step by step through the Partner API.
+  </Card>
+
+  <Card title="REST API reference" icon="book" href="/api-reference/rest/overview">
+    The full description of `/credit/services`, `/credit/order`, `/credit/orders` and `/credit/cancel`.
+  </Card>
+</CardGroup>

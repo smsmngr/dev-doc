@@ -1,0 +1,324 @@
+---
+title: "Objednání odesílatelů a čísel"
+sidebarTitle: "Objednání služeb"
+description: "Objednejte si přes REST API textového odesílatele, vyhrazené číslo nebo SIM hosting: projděte katalog služeb, ověřte cenu nanečisto, objednejte, sledujte objednávky a zrušte službu ke konci zaplaceného období."
+---
+
+Textový odesílatel, vyhrazené virtuální číslo nebo SIM hosting jsou placené služby. Objednáte je přes REST API. Poplatek za objednávku se odečte z vašeho kreditu. Jak kredit funguje, popisuje koncept [Kredit a účtování](/concepts/credit-billing).
+
+<Note>
+  Všechny endpointy na této stránce patří do [REST API](/api-reference/rest/overview). Základní URL je `https://rest-api.smsmngr.com/v1` a API klíč posíláte v hlavičce `x-api-key`. Svůj API klíč najdete v sekci [Vývojáři](https://app.smsmanager.com/app/developers/).
+</Note>
+
+<Tip>
+  Skill `smsmanager-services` z balíčku [SmsManager skills](/ai/skills) projde objednávku za vás, včetně náhledu ceny nanečisto. AI asistent připojený přes [MCP server](/ai/mcp-server) použije nástroje `list_services`, `order_service` a `cancel_service`.
+</Tip>
+
+---
+
+## Postup objednávky
+
+<Steps>
+  <Step title="Najděte službu v katalogu">
+    `GET /credit/services` vrací katalog služeb, které si můžete objednat.
+
+    ```bash cURL
+    curl https://rest-api.smsmngr.com/v1/credit/services \
+      -H "x-api-key: YOUR_API_KEY"
+    ```
+
+    ```json Odpověď
+    {
+      "success": true,
+      "services": {
+        "sender": {
+          "sms": {
+            "420": {
+              "alnum": {
+                "name": { "cs": "Textový odesílatel", "en": "Text ID sender" },
+                "subject": "defined",
+                "status": "new",
+                "prices": {
+                  "czk": { "setup": 500, "monthly": 500 },
+                  "eur": { "setup": 20, "monthly": 20 }
+                }
+              },
+              "simhost": {
+                "name": { "cs": "SIM hosting", "en": "SIM hosting" },
+                "subject": "defined",
+                "prices": {
+                  "czk": { "setup": 200, "monthly": 100, "min_interval": "year" },
+                  "eur": { "setup": 8, "monthly": 4, "min_interval": "year" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    Katalog má strukturu `services.sender.<platform>.<calling_code>.<variant>`. `platform` je kanál (například `sms`), `calling_code` je telefonní předvolba země (například `420`) a `variant` je druh služby (například `alnum`).
+
+    Z těchto tří částí sestavíte ploché `service_id`, které potřebujete pro objednávku: `sender_<platform>_<calling_code>_<variant>`. Textový odesílatel pro Česko má tedy `service_id` `sender_sms_420_alnum`.
+
+    Každá varianta obsahuje tato pole:
+
+    | Pole | Popis |
+    | --- | --- |
+    | `name` | Lokalizovaný název služby (`cs`, `en`). |
+    | `requirements` | Volitelný popis požadavků, které musíte k objednávce splnit. |
+    | `delay` | Volitelný údaj o době zřízení služby. |
+    | `subject` | Kdo určuje předmět služby: `defined`, `assigned` nebo `order`. |
+    | `status` | Volitelný výchozí stav služby po objednání, například `new`. |
+    | `prices` | Ceny pro jednotlivé měny (`czk`, `eur`) s poli `setup` (zřizovací poplatek), `monthly` (měsíční poplatek) a volitelně `min_interval` (minimální interval, `month` nebo `year`) nebo `min_monthly_spend` (minimální měsíční útrata). |
+
+    Pole `subject` určuje, odkud se vezme předmět služby, tedy text odesílatele nebo telefonní číslo:
+
+    | `subject` | Co to znamená | Co pošlete v objednávce |
+    | --- | --- | --- |
+    | `defined` | Předmět dodáváte vy, například text odesílatele nebo telefonní číslo. | Pole `subject` je povinné. |
+    | `assigned` | Číslo se přidělí okamžitě z poolu volných čísel. | Pole `subject` vynechte. Přidělené číslo najdete v odpovědi. |
+    | `order` | Číslo přidělí operátor až za několik dní. | Pole `subject` vynechte. Objednávka se přijme hned s `pending: true`. |
+  </Step>
+
+  <Step title="Ověřte cenu nanečisto">
+    Před skutečnou objednávkou pošlete na `POST /credit/order` stejný požadavek s `dryrun: true`. API objednávku jen ověří, zkontroluje kredit i dostupnost služby a vrátí celkový poplatek. Nic se nezmění.
+
+    ```bash cURL
+    curl -X POST https://rest-api.smsmngr.com/v1/credit/order \
+      -H "x-api-key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "service_id": "sender_sms_420_alnum",
+        "period": "month",
+        "subject": "Mojefirma",
+        "dryrun": true
+      }'
+    ```
+
+    ```json Odpověď
+    {
+      "success": true,
+      "order": {
+        "dryrun": true,
+        "total_fee": 1000,
+        "currency": "czk",
+        "subject": null,
+        "service_id": "sender_sms_420_alnum"
+      }
+    }
+    ```
+
+    | Pole | Povinné | Popis |
+    | --- | --- | --- |
+    | `service_id` | ano | Ploché ID služby z katalogu, například `sender_sms_420_alnum`. |
+    | `period` | ano | Požadované fakturační období, například `month`. Skutečné období určuje minimální interval služby. |
+    | `subject` | u `defined` | Předmět služby: text odesílatele nebo telefonní číslo. |
+    | `payload` | ne | Doplňková data, která se uloží k objednávce. |
+    | `dryrun` | ne | `true` objednávku jen ověří a vrátí `total_fee` a `currency`. |
+
+    Celkový poplatek se počítá jako `setup + monthly × počet měsíců`. Počet měsíců vyplývá z minimálního intervalu služby: `year` znamená 12, `quarter` 3 a cokoli jiného 1.
+
+    | Služba | Výpočet | Celkem |
+    | --- | --- | --- |
+    | `sender_sms_420_alnum` (bez `min_interval`) | 500 + 500 × 1 | 1 000 CZK |
+    | `sender_sms_420_simhost` (`min_interval: year`) | 200 + 100 × 12 | 1 400 CZK |
+  </Step>
+
+  <Step title="Objednejte službu">
+    Pokud vám poplatek vyhovuje, pošlete stejný požadavek bez `dryrun`. Celkový poplatek se odečte z kreditu.
+
+    ```bash cURL
+    curl -X POST https://rest-api.smsmngr.com/v1/credit/order \
+      -H "x-api-key: YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "service_id": "sender_sms_420_alnum",
+        "period": "month",
+        "subject": "Mojefirma"
+      }'
+    ```
+
+    ```json Odpověď
+    {
+      "success": true,
+      "order": {
+        "subject": "Mojefirma",
+        "status": "new"
+      }
+    }
+    ```
+
+    U služby se `subject: order` číslo ještě neexistuje. Objednávka se přesto přijme hned:
+
+    ```json Odpověď – číslo přidělí operátor později
+    {
+      "success": true,
+      "order": {
+        "subject": "420012345678",
+        "status": "new",
+        "pending": true
+      }
+    }
+    ```
+
+    | Pole | Popis |
+    | --- | --- |
+    | `subject` | Předmět služby. U `assigned` je to přidělené číslo. Při `pending: true` jde jen o zástupnou hodnotu. |
+    | `status` | Počáteční stav služby: `new` nebo `active`. |
+    | `pending` | `true`, dokud operátor nepřidělil skutečné číslo. |
+
+    <Warning>
+      Dokud je `pending` `true`, zástupný `subject` nepoužívejte jako odesílatele. Jen identifikuje objednávku. Skutečné číslo uvidíte v `GET /credit/orders`, jakmile ho operátor přidělí.
+    </Warning>
+  </Step>
+
+  <Step title="Zkontrolujte své objednávky">
+    `GET /credit/orders` vrací služby, které tento API klíč skutečně objednal. Katalog `GET /credit/services` naopak ukazuje, co si objednat můžete.
+
+    ```bash cURL
+    curl https://rest-api.smsmngr.com/v1/credit/orders \
+      -H "x-api-key: YOUR_API_KEY"
+    ```
+
+    ```json Odpověď
+    {
+      "success": true,
+      "orders": [
+        {
+          "service_id": "sender_sms_420_alnum",
+          "subject": "Mojefirma",
+          "status": "active",
+          "created": "2026-08-15",
+          "next_charge": "2026-11-15",
+          "charge_day": 15,
+          "currency": "czk",
+          "recurring_fee": 500,
+          "cancel_at_period_end": false,
+          "pending": false
+        },
+        {
+          "service_id": "sender_sms_420_mobilevn",
+          "subject": "420012345678",
+          "status": "new",
+          "created": "2026-09-10",
+          "next_charge": null,
+          "charge_day": 10,
+          "currency": "czk",
+          "recurring_fee": 3600,
+          "cancel_at_period_end": false,
+          "pending": true
+        }
+      ]
+    }
+    ```
+
+    | Pole | Popis |
+    | --- | --- |
+    | `service_id` | Ploché ID služby z katalogu. |
+    | `subject` | Předmět služby. Dokud je `pending` `true`, jde jen o zástupnou hodnotu. |
+    | `status` | Stav služby: `new`, `active`, `suspended` nebo `cancelled`. |
+    | `created` | Datum objednávky (`YYYY-MM-DD`). |
+    | `next_charge` | Datum další opakované platby (`YYYY-MM-DD`). Dokud služba není aktivovaná, je `null`. |
+    | `charge_day` | Den v měsíci, ke kterému je opakovaná platba ukotvená. |
+    | `currency` | Měna poplatku. |
+    | `recurring_fee` | Částka účtovaná v každém zúčtovacím období. |
+    | `cancel_at_period_end` | `true`, pokud je služba označená ke zrušení na konci zaplaceného období. |
+    | `pending` | `true`, dokud operátor nepřidělil skutečné číslo. |
+
+    Seznam objednávek použijete ke dvěma věcem:
+
+    - **Dohledání přesného `subject`** — zrušení služby vyžaduje přesně stejnou hodnotu, se kterou byla objednaná.
+    - **Sledování čekající objednávky** — jakmile `pending` přejde na `false`, najdete v `subject` přidělené číslo. Přidělení trvá několik dní, takže stačí seznam kontrolovat například jednou denně.
+  </Step>
+</Steps>
+
+---
+
+## Zrušení služby
+
+`POST /credit/cancel` označí službu ke zrušení na konci zaplaceného období. Předejte `service_id` a přesný `subject` z `GET /credit/orders`.
+
+```bash cURL
+curl -X POST https://rest-api.smsmngr.com/v1/credit/cancel \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "service_id": "sender_sms_420_alnum",
+    "subject": "Mojefirma"
+  }'
+```
+
+```json Odpověď
+{
+  "success": true,
+  "cancel": {
+    "cancel_at_period_end": true,
+    "active_until": "2026-08-15"
+  }
+}
+```
+
+Zrušení nic okamžitě neúčtuje ani nevrací. Služba zůstane aktivní do data v `active_until` a teprve potom skončí. V `GET /credit/orders` má do té doby `cancel_at_period_end: true`.
+
+Volání je idempotentní, takže opakované zrušení už nic nezmění. API v takovém případě vrátí chybu `Service already cancelled`.
+
+---
+
+## Chyby
+
+| Endpoint | Kód | Zpráva | Co dělat |
+| --- | --- | --- | --- |
+| `/credit/order` | `400` | `Missing required service fields in request data` | Doplňte `service_id`, `period` a u služeb `defined` také `subject`. |
+| `/credit/order` | `402` | `Insufficient credit` | Kredit nestačí na celkový poplatek. [Dobijte kredit](/concepts/credit-topup) a objednávku zopakujte. |
+| `/credit/order` | `409` | `Service already ordered` | Službu se stejným předmětem už máte. Nic se neúčtovalo. |
+| `/credit/order` | `409` | `No available sender for this service` | Pro službu teď není k dispozici volný odesílatel ani číslo. Nic se neúčtovalo. |
+| `/credit/order` | `500` | `Invalid service id` | `service_id` v katalogu neexistuje. Ověřte ho v `GET /credit/services`. |
+| `/credit/cancel` | `400` | `Missing required service fields in request data` | Doplňte `service_id` i `subject`. |
+| `/credit/cancel` | `500` | `Service not found` | Žádná vaše služba neodpovídá zadanému `service_id` a `subject`. Ověřte obě hodnoty v `GET /credit/orders`. |
+| `/credit/cancel` | `500` | `Service already cancelled` | Služba už je označená ke zrušení. Nemusíte nic dalšího dělat. |
+
+<Tip>
+  Ověření nanečisto s `dryrun: true` kontroluje kredit i dostupnost služby. Nedostatek kreditu nebo nedostupnou službu tak odhalíte ještě před skutečnou objednávkou.
+</Tip>
+
+---
+
+## Použití objednané služby
+
+Jakmile je služba aktivní (`status: active`), můžete ji používat ve zprávách:
+
+- **Textového odesílatele nebo číslo** nastavíte jako `sender` ve zprávě nebo jako výchozí odesílatele API klíče. Postup popisuje koncept [Odesílatelé, aliasy a výchozí odesílatel](/concepts/senders).
+- **Zprávy z vyhrazeného čísla** odcházejí přes bránu `direct`, zprávy přes **SIM hosting** přes bránu `custom`. Podrobnosti najdete v přehledu [Kanály](/concepts/channels).
+- **Číslo pro WhatsApp** musí být zaregistrované ve WhatsApp Business účtu. Registraci přes WhatsApp Partner API popisuje tutoriál [Registrace WhatsApp Business účtu](/tutorials/whatsapp-business-registration).
+
+---
+
+## Další kroky
+
+<CardGroup cols={2}>
+  <Card title="Odesílatelé" icon="id-card" href="/concepts/senders">
+    Jak SmsManager vybírá odesílatele, jak fungují aliasy a výchozí odesílatel.
+  </Card>
+
+  <Card title="Kanály" icon="layer-group" href="/concepts/channels">
+    Brány `high`, `direct` a `custom` a pole odesílatele pro jednotlivé kanály.
+  </Card>
+
+  <Card title="Kredit a účtování" icon="coins" href="/concepts/credit-billing">
+    Kdy se kredit odečítá a co se stane, když nestačí.
+  </Card>
+
+  <Card title="Dobíjení kreditu" icon="bolt" href="/concepts/credit-topup">
+    Bankovní převod, platební karta, automatické dobíjení a měsíční fakturace.
+  </Card>
+
+  <Card title="Registrace WhatsApp Business účtu" icon="whatsapp" href="/tutorials/whatsapp-business-registration">
+    Krok za krokem zaregistrujete WhatsApp Business účet přes Partner API.
+  </Card>
+
+  <Card title="REST API reference" icon="book" href="/api-reference/rest/overview">
+    Úplný popis endpointů `/credit/services`, `/credit/order`, `/credit/orders` a `/credit/cancel`.
+  </Card>
+</CardGroup>

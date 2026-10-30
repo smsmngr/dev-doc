@@ -80,7 +80,14 @@
             "group": "Příjem a ověření",
             "pages": [
               "guides/phone-verification",
-              "guides/webhooks"
+              "guides/webhooks",
+              "guides/auto-replies"
+            ]
+          },
+          {
+            "group": "Stav a statistiky",
+            "pages": [
+              "guides/message-status"
             ]
           },
           {
@@ -99,7 +106,8 @@
           {
             "group": "Přístup a klíče",
             "pages": [
-              "authentication"
+              "authentication",
+              "guides/order-services"
             ]
           }
         ]
@@ -151,8 +159,10 @@
                   "GET /credit",
                   "GET /credit/services",
                   "GET /credit/prices",
+                  "POST /credit/price",
                   "GET /credit/notify",
                   "POST /credit/notify",
+                  "GET /credit/orders",
                   "POST /credit/order",
                   "POST /credit/cancel"
                 ]
@@ -202,17 +212,16 @@
                 "expanded": true,
                 "pages": [
                   "POST /messaging/url",
+                  "POST /messaging/validate",
                   "POST /messaging/cancel"
                 ]
               },
               {
-                "group": "Partneři a integrace",
+                "group": "Zařízení a příjemci",
                 "expanded": true,
                 "pages": [
-                  "POST /partner/signup",
                   "POST /push/device",
-                  "POST /recipient/register",
-                  "POST /connect/{connector}/{action}"
+                  "POST /recipient/register"
                 ]
               }
             ]
@@ -303,6 +312,7 @@
               "concepts/credit-topup",
               "concepts/sending-queues",
               "concepts/channels",
+              "concepts/senders",
               "concepts/message-ids",
               "concepts/webhook-delivery",
               "concepts/phone-normalization",
