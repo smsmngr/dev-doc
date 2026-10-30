@@ -6,7 +6,7 @@ info:
 
     ## Authentication
 
-    API key is required for all requests — send it in the `x-api-key` HTTP header. You can find your API key in your [account settings](https://app.smsmanager.com/api-cloud).
+    API key is required for all requests — send it in the `x-api-key` HTTP header. You can find your API key in the [Developers section](https://app.smsmanager.com/app/developers/).
 
     For sending messages use the [JSON API v2](https://api.smsmngr.com/v2).
   version: v1
@@ -65,6 +65,9 @@ paths:
                       default_callback_url:
                         type: string
                         description: Default webhook URL for delivery notifications.
+                      callback_secret:
+                        type: string
+                        description: Secret for signing webhook requests (64 hex characters). Empty if signing is turned off. Managed via `default_callback_secret` on `/apikey/update`.
                       account:
                         type: string
                         enum:
@@ -86,7 +89,7 @@ paths:
                         description: '`1` if the key is blocked.'
                       senders:
                         type: array
-                        description: Registered senders of the key.
+                        description: All registered senders of the key, one item per sender and channel.
                         items:
                           type: object
                           properties:
@@ -99,6 +102,28 @@ paths:
                             name:
                               type: string
                               description: Display name of the sender.
+                      default_sender:
+                        type: string
+                        description: Default sender of the account; used when a message doesn't set `sender` at any level. It can also be the name of a sender alias.
+                      sender_aliases:
+                        type: array
+                        description: Sender aliases for this key. An alias is a single name you can send under, which resolves to a different registered sender for each recipient calling code. Set up by support.
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                              description: Alias name that you use as the message `sender`.
+                            prefixes:
+                              type: object
+                              additionalProperties:
+                                type: string
+                              description: Mapping of calling code to sender.
+                      whitelist_ip:
+                        type: array
+                        items:
+                          type: string
+                        description: IP whitelist for sending. An entry containing `.` or `:` is matched as an exact IP address; any other entry is matched as a substring of the ISP/organization name of the request IP address. An empty array means no restriction. Managed via `/apikey/update`.
                       vat:
                         type: string
                         description: '`"1"` if the account is a VAT payer.'
@@ -119,6 +144,7 @@ paths:
                     me:
                       note: "eshop"
                       default_callback_url: "https://example.com/hook"
+                      callback_secret: "3f1c9a0d8e7b64520f4a1b2c3d4e5f60718293a4b5c6d7e8f9012345a6b7c8d9"
                       account: "prepaid"
                       scope: "full"
                       share_senders: "1"
@@ -127,6 +153,18 @@ paths:
                         - flow: "sms"
                           value: "Mojefirma"
                           name: "Mojefirma"
+                        - flow: "sms"
+                          value: "Mojefirma CZ"
+                          name: "Mojefirma CZ"
+                      default_sender: "Mojefirma"
+                      sender_aliases:
+                        - name: "brand"
+                          prefixes:
+                            "420": "Mojefirma CZ"
+                            "421": "Mojefirma SK"
+                      whitelist_ip:
+                        - "1.2.3.4"
+                        - "internet cz"
                       vat: "1"
                       currency: "czk"
                       tz: "Europe/Prague"
@@ -283,25 +321,51 @@ paths:
           sidebarTitle: "Update key"
       tags:
         - api
-      summary: Update current API key
+      summary: Update API key
       description: |
-        Updates settings of the calling API key. Both fields must be present (an empty string clears the value). Changing `default_callback_url` also updates the webhook URL on all senders of the key.
+        Updates settings of the calling API key or, when the `apikey` field is present, of one of its child keys. All settings are optional: only the fields present in the request are changed, and `null` (or an empty string) clears a value. A request without any recognized setting returns 400. Changing `default_callback_url` also updates the webhook URL on all senders of the key being updated.
+
+        Updating a child key: only a top-level key can use the `apikey` field, and the target must be one of its child keys (see `/apikey/list`). All settings behave exactly as if the child key updated itself; for example, `default_sender` registration is checked against the child key's senders. This also works for child keys with scope `api`, which can't call this endpoint themselves. The `scope` and `disable` fields are accepted only together with `apikey`; a key can never change its own scope or blocked state.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - default_callback_url
-                - note
               properties:
+                apikey:
+                  type: string
+                  description: Child API key to update instead of the calling key. Only a top-level key can use it, and the target must belong to it.
                 default_callback_url:
-                  type: string
-                  description: Default webhook URL for delivery notifications. Empty string clears it.
+                  type: [string, 'null']
+                  description: Default webhook URL for delivery notifications. `null` or an empty string clears it.
                 note:
+                  type: [string, 'null']
+                  description: Your note for the key. `null` or an empty string clears it.
+                default_sender:
+                  type: [string, 'null']
+                  maxLength: 64
+                  description: Default sender for messages that don't set `sender`. It can be a registered sender or the name of a sender alias. It must not contain `,` or `:`. `null` or an empty string clears it. A sender that isn't registered for the key is saved, but returned in `warning` and ignored when sending.
+                whitelist_ip:
+                  type: [array, 'null']
+                  items:
+                    type: string
+                    maxLength: 100
+                  maxItems: 50
+                  description: IP whitelist for sending. An entry containing `.` or `:` is matched as an exact IP address (no CIDR ranges); any other entry is matched as a substring of the ISP/organization name of the request IP address. Messages sent from an address outside the whitelist are held for manual approval instead of being sent. `null` or an empty array removes the restriction. Entries must not contain `,`.
+                scope:
                   type: string
-                  description: Your note for the key. Empty string clears it.
+                  enum:
+                    - full
+                    - rest-api
+                    - api
+                  description: New scope of the child key. Accepted only together with `apikey`.
+                disable:
+                  type: integer
+                  enum:
+                    - 0
+                    - 1
+                  description: '`1` blocks the child key, `0` unblocks it. Accepted only together with `apikey`.'
             examples:
               Set callback:
                 value:
@@ -309,8 +373,27 @@ paths:
                   note: "eshop"
               Clear callback:
                 value:
-                  default_callback_url: ""
-                  note: "eshop"
+                  default_callback_url: null
+              Set default sender:
+                value:
+                  default_sender: "Mojefirma"
+              Set IP whitelist:
+                value:
+                  whitelist_ip:
+                    - "1.2.3.4"
+                    - "internet cz"
+              Clear IP whitelist:
+                value:
+                  whitelist_ip: null
+              Update a child key:
+                value:
+                  apikey: "cD4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+                  default_sender: "Mojefirma"
+                  note: "eshop child"
+              Block a child key:
+                value:
+                  apikey: "cD4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx40"
+                  disable: 1
       responses:
         '200':
           description: API key updated
@@ -321,6 +404,9 @@ paths:
                 properties:
                   success:
                     type: boolean
+                  warning:
+                    type: string
+                    description: Set when the settings were saved but something needs your attention, such as an unreachable callback URL or an unregistered default sender.
               example:
                 success: true
         '400':
@@ -330,15 +416,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                message: Missing 'default_callback_url' or 'note' in request data
+                message: No settings to update
         '403':
           description: Forbidden
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                message: Apikey scope 'api' is not allowed to change settings
+              examples:
+                Scope not allowed:
+                  value:
+                    message: Apikey scope 'api' is not allowed to change settings
+                Not a parent:
+                  value:
+                    message: Only a top-level apikey can update child apikeys
+                Not owner:
+                  value:
+                    message: Target apikey does not belong to this parent
         '500':
           description: Internal error
           content:
@@ -389,8 +483,11 @@ paths:
           sidebarTitle: "Change sub-key"
       tags:
         - api
-      summary: Change a child API key
+      summary: Change a child API key (deprecated)
+      deprecated: true
       description: |
+        **Deprecated**: use `/apikey/update` with the `apikey` field instead. It covers `scope`/`disable` and all other child key settings. This endpoint keeps working for existing integrations.
+
         Changes the scope and/or blocked state of a child API key. Only the parent (top-level) key can change its children; the parent cannot change itself.
       requestBody:
         required: true
@@ -479,7 +576,7 @@ paths:
       tags:
         - credit
       summary: Get credit balance
-      description: Returns the current credit balance and price-level state of the calling key.
+      description: 'Returns the current credit balance and price-level state of the calling key. For shared child keys (created with `shared: true`), it returns the balance of the shared (parent) wallet.'
       responses:
         '200':
           description: Credit balance
@@ -551,7 +648,7 @@ paths:
       description: |
         Returns the catalog of orderable paid services (senders, virtual numbers, SIM hosting, ...). The catalog is structured as `services.sender.<platform>.<country_calling_code>.<variant>`. The flat service id used by `/credit/order` is composed as `sender_<platform>_<calling_code>_<variant>` (e.g. `sender_sms_420_alnum`).
 
-        Each service variant contains: localized `name` (and optional `requirements` and `delay`), `subject` (`defined` = you supply the subject such as sender text or phone number, `assigned` = a pooled number is assigned automatically), optional default `status`, and `prices` per currency with `setup`, `monthly` and optional `min_interval` (`month` / `year`) or `min_monthly_spend`.
+        Each service variant contains: localized `name` (and optional `requirements` and `delay`), `subject` (`defined` = you supply the subject such as sender text or phone number, `assigned` = a pooled number is assigned automatically, `order` = the operator assigns a number later, see `/credit/orders`), optional default `status`, and `prices` per currency with `setup`, `monthly` and optional `min_interval` (`month` / `year`) or `min_monthly_spend`.
       responses:
         '200':
           description: Service catalog
@@ -643,6 +740,174 @@ paths:
                       mcc: 230
                       price_czk: 0.39
                       price_eur: 0.016
+
+  /credit/price:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Destination price"
+      tags:
+        - credit
+      summary: Get price for a destination
+      description: |
+        Returns your current prices for a single destination number, per channel. The prices already include the volume discount you have reached, so they can be lower than the general price list from `GET /credit/prices`. Channels that don't deliver to the destination are omitted from `prices`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - to
+              properties:
+                to:
+                  type: string
+                  description: Destination phone number. The international format (E.164, without leading `+` or `00`) is recommended, but other formats are accepted too (we convert them to the international format).
+                  example: "420777123456"
+                platform:
+                  type: string
+                  enum:
+                    - sms
+                    - viber
+                    - whatsapp_text
+                    - whatsapp_template
+                    - rcs
+                  description: Optional flow channel filter. If set, only prices for this channel are returned.
+            examples:
+              All channels:
+                value:
+                  to: "420777123456"
+              Single channel:
+                value:
+                  to: "420777123456"
+                  platform: "sms"
+      responses:
+        '200':
+          description: Prices for the destination
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  price:
+                    type: object
+                    properties:
+                      to:
+                        type: string
+                        description: Destination number as sent.
+                      normalized:
+                        type: string
+                        description: Destination number converted to the international format.
+                      calling_code:
+                        type: string
+                        description: Detected country calling code.
+                      currency:
+                        type: string
+                        enum:
+                          - czk
+                          - eur
+                        description: Account currency.
+                      prices:
+                        type: object
+                        description: Prices keyed by flow channel (`sms`, `viber`, `whatsapp_text`, `whatsapp_template`, `rcs`). `sms` contains one entry per gateway plus `default` (a copy of `high`); the other channels contain only `default`. Channels that don't deliver to the destination are omitted.
+                        additionalProperties:
+                          type: object
+                          description: Prices keyed by gateway; `default` is always present.
+                          additionalProperties:
+                            type: object
+                            properties:
+                              mcc:
+                                type: integer
+                                description: Mobile country code of the destination.
+                              price_czk:
+                                type: number
+                                description: Price per message part in CZK.
+                              price_eur:
+                                type: number
+                                description: Price per message part in EUR.
+              example:
+                success: true
+                price:
+                  to: "420777123456"
+                  normalized: "420777123456"
+                  calling_code: "420"
+                  currency: "czk"
+                  prices:
+                    sms:
+                      default:
+                        mcc: 230
+                        price_czk: 0.92
+                        price_eur: 0.04
+                      high:
+                        mcc: 230
+                        price_czk: 0.92
+                        price_eur: 0.04
+                      lowcost:
+                        mcc: 230
+                        price_czk: 0.92
+                        price_eur: 0.04
+                      direct:
+                        mcc: 230
+                        price_czk: 1.25
+                        price_eur: 0.05
+                      custom:
+                        mcc: 230
+                        price_czk: 0.1
+                        price_eur: 0.004
+                      simhost:
+                        mcc: 230
+                        price_czk: 0.1
+                        price_eur: 0.004
+                      gsm:
+                        mcc: 230
+                        price_czk: 0.92
+                        price_eur: 0.04
+                    viber:
+                      default:
+                        mcc: 230
+                        price_czk: 0.39
+                        price_eur: 0.016
+                    whatsapp_text:
+                      default:
+                        mcc: 230
+                        price_czk: 0.1
+                        price_eur: 0.004
+                    whatsapp_template:
+                      default:
+                        mcc: 230
+                        price_czk: 0.1
+                        price_eur: 0.004
+                    rcs:
+                      default:
+                        mcc: 230
+                        price_czk: 0.89
+                        price_eur: 0.04
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing to:
+                  value:
+                    message: Missing 'to'
+                Unknown platform:
+                  value:
+                    message: Unknown platform
+                Invalid phone number:
+                  value:
+                    message: Invalid phone number
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to get destination price
 
   /credit/notify:
     get:
@@ -764,6 +1029,94 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /credit/orders:
+    get:
+      x-mint:
+        metadata:
+          sidebarTitle: "Ordered services"
+      tags:
+        - credit
+      summary: List ordered services
+      description: |
+        Returns the paid services this API key has actually ordered, unlike `/credit/services`, which returns the catalog of orderable services. Use it to look up the order `subject`, which `/credit/cancel` requires exactly.
+
+        Services ordered with `subject: order` don't have a number assigned at the time of the order. Until the operator assigns one, such a service is returned with `pending: true` and a placeholder `subject` that identifies the order but can't be used as a sender.
+      responses:
+        '200':
+          description: Ordered services
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  orders:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        service_id:
+                          type: string
+                          description: Flat service id from the catalog.
+                        subject:
+                          type: string
+                          description: Subject of the ordered service. While `pending` is `true`, this is only a placeholder.
+                        status:
+                          type: [string, "null"]
+                          description: Service status (`new`, `active`, `suspended`, `cancelled`).
+                        created:
+                          type: [string, "null"]
+                          description: Order date (YYYY-MM-DD).
+                        next_charge:
+                          type: [string, "null"]
+                          description: Date of the next recurring charge (YYYY-MM-DD). `null` until the service is activated.
+                        charge_day:
+                          type: [integer, "null"]
+                          description: Day of the month the recurring charge is anchored to.
+                        currency:
+                          type: [string, "null"]
+                        recurring_fee:
+                          type: number
+                          description: Amount charged in each billing period.
+                        cancel_at_period_end:
+                          type: boolean
+                          description: '`true` if the service is flagged for cancellation at the end of the current paid period.'
+                        pending:
+                          type: boolean
+                          description: '`true` until the operator has assigned the actual number.'
+              example:
+                success: true
+                orders:
+                  - service_id: "sender_sms_420_alnum"
+                    subject: "Mojefirma"
+                    status: "active"
+                    created: "2026-08-15"
+                    next_charge: "2026-11-15"
+                    charge_day: 15
+                    currency: "czk"
+                    recurring_fee: 500
+                    cancel_at_period_end: false
+                    pending: false
+                  - service_id: "sender_sms_420_mobilevn"
+                    subject: "420012345678"
+                    status: "new"
+                    created: "2026-09-10"
+                    next_charge: null
+                    charge_day: 10
+                    currency: "czk"
+                    recurring_fee: 3600
+                    cancel_at_period_end: false
+                    pending: true
+        '500':
+          description: Listing failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to list ordered services
+
   /credit/order:
     post:
       x-mint:
@@ -773,7 +1126,7 @@ paths:
         - credit
       summary: Order a paid service
       description: |
-        Orders a paid service from the catalog (see `/credit/services`) and deducts the fee from your credit. The total fee is `setup + monthly × months`, where the number of months is derived from the service's minimal interval (`year` = 12, `quarter` = 3, otherwise 1). For services with `subject: defined` you must provide the subject (e.g. sender text or phone number); for `subject: assigned` a pooled number is assigned automatically. Use `dryrun` to validate the order (credit, availability) without any changes.
+        Orders a paid service from the catalog (see `/credit/services`) and deducts the fee from your credit. The total fee is `setup + monthly × months`, where the number of months is derived from the service's minimal interval (`year` = 12, `quarter` = 3, otherwise 1). For services with `subject: defined` you must provide the subject (e.g. sender text or phone number); for `subject: assigned` a pooled number is assigned automatically. For `subject: order`, the operator assigns the number only after a few days: the order is accepted immediately with `pending: true` and a placeholder `subject` that identifies it until the actual number arrives. Ordering a service you already have with the same subject is rejected with `409` and nothing is charged. Use `dryrun` to validate the order (credit, availability) without any changes.
       requestBody:
         required: true
         content:
@@ -834,6 +1187,9 @@ paths:
                       status:
                         type: string
                         description: Initial status of the service (`new` or `active`).
+                      pending:
+                        type: boolean
+                        description: '`true` if the number has not been assigned yet and `subject` is only a placeholder.'
                       dryrun:
                         type: boolean
                         description: Present only for dry runs.
@@ -854,6 +1210,14 @@ paths:
                       subject: "Mojefirma"
                       subject_id: "Mojefirma"
                       status: "new"
+                Ordered without a subject:
+                  value:
+                    success: true
+                    order:
+                      subject: "420012345678"
+                      subject_id: "420012345678"
+                      status: "new"
+                      pending: true
                 Dry run:
                   value:
                     success: true
@@ -871,22 +1235,35 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 message: Missing required service fields in request data
+        '402':
+          description: Insufficient credit for the total fee
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Insufficient credit
+        '409':
+          description: The order conflicts with the current state; nothing was charged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Already ordered:
+                  value:
+                    message: Service already ordered
+                No available sender:
+                  value:
+                    message: No available sender for this service
         '500':
           description: Order failed
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              examples:
-                Invalid service:
-                  value:
-                    message: Invalid service id
-                Insufficient credit:
-                  value:
-                    message: Insufficient credit
-                No available sender:
-                  value:
-                    message: No available sender for this service
+              example:
+                message: Invalid service id
 
   /credit/cancel:
     post:
@@ -1734,10 +2111,12 @@ paths:
                         type:
                           - string
                           - 'null'
+                        description: Unix timestamp (seconds) of the first send, as a string.
                       last_ts_sent:
                         type:
                           - string
                           - 'null'
+                        description: Unix timestamp (seconds) of the last send, as a string.
               example:
                 success: true
                 request:
@@ -1750,8 +2129,8 @@ paths:
                   msg_sent: "130"
                   price_czk: "150.5"
                   price_eur: "6.1"
-                  first_ts_sent: "2026-07-30T09:00:00Z"
-                  last_ts_sent: "2026-07-30T09:05:00Z"
+                  first_ts_sent: "1785402000"
+                  last_ts_sent: "1785402300"
         '400':
           description: Bad request
           content:
@@ -1775,7 +2154,7 @@ paths:
       tags:
         - status
       summary: Get aggregated statistics per date
-      description: Returns aggregated sending statistics grouped per date, for one or more dates, optionally filtered by tag.
+      description: Returns aggregated sending statistics grouped per date, for one or more dates, optionally filtered by tag. With `group=tag`, it returns a breakdown per tag instead of the per-date aggregate.
       parameters:
         - name: dates
           in: query
@@ -1797,6 +2176,14 @@ paths:
           schema:
             type: string
           description: Filter by tag.
+        - name: group
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - tag
+          description: Optional grouping of the statistics. With `tag`, `stats` is returned as an array with one item per tag, each with the tag value in the `key` field. If omitted, the statistics are aggregated across all tags of the date.
       responses:
         '200':
           description: Aggregated statistics
@@ -1821,61 +2208,304 @@ paths:
                             type: string
                           description: Tags found for the date.
                         stats:
-                          type: object
-                          properties:
-                            count_delivered:
-                              type: integer
-                            count_seen:
-                              type: integer
-                            count_clicked:
-                              type: integer
-                            count_nondelivered:
-                              type: integer
-                            count_sent:
-                              type: integer
-                            count_notsent:
-                              type: integer
-                            count_replied:
-                              type: integer
-                            count_optout:
-                              type: integer
-                            msg_sent:
-                              type: integer
-                            first_ts_sent:
-                              type:
-                                - string
-                                - 'null'
-                            last_ts_sent:
-                              type:
-                                - string
-                                - 'null'
-                            msg_mccmnc:
+                          description: Aggregated statistics for the date, or an array of per-tag items when using `group=tag`.
+                          oneOf:
+                            - title: Aggregated (default)
                               type: object
-                              description: Message counts per mobile network (MCC+MNC).
-                              additionalProperties:
-                                type: integer
-              example:
-                success: true
-                requests:
-                  - date: "2026-07-30"
-                    tags:
-                      - "newsletter"
-                      - "promo"
-                    stats:
-                      count_delivered: 120
-                      count_seen: 40
-                      count_clicked: 10
-                      count_nondelivered: 3
-                      count_sent: 125
-                      count_notsent: 2
-                      count_replied: 5
-                      count_optout: 1
-                      msg_sent: 130
-                      first_ts_sent: "2026-07-30T09:00:00Z"
-                      last_ts_sent: "2026-07-30T18:00:00Z"
-                      msg_mccmnc:
-                        "23001": 50
-                        "23002": 80
+                              properties:
+                                count_delivered:
+                                  type: integer
+                                count_seen:
+                                  type: integer
+                                  description: Unique seen messages, derived from the per-flow-step counters.
+                                count_clicked:
+                                  type: integer
+                                  description: Unique clicked messages, derived from the per-flow-step counters.
+                                count_nondelivered:
+                                  type: integer
+                                count_sent:
+                                  type: integer
+                                count_notsent:
+                                  type: integer
+                                count_replied:
+                                  type: integer
+                                count_optout:
+                                  type: integer
+                                msg_sent:
+                                  type: integer
+                                price_czk:
+                                  type: number
+                                  description: Total price in CZK; refunds for unsent messages are deducted.
+                                price_eur:
+                                  type: number
+                                  description: Total price in EUR; refunds for unsent messages are deducted.
+                                first_ts_sent:
+                                  type:
+                                    - string
+                                    - 'null'
+                                  description: Unix timestamp (seconds) of the first send, as a string.
+                                last_ts_sent:
+                                  type:
+                                    - string
+                                    - 'null'
+                                  description: Unix timestamp (seconds) of the last send, as a string.
+                                msg_mccmnc:
+                                  type: object
+                                  description: Message counts per mobile network (MCC+MNC).
+                                  additionalProperties:
+                                    type: integer
+                                count_notsent_codes:
+                                  type: object
+                                  description: Breakdown of `count_notsent` by rejection status code (300–399); the values add up to `count_notsent`.
+                                  additionalProperties:
+                                    type: integer
+                                flow_stats:
+                                  type: object
+                                  description: Counters per flow step, keyed by step index and then by channel (e.g. `sms`, `whatsapp_template`). Delivery metrics (`delivered`, `nondelivered`, `seen`, `clicked`, `replied`, `optout`) count each message at most once per step; `sent` and `notsent` count send attempts.
+                                  additionalProperties:
+                                    type: object
+                                    description: Channels used in the step, keyed by channel name.
+                                    additionalProperties:
+                                      type: object
+                                      properties:
+                                        sent:
+                                          type: integer
+                                        notsent:
+                                          type: integer
+                                        delivered:
+                                          type: integer
+                                        nondelivered:
+                                          type: integer
+                                        seen:
+                                          type: integer
+                                        clicked:
+                                          type: integer
+                                        replied:
+                                          type: integer
+                                        optout:
+                                          type: integer
+                            - title: Per tag (group=tag)
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  key:
+                                    type: string
+                                    description: Tag the item belongs to. A message with multiple tags keeps the comma-joined tag combination as a single key.
+                                  count_delivered:
+                                    type: integer
+                                  count_seen:
+                                    type: integer
+                                    description: Unique seen messages, derived from the per-flow-step counters.
+                                  count_clicked:
+                                    type: integer
+                                    description: Unique clicked messages, derived from the per-flow-step counters.
+                                  count_nondelivered:
+                                    type: integer
+                                  count_sent:
+                                    type: integer
+                                  count_notsent:
+                                    type: integer
+                                  count_replied:
+                                    type: integer
+                                  count_optout:
+                                    type: integer
+                                  msg_sent:
+                                    type: integer
+                                  price_czk:
+                                    type: number
+                                    description: Total price in CZK; refunds for unsent messages are deducted.
+                                  price_eur:
+                                    type: number
+                                    description: Total price in EUR; refunds for unsent messages are deducted.
+                                  first_ts_sent:
+                                    type:
+                                      - string
+                                      - 'null'
+                                    description: Unix timestamp (seconds) of the first send, as a string.
+                                  last_ts_sent:
+                                    type:
+                                      - string
+                                      - 'null'
+                                    description: Unix timestamp (seconds) of the last send, as a string.
+                                  msg_mccmnc:
+                                    type: object
+                                    description: Message counts per mobile network (MCC+MNC).
+                                    additionalProperties:
+                                      type: integer
+                                  count_notsent_codes:
+                                    type: object
+                                    description: Breakdown of `count_notsent` by rejection status code (300–399); the values add up to `count_notsent`.
+                                    additionalProperties:
+                                      type: integer
+                                  flow_stats:
+                                    type: object
+                                    description: Counters per flow step, keyed by step index and then by channel (e.g. `sms`, `whatsapp_template`). Delivery metrics (`delivered`, `nondelivered`, `seen`, `clicked`, `replied`, `optout`) count each message at most once per step; `sent` and `notsent` count send attempts.
+                                    additionalProperties:
+                                      type: object
+                                      description: Channels used in the step, keyed by channel name.
+                                      additionalProperties:
+                                        type: object
+                                        properties:
+                                          sent:
+                                            type: integer
+                                          notsent:
+                                            type: integer
+                                          delivered:
+                                            type: integer
+                                          nondelivered:
+                                            type: integer
+                                          seen:
+                                            type: integer
+                                          clicked:
+                                            type: integer
+                                          replied:
+                                            type: integer
+                                          optout:
+                                            type: integer
+              examples:
+                aggregated:
+                  summary: Aggregated per date (default)
+                  value:
+                    success: true
+                    requests:
+                      - date: "2026-07-30"
+                        tags:
+                          - "newsletter"
+                          - "promo"
+                        stats:
+                          count_delivered: 120
+                          count_seen: 40
+                          count_clicked: 10
+                          count_nondelivered: 3
+                          count_sent: 125
+                          count_notsent: 29
+                          count_replied: 5
+                          count_optout: 1
+                          msg_sent: 130
+                          price_czk: 118.75
+                          price_eur: 0
+                          first_ts_sent: "1785402000"
+                          last_ts_sent: "1785434400"
+                          msg_mccmnc:
+                            "23001": 50
+                            "23002": 80
+                          count_notsent_codes:
+                            "300": 27
+                            "303": 2
+                          flow_stats:
+                            "0":
+                              viber:
+                                sent: 100
+                                notsent: 27
+                                delivered: 98
+                                nondelivered: 1
+                                seen: 40
+                                clicked: 10
+                                replied: 5
+                                optout: 1
+                            "1":
+                              sms:
+                                sent: 25
+                                notsent: 2
+                                delivered: 22
+                                nondelivered: 2
+                                seen: 0
+                                clicked: 0
+                                replied: 0
+                                optout: 0
+                grouped_by_tag:
+                  summary: Grouped by tag (group=tag)
+                  value:
+                    success: true
+                    requests:
+                      - date: "2026-07-30"
+                        tags:
+                          - "newsletter"
+                          - "promo"
+                        stats:
+                          - key: "newsletter"
+                            count_delivered: 70
+                            count_seen: 25
+                            count_clicked: 6
+                            count_nondelivered: 1
+                            count_sent: 72
+                            count_notsent: 15
+                            count_replied: 3
+                            count_optout: 1
+                            msg_sent: 75
+                            price_czk: 68.4
+                            price_eur: 0
+                            first_ts_sent: "1785402000"
+                            last_ts_sent: "1785434400"
+                            msg_mccmnc:
+                              "23001": 30
+                              "23002": 45
+                            count_notsent_codes:
+                              "300": 14
+                              "303": 1
+                            flow_stats:
+                              "0":
+                                viber:
+                                  sent: 60
+                                  notsent: 14
+                                  delivered: 58
+                                  nondelivered: 1
+                                  seen: 25
+                                  clicked: 6
+                                  replied: 3
+                                  optout: 1
+                              "1":
+                                sms:
+                                  sent: 12
+                                  notsent: 1
+                                  delivered: 12
+                                  nondelivered: 0
+                                  seen: 0
+                                  clicked: 0
+                                  replied: 0
+                                  optout: 0
+                          - key: "promo"
+                            count_delivered: 50
+                            count_seen: 15
+                            count_clicked: 4
+                            count_nondelivered: 2
+                            count_sent: 53
+                            count_notsent: 14
+                            count_replied: 2
+                            count_optout: 0
+                            msg_sent: 55
+                            price_czk: 50.35
+                            price_eur: 0
+                            first_ts_sent: "1785405600"
+                            last_ts_sent: "1785430800"
+                            msg_mccmnc:
+                              "23001": 20
+                              "23002": 35
+                            count_notsent_codes:
+                              "300": 13
+                              "303": 1
+                            flow_stats:
+                              "0":
+                                viber:
+                                  sent: 40
+                                  notsent: 13
+                                  delivered: 40
+                                  nondelivered: 0
+                                  seen: 15
+                                  clicked: 4
+                                  replied: 2
+                                  optout: 0
+                              "1":
+                                sms:
+                                  sent: 13
+                                  notsent: 1
+                                  delivered: 10
+                                  nondelivered: 2
+                                  seen: 0
+                                  clicked: 0
+                                  replied: 0
+                                  optout: 0
         '400':
           description: Bad request
           content:
@@ -1940,6 +2570,88 @@ paths:
                             - object
                             - 'null'
                           description: Original payload of the related outbound message, if any.
+                        original:
+                          type:
+                            - object
+                            - 'null'
+                          description: >-
+                            The outgoing message this message replies to, if the incoming
+                            message could be matched. `null` for unsolicited incoming messages.
+                          properties:
+                            message_id:
+                              type: string
+                              description: ID of the original outgoing message; use it with `GET /message`.
+                            body:
+                              type: string
+                              description: Text of the original outgoing message.
+                            sender:
+                              type: string
+                              description: Sender the original message was sent from. Empty for a short code.
+                            created:
+                              type:
+                                - integer
+                                - 'null'
+                              description: When the original message was created (Unix timestamp in seconds).
+                        media:
+                          type:
+                            - object
+                            - 'null'
+                          description: >-
+                            Media attached to the incoming message (WhatsApp/RCS image, video, audio,
+                            document, sticker, shared location or contact cards). `null` for text-only
+                            messages. For binary types, the file is stored at a persistent public URL
+                            in the `url` field; if the file could not be stored, `url` is missing and
+                            the `error` field is set instead. The other metadata is returned either way.
+                          properties:
+                            type:
+                              type: string
+                              enum: [image, video, audio, document, sticker, location, contacts]
+                              description: Content type of the attachment.
+                            url:
+                              type: string
+                              description: Persistent public URL of the stored file. Missing if the file could not be stored.
+                            mime_type:
+                              type: string
+                              description: MIME type as reported by the channel.
+                            filename:
+                              type: string
+                              description: Original file name (documents).
+                            caption:
+                              type: string
+                              description: Caption sent with the media. If the message has no text, it is also returned as `body`.
+                            size:
+                              type: integer
+                              description: File size in bytes, if known.
+                            animated:
+                              type: boolean
+                              description: Whether the sticker is animated (stickers only).
+                            thumbnail:
+                              type: string
+                              description: Persistent public URL of the stored thumbnail (RCS only).
+                            location:
+                              type: object
+                              description: Shared location (only when `type` is `location`).
+                              properties:
+                                latitude:
+                                  type: number
+                                longitude:
+                                  type: number
+                                name:
+                                  type: string
+                                address:
+                                  type: string
+                            contacts:
+                              type: array
+                              description: Shared contact cards (only when `type` is `contacts`), as provided by the channel.
+                              items:
+                                type: object
+                            provider_id:
+                              type: string
+                              description: Media/message ID assigned by the channel provider.
+                            error:
+                              type: string
+                              enum: [download_failed, too_large, no_token]
+                              description: Set instead of `url` if the file could not be stored.
               example:
                 success: true
                 inbox:
@@ -1949,6 +2661,35 @@ paths:
                     to: "Mojefirma"
                     gateway: "sms"
                     payload: null
+                    original: null
+                    media: null
+                  - ts_received: "2026-07-30T11:25:02Z"
+                    body: "YES"
+                    from: "420777654321"
+                    to: "Mojefirma"
+                    gateway: "sms"
+                    payload:
+                      order_id: 42
+                    original:
+                      message_id: "01J8ZQ2V9K"
+                      body: "Confirm your order by replying YES."
+                      sender: "Mojefirma"
+                      created: 1785410553
+                    media: null
+                  - ts_received: "2026-07-30T12:34:56Z"
+                    body: "photo of the damaged package"
+                    from: "420777123456"
+                    to: "420736352552"
+                    gateway: "whatsapp"
+                    payload: null
+                    original: null
+                    media:
+                      type: "image"
+                      url: "https://smsmngr-inbound-media.s3.eu-central-1.amazonaws.com/3f7a1c9b2e4d5f60718293a4b5c6d7e8.jpg"
+                      mime_type: "image/jpeg"
+                      caption: "photo of the damaged package"
+                      size: 245731
+                      provider_id: "1234567890123456"
         '400':
           description: Bad request
           content:
@@ -2524,6 +3265,138 @@ paths:
               example:
                 message: Failed to generate upload URL
 
+  /messaging/validate:
+    post:
+      x-mint:
+        metadata:
+          sidebarTitle: "Validate messages"
+      tags:
+        - messaging
+      summary: Validate messages without sending
+      description: |
+        Validates a send request without sending or charging anything. It accepts the same body as the JSON API v2 sending endpoints: a single `Message` object (like `POST /message`) or an array of 1 to 10 `Message` objects (like `POST /messages`). Only the structure is checked: fields and their types, flow steps and the format of recipient numbers. Deliverability, sender approval, opt-out lists and credit are not checked.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  description: A single message in the JSON API v2 `Message` format.
+                - type: array
+                  minItems: 1
+                  maxItems: 10
+                  items:
+                    type: object
+                  description: An array of messages in the JSON API v2 `Message` format.
+            examples:
+              Single message:
+                value:
+                  to:
+                    - phone_number: "420777123456"
+                  body: "Hello!"
+              Multiple messages:
+                value:
+                  - to:
+                      - phone_number: "420777123456"
+                      - phone_number: "123"
+                    body: "Hello!"
+                  - to:
+                      - phone_number: "420777123457"
+                    flow:
+                      - sms:
+                          body: "Hello via lowcost!"
+                          gateway: "lowcost"
+      responses:
+        '200':
+          description: Validation result (returned even when the request content is invalid; see `success`).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: '`true` only when all messages and all recipients passed validation (both `rejected` and `errors` are empty).'
+                  validate:
+                    type: object
+                    properties:
+                      accepted:
+                        type: array
+                        description: Items that passed validation. For a single message, `key` indexes the recipient in `to` (like `POST /message`); for an array of messages, `key` indexes the submitted array (like `POST /messages`).
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                              description: Index of the recipient (single message) or of the message in the request array.
+                            phone_number:
+                              type: string
+                              description: Recipient number as sent (present only for a single-message request).
+                      rejected:
+                        type: array
+                        description: Items that failed validation, with the same `key` semantics as `accepted`. Details are in `errors`, linked by `key`.
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                            phone_number:
+                              type: string
+                              description: Recipient number as sent (present only for a single-message request).
+                      errors:
+                        type: array
+                        description: All validation errors. Always present (an empty array when everything passed).
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                              description: Key of the related item in `rejected`. Omitted for message-level errors in a single-message request.
+                            field:
+                              type: string
+                              description: Path to the invalid field (e.g. `flow[0].sms.gateway`, `to[1].phone_number`).
+                            message:
+                              type: string
+                            code:
+                              type: string
+                              description: Internal status code, if any (`302` for a badly formatted number).
+              example:
+                success: false
+                validate:
+                  accepted:
+                    - key: "0"
+                      phone_number: "420777123456"
+                  rejected:
+                    - key: "1"
+                      phone_number: "123"
+                  errors:
+                    - key: "1"
+                      field: "to[1].phone_number"
+                      message: "Phone number is not in a valid format"
+                      code: "302"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Missing body:
+                  value:
+                    message: Missing request body
+                Too many messages:
+                  value:
+                    message: Request must contain 1 to 10 messages
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Failed to validate message
+
   /messaging/cancel:
     post:
       x-mint:
@@ -2585,93 +3458,6 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 message: Failed to cancel schedule
-
-  /partner/signup:
-    post:
-      x-mint:
-        metadata:
-          sidebarTitle: "Partner signup"
-      tags:
-        - partner
-      summary: Start partner signup flow
-      description: |
-        Starts a partner-branded onboarding flow. Returns a signed token (valid 1 hour) and a hosted signup URL where the end user completes the registration. Available to partner accounts only.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                connector_name:
-                  type: string
-                  description: Name of the connector/integration.
-                callback_url:
-                  type: string
-                  description: URL called by our system after the signup finishes.
-                callback_data:
-                  type: string
-                  description: Opaque data passed back to the callback.
-                final_url:
-                  type: string
-                  description: URL where the user is redirected after finishing the signup.
-                partner_logo_url:
-                  type: string
-                  description: URL of the partner logo displayed on the signup page.
-                partner_client_id:
-                  type: string
-                  description: Your identifier of the client.
-                partner_client_data:
-                  type: string
-                  description: Opaque client data stored with the signup.
-                language:
-                  type: string
-                  description: Language of the signup page.
-                partner_copyright:
-                  type: string
-                  description: Copyright/footer text displayed on the signup page.
-            examples:
-              Start signup:
-                value:
-                  connector_name: "My Shop"
-                  callback_url: "https://partner.example/callback"
-                  callback_data: "abc"
-                  final_url: "https://partner.example/done"
-                  partner_logo_url: "https://partner.example/logo.png"
-                  partner_client_id: "client-1"
-                  language: "en"
-                  partner_copyright: "© My Shop"
-      responses:
-        '200':
-          description: Signup started
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  token:
-                    type: string
-                    description: Signed signup token (valid 1 hour).
-                  domain:
-                    type: string
-                  redirect_url:
-                    type: string
-                    description: Hosted signup URL for the end user.
-              example:
-                success: true
-                token: "eyJhbGciOi..."
-                domain: "connect.smsmanager.com"
-                redirect_url: "https://connect.smsmanager.com/?configuration=eyJhbGciOi..."
-        '500':
-          description: Internal error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Failed to new partner registration
 
   /push/device:
     post:
@@ -2799,108 +3585,6 @@ paths:
               example:
                 message: Failed to register recipient
 
-  /connect/{connector}/{action}:
-    post:
-      x-mint:
-        metadata:
-          sidebarTitle: "Connector action"
-      tags:
-        - partner
-      summary: Connector action
-      description: |
-        Executes an action of a connected integration. Currently the `klaviyo` connector is supported with actions `segments`, `recipients`, `senders` and `me`.
-
-        - `segments` — lists the account's segments: `{ "success": true, "segments": [{ "id", "name" }] }`
-        - `recipients` — lists phone numbers in a segment (requires body field `segment_id`): `{ "success": true, "recipients": ["420777123456"] }`
-        - `senders` — lists available senders: `{ "success": true, "senders": [{ "type": "sms", "name": "info-sms" }] }`
-        - `me` — returns the connected account info: `{ "success": true, "account": { ... }, "currency": "eur" }`
-      parameters:
-        - name: connector
-          in: path
-          required: true
-          schema:
-            type: string
-            enum:
-              - klaviyo
-          description: Connector name.
-        - name: action
-          in: path
-          required: true
-          schema:
-            type: string
-            enum:
-              - segments
-              - recipients
-              - senders
-              - me
-          description: Connector action.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - app_userid
-              properties:
-                app_userid:
-                  type: string
-                  description: Application user id of the connected account.
-                segment_id:
-                  type: string
-                  description: Segment id (required for the `recipients` action).
-            examples:
-              List segments:
-                value:
-                  app_userid: "user-123"
-              List recipients of a segment:
-                value:
-                  app_userid: "user-123"
-                  segment_id: "SEG123"
-      responses:
-        '200':
-          description: Action result (shape depends on the action)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-              examples:
-                Segments:
-                  value:
-                    success: true
-                    segments:
-                      - id: "SEG123"
-                        name: "VIP customers"
-                Recipients:
-                  value:
-                    success: true
-                    recipients:
-                      - "420777123456"
-                      - "420777000111"
-                Not authenticated:
-                  value:
-                    success: false
-                    message: "Klaviyo request not authenticated"
-        '400':
-          description: Bad request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Invalid 'app_userid' in request data
-        '404':
-          description: Unsupported connector or action
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Unsupported connector or action
-
 
 tags:
   - name: api
@@ -2939,7 +3623,7 @@ tags:
     description: |
       Support endpoints for bulk sending: upload URL for bulk files and cancellation of scheduled messages.
   - name: partner
-    x-displayName: Partner & integrations
-    x-group: "Partner & integrations"
+    x-displayName: Devices & recipients
+    x-group: "Devices & recipients"
     description: |
-      Partner onboarding, connector integrations and push/recipient registration.
+      Registration of push devices and message recipients.
