@@ -4,14 +4,120 @@ sidebarTitle: "Testování napojení"
 description: "Otestujte integraci se SmsManagerem bez odesílání skutečných zpráv a bez zbytečných nákladů — pomocí testovacího čísla, testovací brány a mock (sandbox) endpointů."
 ---
 
-Než pustíte integraci do provozu, je vhodné ji vyzkoušet — ověřit, že sestavujete platné požadavky, správně zpracováváte odpovědi a umíte přijmout doručenky (webhooky). SmsManager k tomu nabízí tři nezávislé nástroje, které můžete kombinovat. Žádný z nich neodešle skutečnou zprávu na telefon příjemce.
+Než pustíte integraci do provozu, je vhodné ji vyzkoušet — ověřit, že sestavujete platné požadavky, správně zpracováváte odpovědi a umíte přijmout doručenky (webhooky). SmsManager k tomu nabízí čtyři nezávislé nástroje, které můžete kombinovat. Žádný z nich neodešle skutečnou zprávu na telefon příjemce.
 
 | Nástroj | Jak zapnout | Kredit | Odešle SMS? | Doručenky (webhook)? | Kdy použít |
 | --- | --- | --- | --- | --- | --- |
-| Validační endpoint | `rest-api.smsmngr.com/v1/validate` | Neodečítá se | Ne | Ne | Vývoj a řešení problémů |
+| [Validační endpoint](#validace-bez-odeslání) | `POST https://rest-api.smsmngr.com/v1/messaging/validate` | Neodečítá se | Ne | Ne | Vývoj a řešení problémů |
 | Testovací číslo | `to.phone_number` = `420777777777` | Neodečítá se | Ne | Ne | Ověření, že požadavek projde a odpověď zpracujete správně |
 | Testovací brána | `gateway: "test"` ve flow objektu `sms` | 0,001 Kč / SMS | Ne | Ano | End-to-end test zpracování doručenek na vaší callback URL |
 | Mock endpointy | Doména `api-mock` / `rest-api-mock` | Neodečítá se | Ne | Ne | Vývoj a automatizované testy proti simulaci API |
+
+---
+
+## Validace bez odeslání
+
+Endpoint `POST https://rest-api.smsmngr.com/v1/messaging/validate` ověří požadavek na odeslání, aniž by cokoli odeslal. Nic se za něj neúčtuje. Autentizujete se stejným API klíčem v hlavičce `x-api-key`.
+
+Endpoint přijímá stejné tělo jako odesílací endpointy [JSON API v2](/api-reference/json-v2/overview):
+
+- jeden objekt zprávy, stejně jako `POST /message`,
+- pole 1 až 10 zpráv, stejně jako `POST /messages`.
+
+<CodeGroup>
+
+```bash Jedna zpráva
+curl -X POST https://rest-api.smsmngr.com/v1/messaging/validate \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Ahoj!",
+    "to": [
+      {"phone_number": "420777123456"},
+      {"phone_number": "123"}
+    ]
+  }'
+```
+
+```bash Pole zpráv
+curl -X POST https://rest-api.smsmngr.com/v1/messaging/validate \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '[
+    {
+      "body": "Ahoj!",
+      "to": [{"phone_number": "420777123456"}]
+    },
+    {
+      "to": [{"phone_number": "420777123457"}],
+      "flow": [{"sms": {"body": "Ahoj přes lowcost!", "gateway": "lowcost"}}]
+    }
+  ]'
+```
+
+</CodeGroup>
+
+### Co se kontroluje
+
+Validace kontroluje pouze strukturu požadavku:
+
+- pole a jejich datové typy,
+- kroky `flow`,
+- formát telefonních čísel příjemců.
+
+<Warning>
+  Validace **nekontroluje** doručitelnost, schválení odesílatele, opt-out seznamy ani stav kreditu. Úspěšná validace proto nezaručuje, že zpráva bude odeslána a doručena. Tyto podmínky se vyhodnotí až při skutečném odeslání.
+</Warning>
+
+### Odpověď
+
+Výsledek validace dostanete s HTTP `200`, i když je obsah požadavku neplatný. O výsledku proto rozhoduje pole `success`. Odpověď na požadavek s jednou zprávou z příkladu výše vypadá takto:
+
+```json Odpověď
+{
+  "success": false,
+  "validate": {
+    "accepted": [
+      { "key": "0", "phone_number": "420777123456" }
+    ],
+    "rejected": [
+      { "key": "1", "phone_number": "123" }
+    ],
+    "errors": [
+      {
+        "key": "1",
+        "field": "to[1].phone_number",
+        "message": "Phone number is not in a valid format",
+        "code": "302"
+      }
+    ]
+  }
+}
+```
+
+| Pole | Popis |
+| --- | --- |
+| `success` | `true` jen tehdy, když validací prošly všechny zprávy i všichni příjemci, tedy `rejected` i `errors` jsou prázdné. |
+| `validate.accepted` | Položky, které validací prošly. |
+| `validate.rejected` | Položky, které validací neprošly. Důvod najdete v `errors` pod stejným `key`. |
+| `validate.errors` | Všechny chyby validace. Pole je v odpovědi vždy, při úspěchu je prázdné. |
+| `errors[].field` | Cesta k neplatnému poli, například `to[1].phone_number` nebo `flow[0].sms.gateway`. |
+| `errors[].message` | Popis chyby. |
+| `errors[].code` | Interní stavový kód, pokud existuje. Kód `302` znamená číslo ve špatném formátu (viz [chybové kódy](/reference/errors)). |
+
+Význam pole `key` závisí na tvaru požadavku, stejně jako u odesílacích endpointů:
+
+- **Jedna zpráva** (jako `POST /message`) — `key` je index příjemce v poli `to`. Položky v `accepted` a `rejected` obsahují i `phone_number` tak, jak jste ho poslali. Chyby na úrovni celé zprávy nemají `key`.
+- **Pole zpráv** (jako `POST /messages`) — `key` je index zprávy v odeslaném poli. Položky neobsahují `phone_number`.
+
+### Chyby požadavku
+
+Pokud tělo požadavku nejde zvalidovat vůbec, endpoint vrátí HTTP `400` s popisem v poli `message`:
+
+| Zpráva | Příčina |
+| --- | --- |
+| `Missing request body` | Požadavek nemá tělo. |
+| `Request must contain 1 to 10 messages` | Pole zpráv je prázdné nebo obsahuje víc než 10 zpráv. |
 
 ---
 
@@ -94,7 +200,7 @@ curl -X POST https://api-mock.smsmngr.com/v2/message \
 
 <Steps>
   <Step title="Ověřte sestavení požadavku">
-    Během vývoje volejte [mock endpointy](#mock-sandbox-endpointy) nebo produkci s [testovacím číslem](#testovací-telefonní-číslo) `420777777777`. Ověříte tak autentizaci, tvar požadavku i parsování odpovědi — zdarma a bez odeslání.
+    Během vývoje ověřte strukturu zpráv přes [validační endpoint](#validace-bez-odeslání). Potom volejte [mock endpointy](#mock-sandbox-endpointy) nebo produkci s [testovacím číslem](#testovací-telefonní-číslo) `420777777777`. Ověříte tak autentizaci, tvar požadavku i parsování odpovědi — zdarma a bez odeslání.
   </Step>
   <Step title="Otestujte doručenky">
     Přepněte na [testovací bránu](#testovací-brána) `gateway: "test"` s nastaveným polem `callback`. Za 0,01 Kč / SMS ověříte, že váš endpoint doručenky přijme a správně zpracuje sekvenci stavů.

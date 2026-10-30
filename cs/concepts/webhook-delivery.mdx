@@ -108,6 +108,8 @@ curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
 
 Jakmile je tajemství nastavené, jsou všechny webhooky odeslané tímto API klíčem podepsané hlavičkou `X-Request-Signature`. Tajemství nemá žádnou výchozí hodnotu — dokud jej nenastavíte, požadavky se nepodepisují. Uchovávejte jej v tajnosti; rotaci provedete opětovným voláním `apikey/update` s novou hodnotou.
 
+Zda je podepisování pro klíč zapnuté, zjistíte přes `GET /apikey/me`. Odpověď obsahuje pole `callback_secret` s aktuálním tajemstvím (64 hexadecimálních znaků). Pokud je pole prázdné, podepisování je vypnuté. Odpověď proto chraňte stejně jako samotné tajemství.
+
 ---
 
 ## Vlastní formát webhooku

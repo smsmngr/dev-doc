@@ -29,6 +29,54 @@ Až ve chvíli odeslání SmsManager ověří, že máte na danou zprávu dostat
 
 Výše odečteného kreditu se řídí cenou zprávy podle destinace, kanálu a počtu segmentů. Za co se u jednotlivých kanálů platí, popisuje koncept [Účtování zpráv podle kanálu](/concepts/message-billing). Podrobnosti o tom, jak SmsManager požadavek přijímá a následně zpracovává, najdete v konceptu [Příjem a zpracování požadavku](/concepts/request-acceptance).
 
+<Note>
+  Sdílené podřízené klíče (vytvořené se `shared: true`) čerpají kredit z peněženky nadřazeného klíče. `GET /credit` u nich proto vrací stav této sdílené peněženky.
+</Note>
+
+---
+
+## Vaše cena pro destinaci
+
+Kolik zaplatíte za zprávu na konkrétní číslo, zjistíte přes `POST /credit/price`. Endpoint vrací vaše skutečné ceny pro jedno cílové číslo, rozdělené podle kanálů. Ceny už zahrnují vaši dosaženou objemovou slevu. Proto mohou být nižší než obecný ceník z `GET /credit/prices`.
+
+```bash Požadavek
+curl -X POST https://rest-api.smsmngr.com/v1/credit/price \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"to": "420777123456"}'
+```
+
+```json Odpověď (výňatek)
+{
+  "success": true,
+  "price": {
+    "to": "420777123456",
+    "normalized": "420777123456",
+    "calling_code": "420",
+    "currency": "czk",
+    "prices": {
+      "sms": {
+        "default": { "mcc": 230, "price_czk": 0.92, "price_eur": 0.04 },
+        "high": { "mcc": 230, "price_czk": 0.92, "price_eur": 0.04 },
+        "lowcost": { "mcc": 230, "price_czk": 0.92, "price_eur": 0.04 },
+        "direct": { "mcc": 230, "price_czk": 1.25, "price_eur": 0.05 }
+      },
+      "viber": {
+        "default": { "mcc": 230, "price_czk": 0.39, "price_eur": 0.016 }
+      }
+    }
+  }
+}
+```
+
+- `prices` je klíčované kanálem: `sms`, `viber`, `whatsapp_text`, `whatsapp_template` a `rcs`.
+- `sms` obsahuje jednu položku pro každou gateway (například `high`, `lowcost` nebo `direct`) a navíc `default`, který je kopií `high`.
+- Ostatní kanály obsahují jen `default`.
+- Kanály, které do dané destinace nedoručují, v `prices` chybí.
+- `price_czk` a `price_eur` jsou ceny za jednu část zprávy.
+
+Volitelným polem `platform` omezíte odpověď na jeden kanál, například `"platform": "sms"`. Číslo v `to` můžete poslat i v jiném než mezinárodním formátu. Pole `normalized` pak obsahuje číslo převedené na mezinárodní formát.
+
 ---
 
 ## Nedostatek kreditu — chyba 307

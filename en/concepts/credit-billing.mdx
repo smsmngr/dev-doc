@@ -29,6 +29,54 @@ Only at the moment of sending does SmsManager verify that you have enough credit
 
 The amount deducted follows the message price based on destination, channel, and number of segments. For what you pay for on each channel, see the [Message billing by channel](/concepts/message-billing) concept. For details on how SmsManager accepts and then processes a request, see the [Request acceptance](/concepts/request-acceptance) concept.
 
+<Note>
+  Shared child keys (created with `shared: true`) draw credit from the parent key's wallet. For these keys, `GET /credit` therefore returns the balance of that shared wallet.
+</Note>
+
+---
+
+## Your price for a destination
+
+To find out what you pay for a message to a specific number, call `POST /credit/price`. The endpoint returns your actual prices for one destination number, broken down by channel. The prices already include the volume discount you have reached. They can therefore be lower than the public price list from `GET /credit/prices`.
+
+```bash Request
+curl -X POST https://rest-api.smsmngr.com/v1/credit/price \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"to": "420777123456"}'
+```
+
+```json Response (excerpt)
+{
+  "success": true,
+  "price": {
+    "to": "420777123456",
+    "normalized": "420777123456",
+    "calling_code": "420",
+    "currency": "czk",
+    "prices": {
+      "sms": {
+        "default": { "mcc": 230, "price_czk": 0.92, "price_eur": 0.04 },
+        "high": { "mcc": 230, "price_czk": 0.92, "price_eur": 0.04 },
+        "lowcost": { "mcc": 230, "price_czk": 0.92, "price_eur": 0.04 },
+        "direct": { "mcc": 230, "price_czk": 1.25, "price_eur": 0.05 }
+      },
+      "viber": {
+        "default": { "mcc": 230, "price_czk": 0.39, "price_eur": 0.016 }
+      }
+    }
+  }
+}
+```
+
+- `prices` is keyed by channel: `sms`, `viber`, `whatsapp_text`, `whatsapp_template`, and `rcs`.
+- `sms` has one entry per gateway (for example `high`, `lowcost`, or `direct`) plus `default`, which is a copy of `high`.
+- The other channels have only `default`.
+- Channels that don't deliver to the destination are omitted from `prices`.
+- `price_czk` and `price_eur` are prices per message part.
+
+Use the optional `platform` field to limit the response to one channel, for example `"platform": "sms"`. You can send the number in `to` in a format other than international. The `normalized` field then contains the number converted to international format.
+
 ---
 
 ## Insufficient credit — error 307

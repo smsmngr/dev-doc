@@ -4,13 +4,120 @@ sidebarTitle: "Testing your integration"
 description: "Test your SmsManager integration without sending real messages and without unnecessary costs — using a test number, a test gateway, and mock (sandbox) endpoints."
 ---
 
-Before you take your integration live, it's worth putting it through its paces — verifying that you build valid requests, handle responses correctly, and can receive delivery reports (webhooks). SmsManager offers three independent tools for this, which you can combine. None of them sends a real message to the recipient's phone.
+Before you take your integration live, it's worth putting it through its paces — verifying that you build valid requests, handle responses correctly, and can receive delivery reports (webhooks). SmsManager offers four independent tools for this, which you can combine. None of them sends a real message to the recipient's phone.
 
 | Tool | How to enable | Credit | Sends an SMS? | Delivery reports (webhook)? | When to use |
 | --- | --- | --- | --- | --- | --- |
+| [Validation endpoint](#validation-without-sending) | `POST https://rest-api.smsmngr.com/v1/messaging/validate` | Not charged | No | No | Development and troubleshooting |
 | Test number | `to.phone_number` = `420777777777` | Not charged | No | No | Verify that a request goes through and you process the response correctly |
 | Test gateway | `gateway: "test"` in the `sms` flow object | CZK 0.01 / SMS | No | Yes | End-to-end test of delivery-report handling on your callback URL |
 | Mock endpoints | `api-mock` / `rest-api-mock` domain | Not charged | No | No | Development and automated tests against an API simulation |
+
+---
+
+## Validation without sending
+
+The `POST https://rest-api.smsmngr.com/v1/messaging/validate` endpoint validates a send request without sending anything. Nothing is charged for it. You authenticate with the same API key in the `x-api-key` header.
+
+The endpoint accepts the same body as the [JSON API v2](/api-reference/json-v2/overview) sending endpoints:
+
+- a single message object, just like `POST /message`,
+- an array of 1 to 10 messages, just like `POST /messages`.
+
+<CodeGroup>
+
+```bash Single message
+curl -X POST https://rest-api.smsmngr.com/v1/messaging/validate \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "body": "Hello!",
+    "to": [
+      {"phone_number": "420777123456"},
+      {"phone_number": "123"}
+    ]
+  }'
+```
+
+```bash Array of messages
+curl -X POST https://rest-api.smsmngr.com/v1/messaging/validate \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '[
+    {
+      "body": "Hello!",
+      "to": [{"phone_number": "420777123456"}]
+    },
+    {
+      "to": [{"phone_number": "420777123457"}],
+      "flow": [{"sms": {"body": "Hello via lowcost!", "gateway": "lowcost"}}]
+    }
+  ]'
+```
+
+</CodeGroup>
+
+### What is checked
+
+Validation checks only the structure of the request:
+
+- fields and their data types,
+- the `flow` steps,
+- the format of the recipients' phone numbers.
+
+<Warning>
+  Validation does **not** check deliverability, sender approval, opt-out lists, or your credit balance. A successful validation therefore doesn't guarantee that the message will be sent and delivered. These conditions are evaluated only when you actually send the message.
+</Warning>
+
+### Response
+
+You get the validation result with HTTP `200` even when the request content is invalid. The `success` field tells you the outcome. The response to the single-message request from the example above looks like this:
+
+```json Response
+{
+  "success": false,
+  "validate": {
+    "accepted": [
+      { "key": "0", "phone_number": "420777123456" }
+    ],
+    "rejected": [
+      { "key": "1", "phone_number": "123" }
+    ],
+    "errors": [
+      {
+        "key": "1",
+        "field": "to[1].phone_number",
+        "message": "Phone number is not in a valid format",
+        "code": "302"
+      }
+    ]
+  }
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `success` | `true` only when all messages and all recipients passed validation, meaning both `rejected` and `errors` are empty. |
+| `validate.accepted` | Items that passed validation. |
+| `validate.rejected` | Items that failed validation. You find the reason in `errors` under the same `key`. |
+| `validate.errors` | All validation errors. The array is always present and is empty on success. |
+| `errors[].field` | Path to the invalid field, for example `to[1].phone_number` or `flow[0].sms.gateway`. |
+| `errors[].message` | Description of the error. |
+| `errors[].code` | Internal status code, if there is one. Code `302` means a number in an invalid format (see [error codes](/reference/errors)). |
+
+The meaning of `key` depends on the shape of the request, just like on the sending endpoints:
+
+- **Single message** (like `POST /message`) — `key` is the index of the recipient in the `to` array. Items in `accepted` and `rejected` also include `phone_number` as you sent it. Errors that apply to the whole message have no `key`.
+- **Array of messages** (like `POST /messages`) — `key` is the index of the message in the array you sent. Items don't include `phone_number`.
+
+### Request errors
+
+If the request body can't be validated at all, the endpoint returns HTTP `400` with a description in the `message` field:
+
+| Message | Cause |
+| --- | --- |
+| `Missing request body` | The request has no body. |
+| `Request must contain 1 to 10 messages` | The array of messages is empty or contains more than 10 messages. |
 
 ---
 
@@ -91,7 +198,7 @@ curl -X POST https://api-mock.smsmngr.com/v2/message \
 
 <Steps>
   <Step title="Verify request building">
-    During development, call the [mock endpoints](#mock-sandbox-endpoints) or production with the [test number](#test-phone-number) `420777777777`. This verifies authentication, request shape, and response parsing — for free and without sending anything.
+    During development, check the message structure with the [validation endpoint](#validation-without-sending). Then call the [mock endpoints](#mock-sandbox-endpoints) or production with the [test number](#test-phone-number) `420777777777`. This verifies authentication, request shape, and response parsing — for free and without sending anything.
   </Step>
   <Step title="Test delivery reports">
     Switch to the [test gateway](#test-gateway) `gateway: "test"` with the `callback` field set. For CZK 0.01 / SMS, verify that your endpoint receives delivery reports and correctly processes the status sequence.

@@ -2,7 +2,7 @@ SmsManager používá autentizaci API klíčem pro všechny požadavky. Každé 
 
 ## Získání API klíče
 
-Přihlaste se ke svému účtu SmsManager a přejděte na stránku [API & Cloud](https://app.smsmanager.com/app/developers/). Váš hlavní API klíč je tam zobrazen. Zkopírujte jej a uložte na bezpečné místo — použijete jej v každém požadavku na API.
+Přihlaste se ke svému účtu SmsManager a přejděte na stránku [Vývojáři](https://app.smsmanager.com/app/developers/). Váš hlavní API klíč je tam zobrazen. Zkopírujte jej a uložte na bezpečné místo — použijete jej v každém požadavku na API.
 
 <Tip>
   Prostřednictvím REST API si můžete vytvořit další sub-klíče s izolovaným nebo sdíleným kreditem. Viz [Správa API klíčů](#sprava-api-klicu) níže pro podrobnosti.
@@ -58,6 +58,64 @@ Při vytváření sub-klíče můžete nastavit:
   Sub-klíč pro novou integraci vám vytvoří i AI asistent připojený přes [MCP server](/ai/mcp-server) (nástroj `create_child_apikey`) — bez toho, aby kdy viděl hlavní klíč workspace. Kód generovaný pomocí [AI skills](/ai/skills) načítá klíč z proměnné prostředí `SMSMANAGER_API_KEY`, v souladu s doporučeními níže.
 </Tip>
 
+### Úprava klíče a podřízených klíčů
+
+Nastavení klíče měníte přes `POST /apikey/update`. Všechna pole jsou volitelná a změní se jen ta, která v požadavku pošlete. Hodnota `null` (nebo prázdný řetězec) nastavení smaže. Požadavek bez jakéhokoli rozpoznaného nastavení vrátí `400`.
+
+Pokud se nastavení uloží, ale něco vyžaduje vaši pozornost, odpověď obsahuje pole `warning`. Může jít například o nedostupnou callback URL nebo o nezaregistrovaného výchozího odesílatele.
+
+Nadřazený (top-level) klíč upravuje své podřízené klíče stejným endpointem. Do pole `apikey` uveďte podřízený klíč, který chcete upravit. Musí patřit volajícímu klíči (viz `GET /apikey/list`). S polem `apikey` můžete měnit:
+
+- **`scope`** — rozsah oprávnění podřízeného klíče (`full`, `rest-api` nebo `api`),
+- **`disable`** — `1` podřízený klíč zablokuje, `0` odblokuje,
+- všechna ostatní nastavení, například `note`, `default_callback_url`, `default_sender` nebo `whitelist_ip`.
+
+Nastavení se chovají stejně, jako kdyby se podřízený klíč upravoval sám. Například `default_sender` se ověřuje proti odesílatelům podřízeného klíče. Funguje to i u podřízených klíčů se scope `api`, které samy `/apikey/update` volat nemohou.
+
+```bash Zablokovat podřízený klíč
+curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "apikey": "CHILD_API_KEY",
+    "disable": 1
+  }'
+```
+
+<Note>
+  Pole `scope` a `disable` jsou přijímána jen společně s `apikey`. Klíč nikdy nemůže změnit vlastní scope ani vlastní blokaci.
+</Note>
+
+<Warning>
+  Endpoint `POST /apikey/change` je zastaralý. Kvůli stávajícím integracím dál funguje, ale v nových integracích použijte `POST /apikey/update` s polem `apikey`.
+</Warning>
+
+## IP whitelist
+
+Odesílání zpráv přes API klíč můžete omezit na vybrané IP adresy nebo poskytovatele připojení. Whitelist nastavíte polem `whitelist_ip` přes `POST /apikey/update`:
+
+```bash Nastavit IP whitelist
+curl -X POST https://rest-api.smsmngr.com/v1/apikey/update \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "whitelist_ip": ["1.2.3.4", "internet cz"]
+  }'
+```
+
+Každá položka se vyhodnocuje podle svého obsahu:
+
+- **Položka obsahující `.` nebo `:`** se porovnává jako přesná IP adresa. Rozsahy CIDR nejsou podporované.
+- **Jakákoli jiná položka** se porovnává jako podřetězec názvu ISP nebo organizace, ke které patří IP adresa požadavku.
+
+Whitelist může mít nejvýše 50 položek. Každá položka má nejvýše 100 znaků a nesmí obsahovat čárku (`,`).
+
+<Warning>
+  Zprávy odeslané z adresy mimo whitelist se **neodešlou**. SmsManager je místo odeslání podrží k ručnímu schválení.
+</Warning>
+
+Omezení zrušíte hodnotou `null` nebo prázdným polem `[]`. Aktuální whitelist vrací `GET /apikey/me` v poli `whitelist_ip`. Whitelist podřízeného klíče nastavíte stejně, jen do požadavku přidáte pole `apikey`.
+
 ## Bezpečnostní doporučení
 
 Dodržujte tato doporučení pro ochranu vašich API klíčů a dat uživatelů:
@@ -65,6 +123,7 @@ Dodržujte tato doporučení pro ochranu vašich API klíčů a dat uživatelů:
 - **Nikdy nezakódujte API klíče do frontendu** — klíče v JavaScriptu, mobilních aplikacích nebo veřejných repozitářích mohou být extrahovány a zneužity
 - **Používejte proměnné prostředí** — načítejte klíče z proměnných prostředí nebo správce tajemství (např. AWS Secrets Manager, HashiCorp Vault), nekomitujte je do přímo do zdrojového kódu
 - **Rotujte klíče při kompromitaci** — pokud se domníváte, že klíč mohl uniknout, ihned vytvořte nový přes [app.smsmanager.com/app/developers](https://app.smsmanager.com/app/developers/) nebo REST API, aktualizujte integraci a starý klíč deaktivujte
+- **Omezte odesílání na své servery** — nastavte [IP whitelist](#ip-whitelist), aby klíč odesílal jen z adres, které znáte
 - **Používejte sub-klíče pro každou integraci** — přiřaďte vyhrazený sub-klíč každé službě nebo prostředí (produkce, staging atd.), abyste mohli odvolat jediný klíč, aniž byste narušili vše ostatní
 
 ## Chyby autentizace
